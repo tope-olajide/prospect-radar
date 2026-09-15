@@ -11,6 +11,18 @@ const sourceType = v.union(v.literal("search_result"), v.literal("scraped_page")
 const sourceProcessingStatus = v.union(v.literal("discovered"), v.literal("scraping"), v.literal("scraped"), v.literal("failed"));
 const matchLabel = v.union(v.literal("stronger"), v.literal("promising"), v.literal("uncertain"), v.literal("insufficient"));
 
+const explanationInput = v.object({
+  matchId: v.id("matches"),
+  label: matchLabel,
+  positiveEvidence: v.array(v.string()),
+  unknowns: v.array(v.string()),
+  risks: v.array(v.string()),
+  recommendedAction: v.string(),
+  summary: v.string(),
+  provider: v.union(v.literal("openai"), v.literal("dashscope")),
+  model: v.string(),
+});
+
 const crawlPageInput = v.object({
   url: v.string(),
   title: v.string(),
@@ -610,15 +622,106 @@ const matchView = v.object({
   label: matchLabel,
   positiveEvidence: v.array(v.string()),
   unknowns: v.array(v.string()),
-  risks: v.array(v.string()),
-  freshness: v.string(),
-  recommendedAction: v.string(),
-  subject: v.string(),
+  risks: v.array(v.string()),        freshness: v.string(),
+        recommendedAction: v.string(),
+        explanationSummary: v.union(v.string(), v.null()),
+        explanationModel: v.union(v.string(), v.null()),
+        subject: v.string(),
   signal: v.string(),
   sourceUrl: v.string(),
   sourceTitle: v.string(),
   createdAt: v.number(),
   updatedAt: v.number(),
+});
+
+export const saveExplanations = internalMutation({
+  args: { explanations: v.array(explanationInput) },
+  returns: v.number(),
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    let saved = 0;
+    for (const item of args.explanations) {
+      const match = await ctx.db.get(item.matchId);
+      if (!match) continue;
+      await ctx.db.patch(match._id, {
+        label: item.label,
+        positiveEvidence: item.positiveEvidence.map((line) => bounded(line, 300)).slice(0, 8),
+        unknowns: item.unknowns.map((line) => bounded(line, 300)).slice(0, 8),
+        risks: item.risks.map((line) => bounded(line, 300)).slice(0, 8),
+        recommendedAction: bounded(item.recommendedAction, 300),
+        explanationSummary: bounded(item.summary, 600),
+        explanationProvider: item.provider,
+        explanationModel: item.model,
+        explainedAt: now,
+        updatedAt: now,
+      });
+      saved += 1;
+    }
+    return saved;
+  },
+});
+
+export const missionForExplanation = internalQuery({
+  args: { missionId: v.id("missions") },
+  returns: v.union(v.object({
+    _id: v.id("missions"),
+    rawGoal: v.string(),
+    mode: v.union(v.literal("opportunity"), v.literal("person"), v.literal("customer"), v.literal("solution"), v.literal("collaborator")),
+    mustHave: v.array(v.string()),
+    normalizedGoal: v.string(),
+    completionPredicate: v.string(),
+  }), v.null()),
+  handler: async (ctx, args) => {
+    const mission = await ctx.db.get(args.missionId);
+    if (!mission) return null;
+    const plan = await ctx.db.query("missionPlans")
+      .withIndex("by_missionId", (q) => q.eq("missionId", args.missionId))
+      .order("desc")
+      .first();
+    return {
+      _id: mission._id,
+      rawGoal: mission.rawGoal,
+      mode: mission.mode,
+      mustHave: plan?.mustHave ?? [],
+      normalizedGoal: plan?.normalizedGoal ?? mission.rawGoal,
+      completionPredicate: plan?.completionPredicate ?? mission.completionPredicate,
+    };
+  },
+});
+
+export const evidenceForExplanation = internalQuery({
+  args: { missionId: v.id("missions") },
+  returns: v.array(v.object({
+    matchId: v.id("matches"),
+    subject: v.string(),
+    sourceUrl: v.string(),
+    sourceType: v.string(),
+    currentLabel: matchLabel,
+    excerpt: v.string(),
+    content: v.union(v.string(), v.null()),
+    fetchedAt: v.number(),
+  })),
+  handler: async (ctx, args) => {
+    const matches = await ctx.db.query("matches")
+      .withIndex("by_missionId", (q) => q.eq("missionId", args.missionId))
+      .take(20);
+    const result = [];
+    for (const match of matches) {
+      const [discovery, source] = await Promise.all([ctx.db.get(match.discoveryId), ctx.db.get(match.sourceId)]);
+      if (!discovery || !source) continue;
+      result.push({
+        matchId: match._id,
+        subject: discovery.subject,
+        sourceUrl: source.url,
+        sourceType: source.sourceType,
+        currentLabel: match.label,
+        excerpt: bounded(discovery.signal || source.excerpt, 500),
+        content: source.content ? bounded(source.content, 4000) : null,
+        fetchedAt: source.fetchedAt,
+      });
+    }
+    return result;
+  },
 });
 
 export const listJobs = query({
@@ -668,6 +771,8 @@ export const listMatches = query({
         risks: match.risks,
         freshness: match.freshness,
         recommendedAction: match.recommendedAction,
+        explanationSummary: match.explanationSummary ?? null,
+        explanationModel: match.explanationModel ?? null,
         subject: discovery.subject,
         signal: discovery.signal,
         sourceUrl: source.url,

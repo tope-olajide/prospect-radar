@@ -69,6 +69,8 @@ export default defineSchema({
     missionId: v.id("missions"), discoveryId: v.id("discoveries"), sourceId: v.id("sourceRecords"),
     label: matchLabel, positiveEvidence: v.array(v.string()), unknowns: v.array(v.string()),
     risks: v.array(v.string()), freshness: v.string(), recommendedAction: v.string(),
+    explanationSummary: v.optional(v.string()), explanationProvider: v.optional(planProvider),
+    explanationModel: v.optional(v.string()), explainedAt: v.optional(v.number()),
     createdAt: v.number(), updatedAt: v.number(),
   }).index("by_missionId", ["missionId"])
     .index("by_discoveryId", ["discoveryId"])

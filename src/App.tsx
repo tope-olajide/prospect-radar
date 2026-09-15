@@ -28,6 +28,7 @@ export default function App({ backendConnected }: AppProps) {
   const searchWeb = useAction(api.research.search);
   const scrapeSource = useAction(api.research.scrape);
   const mapSite = useAction(api.research.mapSite);
+  const explainMatches = useAction(api.ai.explainMatches);
   const startCrawl = useAction(api.research.startCrawl);
   const syncOutbound = useAction(api.outreach.syncOutbound);
   const draftMessage = useAction(api.outreach.draft);
@@ -205,6 +206,17 @@ export default function App({ backendConnected }: AppProps) {
     } finally { setSendingActionId(null); }
   }
 
+  async function onExplainMatches() {
+    if (!missionId) return;
+    setResearching(true); setResearchNotice("");
+    try {
+      const result = await explainMatches({ missionId });
+      setResearchNotice(`AI explanations saved for ${result.explained} match${result.explained === 1 ? "" : "es"} (${result.model}).`);
+    } catch (error) {
+      setResearchNotice(error instanceof Error ? error.message : "Match explanation failed.");
+    } finally { setResearching(false); }
+  }
+
   async function onOutcomeStatus(outcomeId: Id<"outcomes">, status: "positive" | "negative" | "closed") {
     try { await updateOutcome({ workspaceId, outcomeId, status, nextAction: status === "closed" ? "No further action; relationship archived." : "Continue the conversation with a follow-up if appropriate." }); }
     catch (error) { setOutreachNotice(error instanceof Error ? error.message : "Outcome update failed."); }
@@ -285,6 +297,7 @@ export default function App({ backendConnected }: AppProps) {
               <div className="toolbar">
                 <input aria-label="Research query" placeholder={plan?.normalizedGoal || selectedMission.rawGoal} value={researchQuery} onChange={(event) => setResearchQuery(event.target.value)} />
                 <button type="button" onClick={onSearch} disabled={!backendConnected || researching}>{researching ? "Researching…" : "Search the public web"}</button>
+                <button type="button" className="secondary" onClick={onExplainMatches} disabled={!backendConnected || researching}>Explain matches</button>
               </div>
               <div className="toolbar">
                 <input aria-label="Site URL" placeholder="https://example.com — map its structure or run a durable crawl" value={mapUrl} onChange={(event) => setMapUrl(event.target.value)} />
@@ -304,6 +317,9 @@ export default function App({ backendConnected }: AppProps) {
                         <p>{match.signal}</p>
                         {source?.content && <p className="stage-note">Full page captured {shortDate(source.fetchedAt)}.</p>}
                         {match.unknowns.length > 0 && <p className="stage-note">Unknowns: {match.unknowns.join(" · ")}</p>}
+                        {match.risks.length > 0 && <p className="stage-note">Risks: {match.risks.join(" · ")}</p>}
+                        {match.recommendedAction && <p className="stage-note">Next: {match.recommendedAction}</p>}
+                        {match.explanationSummary && <p className="stage-note">AI ({match.explanationModel}): {match.explanationSummary}</p>}
                         <div className="toolbar">
                           {!source?.content && <button type="button" onClick={() => onScrape(match.sourceId)}>Scrape full page</button>}
                           <button type="button" className="secondary" onClick={() => { setLinkedMatchId(match._id); if (!recipient) setRecipient(""); }}>Use this match</button>
