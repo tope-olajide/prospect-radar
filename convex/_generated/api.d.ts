@@ -8,7 +8,20 @@
  * @module
  */
 
+import type * as ai from "../ai.js";
+import type * as hash from "../hash.js";
+import type * as http from "../http.js";
+import type * as inbox from "../inbox.js";
+import type * as inboxVerify from "../inboxVerify.js";
 import type * as missions from "../missions.js";
+import type * as missionsInternal from "../missionsInternal.js";
+import type * as outcomes from "../outcomes.js";
+import type * as outreach from "../outreach.js";
+import type * as outreachStore from "../outreachStore.js";
+import type * as plans from "../plans.js";
+import type * as research from "../research.js";
+import type * as researchStore from "../researchStore.js";
+import type * as runState from "../runState.js";
 import type * as runs from "../runs.js";
 import type * as system from "../system.js";
 
@@ -19,7 +32,20 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  ai: typeof ai;
+  hash: typeof hash;
+  http: typeof http;
+  inbox: typeof inbox;
+  inboxVerify: typeof inboxVerify;
   missions: typeof missions;
+  missionsInternal: typeof missionsInternal;
+  outcomes: typeof outcomes;
+  outreach: typeof outreach;
+  outreachStore: typeof outreachStore;
+  plans: typeof plans;
+  research: typeof research;
+  researchStore: typeof researchStore;
+  runState: typeof runState;
   runs: typeof runs;
   system: typeof system;
 }>;

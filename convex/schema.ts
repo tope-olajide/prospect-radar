@@ -5,6 +5,14 @@ const missionMode = v.union(v.literal("opportunity"), v.literal("person"), v.lit
 const missionStatus = v.union(v.literal("draft"), v.literal("ready"), v.literal("running"), v.literal("waiting"), v.literal("blocked"), v.literal("complete"), v.literal("failed"), v.literal("expired"), v.literal("cancelled"));
 const runStatus = v.union(v.literal("queued"), v.literal("active"), v.literal("waiting"), v.literal("blocked"), v.literal("complete"), v.literal("failed"), v.literal("cancelled"));
 const runStage = v.union(v.literal("intake"), v.literal("interpret"), v.literal("plan"), v.literal("discover"), v.literal("evaluate"), v.literal("approval"), v.literal("execute"), v.literal("wait"), v.literal("complete"));
+const sourceType = v.union(v.literal("search_result"), v.literal("scraped_page"));
+const sourceProcessingStatus = v.union(v.literal("discovered"), v.literal("scraping"), v.literal("scraped"), v.literal("failed"));
+const researchJobStatus = v.union(v.literal("running"), v.literal("complete"), v.literal("failed"));
+const researchOperation = v.union(v.literal("search"), v.literal("scrape"));
+const matchLabel = v.union(v.literal("stronger"), v.literal("promising"), v.literal("uncertain"), v.literal("insufficient"));
+const actionStatus = v.union(v.literal("draft"), v.literal("awaiting_approval"), v.literal("approved"), v.literal("executing"), v.literal("sent"), v.literal("delivered"), v.literal("failed"), v.literal("cancelled"), v.literal("unverified"));
+const approvalStatus = v.union(v.literal("active"), v.literal("used"), v.literal("expired"), v.literal("revoked"));
+const outcomeStatus = v.union(v.literal("open"), v.literal("waiting"), v.literal("replied"), v.literal("positive"), v.literal("negative"), v.literal("closed"), v.literal("unknown"));
 
 export default defineSchema({
   missions: defineTable({
@@ -12,6 +20,12 @@ export default defineSchema({
     status: missionStatus, constraints: v.array(v.string()), sourceScope: v.string(),
     completionPredicate: v.string(), createdAt: v.number(), updatedAt: v.number(),
   }).index("by_workspaceId", ["workspaceId"]).index("by_workspaceId_and_status", ["workspaceId", "status"]),
+  missionPlans: defineTable({
+    missionId: v.id("missions"), normalizedGoal: v.string(), mode: missionMode,
+    mustHave: v.array(v.string()), niceToHave: v.array(v.string()), exclusions: v.array(v.string()),
+    missingFacts: v.array(v.string()), recommendedSources: v.array(v.string()), proposedSteps: v.array(v.string()),
+    completionPredicate: v.string(), provider: v.literal("openai"), model: v.string(), createdAt: v.number(),
+  }).index("by_missionId", ["missionId"]),
   agentRuns: defineTable({
     missionId: v.id("missions"), status: runStatus, currentStage: runStage,
     checkpointVersion: v.number(), activeInterruption: v.union(v.string(), v.null()),
@@ -23,4 +37,86 @@ export default defineSchema({
     missionId: v.id("missions"), runId: v.id("agentRuns"), type: v.string(),
     stage: runStage, safeSummary: v.string(), createdAt: v.number(),
   }).index("by_runId", ["runId"]).index("by_missionId", ["missionId"]),
+
+  researchJobs: defineTable({
+    missionId: v.id("missions"), runId: v.id("agentRuns"), requestId: v.string(),
+    operation: researchOperation, query: v.string(), status: researchJobStatus, provider: v.literal("firecrawl"),
+    providerRequestId: v.union(v.string(), v.null()), resultCount: v.number(),
+    errorSummary: v.union(v.string(), v.null()), createdAt: v.number(),
+    startedAt: v.number(), finishedAt: v.union(v.number(), v.null()), updatedAt: v.number(),
+  }).index("by_missionId", ["missionId"])
+    .index("by_missionId_and_status", ["missionId", "status"])
+    .index("by_missionId_and_requestId", ["missionId", "requestId"]),
+  sourceRecords: defineTable({
+    missionId: v.id("missions"), jobId: v.id("researchJobs"), url: v.string(), title: v.string(),
+    sourceType, excerpt: v.string(), content: v.union(v.string(), v.null()), fetchedAt: v.number(),
+    freshness: v.string(), firecrawlRequestId: v.union(v.string(), v.null()),
+    firecrawlPageId: v.union(v.string(), v.null()), processingStatus: sourceProcessingStatus,
+    errorSummary: v.union(v.string(), v.null()), createdAt: v.number(), updatedAt: v.number(),
+  }).index("by_missionId", ["missionId"])
+    .index("by_missionId_and_url", ["missionId", "url"]),
+  discoveries: defineTable({
+    missionId: v.id("missions"), sourceId: v.id("sourceRecords"), subject: v.string(),
+    signal: v.string(), publishedAt: v.union(v.number(), v.null()),
+    extractedFields: v.array(v.object({ key: v.string(), value: v.string() })),
+    createdAt: v.number(), updatedAt: v.number(),
+  }).index("by_missionId", ["missionId"]).index("by_sourceId", ["sourceId"]),
+  matches: defineTable({
+    missionId: v.id("missions"), discoveryId: v.id("discoveries"), sourceId: v.id("sourceRecords"),
+    label: matchLabel, positiveEvidence: v.array(v.string()), unknowns: v.array(v.string()),
+    risks: v.array(v.string()), freshness: v.string(), recommendedAction: v.string(),
+    createdAt: v.number(), updatedAt: v.number(),
+  }).index("by_missionId", ["missionId"])
+    .index("by_discoveryId", ["discoveryId"])
+    .index("by_sourceId", ["sourceId"]),
+
+  agentInboxes: defineTable({
+    workspaceId: v.string(), agentmailInboxId: v.string(), email: v.string(),
+    displayName: v.union(v.string(), v.null()), webhookId: v.optional(v.string()), createdAt: v.number(), updatedAt: v.number(),
+  }).index("by_workspaceId", ["workspaceId"]).index("by_agentmailInboxId", ["agentmailInboxId"]),
+  actionDrafts: defineTable({
+    missionId: v.id("missions"), matchId: v.union(v.id("matches"), v.null()),
+    workspaceId: v.string(), agentmailInboxId: v.string(), clientRequestId: v.string(),
+    providerDraftId: v.union(v.string(), v.null()), recipient: v.string(), subject: v.string(),
+    body: v.string(), contentHash: v.string(), capability: v.literal("send_email"),
+    status: actionStatus, providerMessageId: v.union(v.string(), v.null()),
+    threadId: v.union(v.string(), v.null()), errorSummary: v.union(v.string(), v.null()),
+    createdAt: v.number(), updatedAt: v.number(),
+  }).index("by_missionId", ["missionId"])
+    .index("by_clientRequestId", ["clientRequestId"])
+    .index("by_missionId_and_contentHash", ["missionId", "contentHash"])
+    .index("by_providerDraftId", ["providerDraftId"])
+    .index("by_providerMessageId", ["providerMessageId"])
+    .index("by_threadId", ["threadId"]),
+  approvals: defineTable({
+    actionId: v.id("actionDrafts"), capability: v.literal("send_email"), recipient: v.string(),
+    contentHash: v.string(), approvedBy: v.string(), status: approvalStatus, expiresAt: v.number(),
+    createdAt: v.number(), resolvedAt: v.union(v.number(), v.null()),
+  }).index("by_actionId", ["actionId"]),
+  inboxThreads: defineTable({
+    workspaceId: v.string(), agentmailInboxId: v.string(), missionId: v.union(v.id("missions"), v.null()),
+    matchId: v.union(v.id("matches"), v.null()), threadId: v.string(), labels: v.array(v.string()),
+    senderSummary: v.string(), subject: v.string(), preview: v.string(), latestMessageAt: v.number(),
+    createdAt: v.number(), updatedAt: v.number(),
+  }).index("by_threadId", ["threadId"])
+    .index("by_workspaceId", ["workspaceId"])
+    .index("by_missionId", ["missionId"]),
+  inboxMessages: defineTable({
+    workspaceId: v.string(), agentmailInboxId: v.string(), missionId: v.union(v.id("missions"), v.null()),
+    threadId: v.string(), messageId: v.string(), eventId: v.string(), direction: v.union(v.literal("received"), v.literal("sent")),
+    sender: v.string(), recipients: v.array(v.string()), subject: v.string(), preview: v.string(), createdAt: v.number(),
+  }).index("by_eventId", ["eventId"])
+    .index("by_messageId", ["messageId"])
+    .index("by_threadId", ["threadId"]),
+  providerEvents: defineTable({
+    provider: v.literal("agentmail"), eventId: v.string(), eventType: v.string(), createdAt: v.number(),
+  }).index("by_provider_and_eventId", ["provider", "eventId"]),
+  outcomes: defineTable({
+    workspaceId: v.string(),
+    missionId: v.id("missions"), matchId: v.union(v.id("matches"), v.null()),
+    actionId: v.union(v.id("actionDrafts"), v.null()), counterpart: v.string(), status: outcomeStatus,
+    latestEvidence: v.string(), linkedThreadId: v.union(v.string(), v.null()), nextAction: v.string(),
+    completionPredicate: v.string(), timeline: v.array(v.object({ type: v.string(), summary: v.string(), createdAt: v.number() })),
+    createdAt: v.number(), updatedAt: v.number(),
+  }).index("by_missionId", ["missionId"]).index("by_actionId", ["actionId"]).index("by_linkedThreadId", ["linkedThreadId"]),
 });
