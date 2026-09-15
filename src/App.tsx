@@ -52,6 +52,7 @@ export default function App({ backendConnected }: { backendConnected: boolean })
   const mapSite = useAction(api.research.mapSite);
   const startCrawl = useAction(api.research.startCrawl);
   const explainMatches = useAction(api.ai.explainMatches);
+  const aiDraftMessage = useAction(api.ai.draftMessage);
   const draftMessage = useAction(api.outreach.draft);
   const sendMessage = useAction(api.outreach.send);
   const syncOutbound = useAction(api.outreach.syncOutbound);
@@ -85,6 +86,7 @@ export default function App({ backendConnected }: { backendConnected: boolean })
   const [provisioning, setProvisioning] = useState(false);
 
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
+  const [aiDraftingMatchId, setAiDraftingMatchId] = useState<Id<"matches"> | null>(null);
 
   const selectedMission = missions?.find((mission) => mission._id === selectedMissionId) ?? missions?.[0];
   const missionId = selectedMission?._id ?? null;
@@ -101,6 +103,7 @@ export default function App({ backendConnected }: { backendConnected: boolean })
   const threadMessages = useQuery(api.inbox.listMessages, backendConnected && selectedThreadId ? { workspaceId, threadId: selectedThreadId } : "skip");
   const classifications = useQuery(api.outreachStore.listClassifications, backendConnected ? { workspaceId, missionId: null } : "skip");
   const outcomes = useQuery(api.outcomes.listForMission, backendConnected && missionId ? { workspaceId, missionId } : "skip");
+  const crawlProgress = useQuery(api.researchStore.latestCrawlProgress, backendConnected && missionId ? { missionId } : "skip");
 
   const latestJob = jobs?.[0];
   const pendingDrafts = (drafts ?? []).filter((draft) => ["draft", "awaiting_approval", "approved", "executing"].includes(draft.status));
@@ -226,6 +229,29 @@ export default function App({ backendConnected }: { backendConnected: boolean })
     } catch (error) {
       setResearchNotice(error instanceof Error ? error.message : "Match explanation failed.");
     } finally { setResearching(false); }
+  }
+
+  async function onAiDraft(matchId: Id<"matches">) {
+    if (!missionId || !inbox) { setResearchNotice("Link an AgentMail inbox first (Outreach view)." ); return; }
+    setAiDraftingMatchId(matchId); setResearchNotice("");
+    try {
+      const result = await aiDraftMessage({
+        workspaceId,
+        missionId,
+        matchId,
+        agentmailInboxId: inbox.agentmailInboxId,
+        clientRequestId: `ai-draft-${matchId}-${Date.now()}`,
+      });
+      if (result.actionId) {
+        setResearchNotice(`AI draft created for ${result.recipient}. Approve it in Outreach.`);
+        setLinkedMatchId(matchId);
+      } else {
+        setResearchNotice(`The model drafted a subject and body, but no verified recipient email exists in the evidence. Review it in Outreach.`);
+        setSubject(result.subject); setBody(result.body); setLinkedMatchId(matchId);
+      }
+    } catch (error) {
+      setResearchNotice(error instanceof Error ? error.message : "AI drafting failed.");
+    } finally { setAiDraftingMatchId(null); }
   }
 
   async function onProvisionInbox() {
@@ -462,6 +488,11 @@ export default function App({ backendConnected }: { backendConnected: boolean })
                       <button type="button" className="btn ghost" onClick={onMapSite} disabled={!backendConnected || researching}>Map site</button>
                       <button type="button" className="btn ghost" onClick={onStartCrawl} disabled={!backendConnected || researching}>Durable crawl</button>
                     </div>
+                    {crawlProgress && crawlProgress.jobStatus === "running" && (
+                      <p className="stage-note warn">
+                        Durable crawl {crawlProgress.crawlStatus}{crawlProgress.total ? ` · ${crawlProgress.completed ?? 0}/${crawlProgress.total} pages` : ""} · {crawlProgress.pageCount} captured{crawlProgress.error ? ` · ${crawlProgress.error}` : ""}
+                      </p>
+                    )}
                     <p className="stage-note">{researchNotice || (latestJob ? `Latest job: ${latestJob.operation} · ${latestJob.status}${latestJob.crawlStatus ? ` (${latestJob.crawlStatus})` : ""} · ${latestJob.resultCount} sources` : "No Firecrawl jobs yet for this mission.")}</p>
                   </section>
 
@@ -487,7 +518,10 @@ export default function App({ backendConnected }: { backendConnected: boolean })
                               {match.recommendedAction && <p className="next-action"><b>Next</b>{match.recommendedAction}</p>}
                               <div className="inline-actions">
                                 {source && !source.content && <button type="button" className="btn ghost" onClick={() => onScrape(match.sourceId)}>Scrape full page</button>}
-                                <button type="button" className="btn" onClick={() => { setLinkedMatchId(match._id); selectView("outreach"); }}>Draft outreach →</button>
+                                <button type="button" className="btn" onClick={() => onAiDraft(match._id)} disabled={aiDraftingMatchId === match._id}>
+                                  {aiDraftingMatchId === match._id ? "Drafting…" : "AI draft outreach"}
+                                </button>
+                                <button type="button" className="btn ghost" onClick={() => { setLinkedMatchId(match._id); selectView("outreach"); }}>Write manually</button>
                               </div>
                             </article>
                           );
