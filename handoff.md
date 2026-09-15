@@ -2,7 +2,7 @@
 
 ## Current state
 
-**Phase 0 — product and delivery specification: complete**  
+**Phase A — application foundation: complete**  
 Last updated: 2026-09-15
 
 The repository now has a Convex-first, sponsor-native product specification for Prospect Radar. It defines an opportunity operating system that turns a natural-language mission into sourced matches, explainable research, explicitly approved outreach, a live AgentMail inbox, and persisted outcomes.
@@ -15,23 +15,27 @@ The repository now has a Convex-first, sponsor-native product specification for 
 - Added `docs/implementation-todo.md` as the continuing execution checklist.
 - Recorded two explicitly deferred capabilities: a verified internal two-sided Radar network and consent-bound Firecrawl-assisted form filling/submission.
 - Removed obsolete duplicate and legacy-planning documents from `docs/` so the retained set is the source of truth.
+- Bootstrapped a React 19, Vite, TypeScript, and Convex application at the repository root.
+- Added a responsive Prospect Radar shell that visibly communicates the sponsor-native product journey.
+- Added a minimal, validated Convex `system.status` query and verified it on an anonymous local deployment.
+- Added safe environment templates and a truthful `hackathon.md` with no fabricated deployment, video, or social URLs.
+- Verified `npm run typecheck`, `npm run build`, and the rendered local browser shell.
 
 ## Next phase
 
-**Phase A — application foundation**
+**Phase B — core Convex mission lifecycle**
 
-1. Create the React/Vite and Convex application scaffold.
-2. Add safe environment configuration, local build tooling, and a truthful `hackathon.md`.
-3. Establish the initial Prospect Radar shell and Convex deployment configuration.
-4. Validate the build, update this handoff, commit, and push.
+1. Define the Convex schema and indexed, reactive mission read models.
+2. Implement mission creation, validation, state transitions, and durable agent-run checkpoints.
+3. Replace the static mission preview with a working mission-creation flow.
+4. Validate locally, update this handoff, commit, and push.
 
 ## Implementation order after Phase A
 
-1. Convex schema, mission lifecycle, and reactive queries.
-2. OpenAI structured mission planning, evidence explanations, and draft generation.
-3. Firecrawl research pipeline with durable crawl progress and provenance.
-4. Approval-bound AgentMail sending, inbound webhooks, and live inbox/outcomes.
-5. End-to-end verification, public deployment, demonstration evidence, and submission assets.
+1. OpenAI structured mission planning, evidence explanations, and draft generation.
+2. Firecrawl research pipeline with durable crawl progress and provenance.
+3. Approval-bound AgentMail sending, inbound webhooks, and live inbox/outcomes.
+4. End-to-end verification, public deployment, demonstration evidence, and submission assets.
 
 ## Operating constraints
 
