@@ -7,6 +7,12 @@ const runStatus = v.union(v.literal("queued"), v.literal("active"), v.literal("w
 const runStage = v.union(v.literal("intake"), v.literal("interpret"), v.literal("plan"), v.literal("discover"), v.literal("evaluate"), v.literal("approval"), v.literal("execute"), v.literal("wait"), v.literal("complete"));
 const sourceType = v.union(v.literal("search_result"), v.literal("scraped_page"), v.literal("crawled_page"), v.literal("mapped_site"));
 const sourceProcessingStatus = v.union(v.literal("discovered"), v.literal("scraping"), v.literal("scraped"), v.literal("failed"));
+const sourceFreshness = v.union(
+  v.literal("fresh"),
+  v.literal("cached"),
+  v.literal("truncated"),
+  v.literal("failed"),
+);
 const researchJobStatus = v.union(v.literal("running"), v.literal("complete"), v.literal("failed"));
 const researchOperation = v.union(v.literal("search"), v.literal("scrape"), v.literal("map"), v.literal("crawl"));
 const crawlStatus = v.union(v.literal("scraping"), v.literal("completed"), v.literal("failed"), v.literal("cancelled"));
@@ -42,6 +48,11 @@ export default defineSchema({
     missionId: v.id("missions"), runId: v.id("agentRuns"), type: v.string(),
     stage: runStage, safeSummary: v.string(), createdAt: v.number(),
   }).index("by_runId", ["runId"]).index("by_missionId", ["missionId"]),
+  runSteps: defineTable({
+    missionId: v.id("missions"), runId: v.id("agentRuns"), stage: runStage,
+    label: v.string(), summary: v.string(), reference: v.union(v.string(), v.null()),
+    errorCode: v.union(v.string(), v.null()), createdAt: v.number(),
+  }).index("by_runId", ["runId"]).index("by_missionId", ["missionId"]),
   contextFacts: defineTable({
     workspaceId: v.string(), missionId: v.union(v.id("missions"), v.null()),
     category: v.string(), value: v.string(), sourceType: factSource,
@@ -57,6 +68,7 @@ export default defineSchema({
     operation: researchOperation, query: v.string(), status: researchJobStatus, provider: v.literal("firecrawl"),
     providerRequestId: v.union(v.string(), v.null()), resultCount: v.number(),
     crawlId: v.union(v.string(), v.null()), crawlStatus: v.union(crawlStatus, v.null()),
+    errorCode: v.union(v.string(), v.null()),
     errorSummary: v.union(v.string(), v.null()), createdAt: v.number(),
     startedAt: v.number(), finishedAt: v.union(v.number(), v.null()), updatedAt: v.number(),
   }).index("by_missionId", ["missionId"])
@@ -66,7 +78,7 @@ export default defineSchema({
   sourceRecords: defineTable({
     missionId: v.id("missions"), jobId: v.id("researchJobs"), url: v.string(), title: v.string(),
     sourceType, excerpt: v.string(), content: v.union(v.string(), v.null()), fetchedAt: v.number(),
-    freshness: v.string(), firecrawlRequestId: v.union(v.string(), v.null()),
+    freshness: sourceFreshness, firecrawlRequestId: v.union(v.string(), v.null()),
     firecrawlPageId: v.union(v.string(), v.null()), processingStatus: sourceProcessingStatus,
     errorSummary: v.union(v.string(), v.null()), createdAt: v.number(), updatedAt: v.number(),
   }).index("by_missionId", ["missionId"])

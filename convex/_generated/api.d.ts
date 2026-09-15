@@ -19,6 +19,7 @@ import type * as outcomes from "../outcomes.js";
 import type * as outreach from "../outreach.js";
 import type * as outreachStore from "../outreachStore.js";
 import type * as plans from "../plans.js";
+import type * as providerErrors from "../providerErrors.js";
 import type * as research from "../research.js";
 import type * as researchStore from "../researchStore.js";
 import type * as runState from "../runState.js";
@@ -43,6 +44,7 @@ declare const fullApi: ApiFromModules<{
   outreach: typeof outreach;
   outreachStore: typeof outreachStore;
   plans: typeof plans;
+  providerErrors: typeof providerErrors;
   research: typeof research;
   researchStore: typeof researchStore;
   runState: typeof runState;
