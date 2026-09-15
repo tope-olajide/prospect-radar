@@ -1,3 +1,7 @@
+import { FormEvent, useState } from "react";
+import { useMutation, useQuery } from "convex/react";
+import { api } from "../convex/_generated/api";
+
 type AppProps = {
   backendConnected: boolean;
 };
@@ -10,6 +14,29 @@ const sponsorCapabilities = [
 ] as const;
 
 export default function App({ backendConnected }: AppProps) {
+  const workspaceId = "demo-workspace";
+  const missions = useQuery(api.missions.list, backendConnected ? { workspaceId } : "skip");
+  const createMission = useMutation(api.missions.create);
+  const [goal, setGoal] = useState("Find growth-stage climate companies in Lagos that need a product-design partner.");
+  const [mode, setMode] = useState<"opportunity" | "person" | "customer" | "solution" | "collaborator">("customer");
+  const [submitting, setSubmitting] = useState(false);
+  const [notice, setNotice] = useState("");
+
+  async function onSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!goal.trim() || !backendConnected) return;
+    setSubmitting(true);
+    setNotice("");
+    try {
+      const title = goal.trim().split(/[.!?]/)[0].slice(0, 90);
+      await createMission({ workspaceId, title, rawGoal: goal.trim(), mode, constraints: [], sourceScope: "Public web only", completionPredicate: "A user-reviewed, evidence-backed next action exists." });
+      setNotice("Mission queued. Its Convex run will interpret the goal in the next phase.");
+      setGoal("");
+    } catch {
+      setNotice("Mission could not be created. Check the local Convex deployment and try again.");
+    } finally { setSubmitting(false); }
+  }
+
   return (
     <main className="shell">
       <nav className="nav" aria-label="Primary navigation">
@@ -30,15 +57,23 @@ export default function App({ backendConnected }: AppProps) {
           Prospect Radar will turn a goal into sourced matches, explainable research,
           approval-bound outreach, and live relationship outcomes.
         </p>
-        <div className="mission-card" aria-label="Mission command surface preview">
+        <form className="mission-card" aria-label="Create a mission" onSubmit={onSubmit}>
           <p className="mission-label">NEW MISSION</p>
-          <p className="mission-prompt">
-            Find growth-stage climate companies in Lagos that need a product-design partner.
-          </p>
-          <button type="button" disabled>
-            Start mission <span aria-hidden="true">→</span>
-          </button>
-          <p className="stage-note">Mission creation is being wired to Convex next.</p>
+          <textarea className="mission-prompt" aria-label="Opportunity goal" value={goal} onChange={(event) => setGoal(event.target.value)} rows={3} />
+          <div className="mission-controls">
+            <select aria-label="Mission mode" value={mode} onChange={(event) => setMode(event.target.value as typeof mode)}>
+              <option value="opportunity">Find an opportunity</option><option value="person">Find a person</option><option value="customer">Find a customer</option><option value="solution">Find a solution</option><option value="collaborator">Find a collaborator</option>
+            </select>
+            <button type="submit" disabled={!backendConnected || submitting || !goal.trim()}>{submitting ? "Queuing…" : "Start mission →"}</button>
+          </div>
+          <p className="stage-note">{notice || (backendConnected ? "Creates a durable Convex mission and run checkpoint." : "Connect Convex to start a mission.")}</p>
+        </form>
+      </section>
+
+      <section className="section" aria-labelledby="missions-title">
+        <div className="section-heading"><p className="eyebrow">LIVE MISSION QUEUE</p><h2 id="missions-title">Your opportunity radar</h2></div>
+        <div className="mission-list">
+          {missions === undefined ? <p className="empty-state">Loading live missions…</p> : missions.length === 0 ? <p className="empty-state">No missions yet. Start with a goal above.</p> : missions.map((mission) => <article className="mission-row" key={mission._id}><div><span className="status-pill">{mission.status}</span><h3>{mission.title}</h3><p>{mission.mode} · {mission.sourceScope}</p></div><time dateTime={new Date(mission.createdAt).toISOString()}>{new Date(mission.createdAt).toLocaleDateString()}</time></article>)}
         </div>
       </section>
 

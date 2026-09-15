@@ -8,8 +8,8 @@ current research-and-outreach release.
 
 - [x] Bootstrap the React/Vite frontend and Convex application.
 - [ ] Configure Convex static hosting at a public convex.site URL.
-- [ ] Add Convex schema, validators, mission state, runs, approvals, matches,
-      sources, actions, inbox links, and outcomes.
+- [x] Add the initial Convex schema, validators, mission state, durable runs,
+      and append-only run events. Sponsor-specific records follow in later phases.
 - [ ] Add OpenAI Responses API actions for mission interpretation, extraction,
       match explanations, reply classification, and drafting.
 - [ ] Add Firecrawl search, scrape, map, durable crawl, provenance, and freshness.
