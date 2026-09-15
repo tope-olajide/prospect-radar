@@ -142,6 +142,12 @@ export const send = action({
           providerMessageId: status.agentmailMessageId,
           threadId: status.threadId,
         });
+        // The plan's completion predicate may now be satisfied.
+        try {
+          await ctx.runMutation(internal.orchestratorStore.checkCompletion, { missionId: draftRow.missionId });
+        } catch {
+          // Advisory: completion checks never fail a send.
+        }
         return { actionId: draftRow._id, status: "sent" as const, outboundId, providerMessageId: status.agentmailMessageId, threadId: status.threadId };
       }
       return { actionId: draftRow._id, status: "executing" as const, outboundId, providerMessageId: null, threadId: null };
@@ -177,6 +183,11 @@ export const syncOutbound = action({
         providerMessageId: status.agentmailMessageId,
         threadId: status.threadId,
       });
+      try {
+        await ctx.runMutation(internal.orchestratorStore.checkCompletion, { missionId: draftRow.missionId });
+      } catch {
+        // Advisory: completion checks never fail a send.
+      }
       return { status: "sent" as const, providerMessageId: status.agentmailMessageId, threadId: status.threadId };
     }
     if (status.status === "failed" && status.errorMessage) {
@@ -242,7 +253,11 @@ export const classifyReply = action({
           ],
         }),
       });
-      if (!response.ok) throw new Error(`LLM request failed (${response.status}).`);
+      if (!response.ok) {
+        // Bounded provider body so classification sees the real cause.
+        const bodyText = await response.text().catch(() => "");
+        throw new Error(`LLM request failed (${response.status}). ${bodyText.slice(0, 200)}`);
+      }
       const payload = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
       const content = payload.choices?.[0]?.message?.content;
       if (!content) throw new Error("The model returned no classification.");

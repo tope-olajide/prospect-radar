@@ -10,7 +10,7 @@ const allowedNextStages: Record<RunStage, RunStage[]> = {
   interpret: ["plan", "discover", "approval", "wait", "complete"],
   plan: ["discover", "evaluate", "approval", "wait", "complete"],
   discover: ["evaluate", "approval", "wait", "complete"],
-  evaluate: ["approval", "execute", "wait", "complete"],
+  evaluate: ["discover", "approval", "execute", "wait", "complete"],
   approval: ["execute", "wait", "complete"],
   execute: ["approval", "wait", "complete"],
   wait: ["discover", "evaluate", "approval", "execute", "complete"],

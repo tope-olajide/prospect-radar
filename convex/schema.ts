@@ -36,6 +36,8 @@ const outcomeStatus = v.union(v.literal("open"), v.literal("waiting"), v.literal
 const factStatus = v.union(v.literal("unreviewed"), v.literal("user_confirmed"), v.literal("user_corrected"), v.literal("user_rejected"));
 const factVisibility = v.union(v.literal("mission"), v.literal("workspace"));
 const factSource = v.union(v.literal("user_input"), v.literal("plan_extraction"), v.literal("source_extraction"), v.literal("agent_inference"));
+const queryKind = v.union(v.literal("search"), v.literal("crawl"));
+const queryStatus = v.union(v.literal("pending"), v.literal("done"), v.literal("skipped"));
 
 export default defineSchema({
   missions: defineTable({
@@ -67,8 +69,12 @@ export default defineSchema({
   runSteps: defineTable({
     missionId: v.id("missions"), runId: v.id("agentRuns"), stage: runStage,
     label: v.string(), summary: v.string(), reference: v.union(v.string(), v.null()),
-    errorCode: v.union(v.string(), v.null()), createdAt: v.number(),
+    errorCode: v.union(v.string(), v.null()), tool: v.optional(v.string()), createdAt: v.number(),
   }).index("by_runId", ["runId"]).index("by_missionId", ["missionId"]),
+  missionQueries: defineTable({
+    missionId: v.id("missions"), query: v.string(), kind: queryKind, status: queryStatus,
+    resultCount: v.union(v.number(), v.null()), createdAt: v.number(),
+  }).index("by_missionId", ["missionId"]).index("by_missionId_and_status", ["missionId", "status"]),
   contextFacts: defineTable({
     workspaceId: v.string(), missionId: v.union(v.id("missions"), v.null()),
     category: v.string(), value: v.string(), sourceType: factSource,

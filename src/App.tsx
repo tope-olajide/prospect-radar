@@ -40,6 +40,8 @@ const quickPrompts: { label: string; goal: string }[] = [
   { label: "Find customers for my SaaS", goal: "Find potential customers for my SaaS." },
 ];
 
+const STAGES = ["intake", "interpret", "plan", "discover", "evaluate", "approval"] as const;
+
 function shortDate(value: number) {
   return new Date(value).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
@@ -64,6 +66,9 @@ export default function App({ backendConnected }: { backendConnected: boolean })
   const provisionInbox = useAction(api.outreach.provisionInbox);
   const approveDraft = useMutation(api.outreachStore.approve);
   const updateOutcome = useMutation(api.outcomes.updateStatus);
+  const runPipeline = useMutation(api.orchestratorStore.runPipeline);
+  const stopRun = useMutation(api.orchestratorStore.stopRun);
+  const retryRunStage = useMutation(api.orchestratorStore.retryStage);
 
   const [activeView, setActiveView] = useState<View>("home");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -105,6 +110,7 @@ export default function App({ backendConnected }: { backendConnected: boolean })
   const plan = useQuery(api.plans.getForMission, backendConnected && missionId ? { missionId } : "skip");
   const run = useQuery(api.runs.forMission, backendConnected && missionId ? { missionId } : "skip");
   const runEvents = useQuery(api.runs.events, backendConnected && run ? { runId: run._id } : "skip");
+  const runSteps = useQuery(api.runs.steps, backendConnected && run ? { runId: run._id } : "skip");
   const jobs = useQuery(api.researchStore.listJobs, backendConnected && missionId ? { missionId } : "skip");
   const sources = useQuery(api.researchStore.listSources, backendConnected && missionId ? { missionId } : "skip");
   const matches = useQuery(api.researchStore.listMatches, backendConnected && missionId ? { missionId } : "skip");
@@ -206,6 +212,37 @@ export default function App({ backendConnected }: { backendConnected: boolean })
     } catch (error) {
       setPlanNotice(error instanceof Error ? error.message : "Re-classification failed.");
     } finally { setPlanning(false); }
+  }
+
+  async function onRunPipeline() {
+    if (!missionId) return;
+    setPlanning(true); setPlanNotice("");
+    try {
+      const result = await runPipeline({ workspaceId, missionId });
+      setPlanNotice(result.started ? "Radar is running end-to-end — follow the live transcript in Activity." : `Run is already ${run?.status ?? "in progress"}.`);
+    } catch (error) {
+      setPlanNotice(error instanceof Error ? error.message : "Could not start the run.");
+    } finally { setPlanning(false); }
+  }
+
+  async function onStopRun() {
+    if (!missionId) return;
+    try {
+      await stopRun({ workspaceId, missionId });
+      setPlanNotice("Mission stopped. No further stages will execute.");
+    } catch (error) {
+      setPlanNotice(error instanceof Error ? error.message : "Could not stop the run.");
+    }
+  }
+
+  async function onRetryStage() {
+    if (!missionId) return;
+    try {
+      await retryRunStage({ workspaceId, missionId });
+      setPlanNotice("Resuming the blocked stage.");
+    } catch (error) {
+      setPlanNotice(error instanceof Error ? error.message : "Could not resume the run.");
+    }
   }
 
   async function onClarifySubmit() {
@@ -509,6 +546,18 @@ Clarification: ${clarifyAnswer.trim()}` });
                           </div>
                         </div>
                       )}
+                      {run && ![
+                        "cancelled", "complete", "failed",
+                      ].includes(run.status) && (
+                        <div className="inline-actions run-controls">
+                          <button type="button" className="btn" onClick={onStopRun}>■ Stop</button>
+                          {run.status === "blocked" && <button type="button" className="btn ghost" onClick={onRetryStage}>↻ Retry stage</button>}
+                          {run.status === "waiting" && run.currentStage === "interpret" && <span className="stage-note">Radar understood the goal and will continue automatically…</span>}
+                        </div>
+                      )}
+                      {run && ["cancelled", "complete"].includes(run.status) && (
+                        <p className="stage-note">This run is {run.status}. Create a new mission to run Radar again.</p>
+                      )}
                       {plan ? (
                         <>
                           <p className="plan-goal">{plan.normalizedGoal}</p>
@@ -522,8 +571,13 @@ Clarification: ${clarifyAnswer.trim()}` });
                         </div>
                       )}
                       <div className="inline-actions">
-                        <button type="button" className="btn ghost" onClick={() => selectView("discover")}>Open Discover →</button>
-                        <button type="button" className="btn ghost" onClick={() => selectView("activity")}>Run activity</button>
+                        {run && run.status === "queued" && (
+                          <button type="button" className="btn" onClick={onRunPipeline} disabled={planning}>{planning ? "Starting…" : "▶ Run Radar end-to-end"}</button>
+                        )}
+                        {run && run.status === "waiting" && run.currentStage === "approval" && (
+                          <button type="button" className="btn ghost" onClick={() => selectView("outreach")}>Review matches & approvals →</button>
+                        )}
+                        <button type="button" className="btn ghost" onClick={() => selectView("activity")}>Live transcript</button>
                       </div>
                     </>
                   )}
@@ -857,6 +911,42 @@ Clarification: ${clarifyAnswer.trim()}` });
                     <div className="panel-head"><p className="eyebrow">RUN STATE</p><span className={`status-pill status-${run.status}`}>{run.status}</span></div>
                     <p className="stage-note">Stage {run.currentStage} · checkpoint {run.checkpointVersion} · started {run.startedAt ? shortDate(run.startedAt) : "—"}</p>
                     {run.activeInterruption && <p className="stage-note warn">Interruption: {run.activeInterruption}</p>}
+                    {run.status === "blocked" && (
+                      <div className="inline-actions"><button type="button" className="btn" onClick={onRetryStage}>↻ Retry stage</button></div>
+                    )}
+                    {!["cancelled", "complete", "failed"].includes(run.status) && (
+                      <div className="inline-actions"><button type="button" className="btn ghost" onClick={onStopRun}>■ Stop mission</button></div>
+                    )}
+                    <ol className="stage-strip" aria-label="Pipeline stages">
+                      {STAGES.map((stage) => {
+                        const order = STAGES.indexOf(stage);
+                        const currentOrder = STAGES.indexOf(run.currentStage as typeof STAGES[number]);
+                        const done = order < currentOrder || run.currentStage === "complete";
+                        const active = run.currentStage === stage && !["complete"].includes(run.status);
+                        return (
+                          <li key={stage} className={done ? "done" : active ? "active" : ""} aria-current={active ? "step" : undefined}>
+                            <span className="stage-dot" />{stage}
+                          </li>
+                        );
+                      })}
+                    </ol>
+                  </section>
+                  <section className="panel" aria-label="Agent transcript">
+                    <div className="panel-head"><p className="eyebrow">AGENT TRANSCRIPT</p><span className="muted">{runSteps?.length ?? 0} steps</span></div>
+                    {runSteps === undefined ? <p className="empty-state">Loading…</p> : runSteps.length === 0 ? <p className="empty-state">The agent transcript appears here as Radar works: classification, planning, Firecrawl research, and sends each leave a receipt.</p> : (
+                      <ol className="event-trail transcript">
+                        {runSteps.slice().reverse().map((step) => (
+                          <li key={step._id}>
+                            <span className="event-dot" />
+                            <div>
+                              <strong>{step.label}{step.tool ? <em className="tool-chip">{step.tool}</em> : null}</strong>
+                              <em>{step.summary}</em>
+                              <small>{shortDate(step.createdAt)} · {step.stage}{step.errorCode ? ` · ${step.errorCode}` : ""}{step.reference ? ` · ref ${step.reference.slice(0, 12)}…` : ""}</small>
+                            </div>
+                          </li>
+                        ))}
+                      </ol>
+                    )}
                   </section>
                   <section className="panel" aria-label="Event trail">
                     <div className="panel-head"><p className="eyebrow">EVENT TRAIL</p><span className="muted">{runEvents?.length ?? 0} events</span></div>
