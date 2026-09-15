@@ -10,6 +10,7 @@
 
 import type * as ai from "../ai.js";
 import type * as context from "../context.js";
+import type * as crons from "../crons.js";
 import type * as entityStore from "../entityStore.js";
 import type * as hash from "../hash.js";
 import type * as http from "../http.js";
@@ -24,10 +25,12 @@ import type * as outreach from "../outreach.js";
 import type * as outreachStore from "../outreachStore.js";
 import type * as plans from "../plans.js";
 import type * as providerErrors from "../providerErrors.js";
+import type * as relationships from "../relationships.js";
 import type * as research from "../research.js";
 import type * as researchStore from "../researchStore.js";
 import type * as runState from "../runState.js";
 import type * as runs from "../runs.js";
+import type * as sequenceRunner from "../sequenceRunner.js";
 import type * as system from "../system.js";
 
 import type {
@@ -39,6 +42,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   ai: typeof ai;
   context: typeof context;
+  crons: typeof crons;
   entityStore: typeof entityStore;
   hash: typeof hash;
   http: typeof http;
@@ -53,10 +57,12 @@ declare const fullApi: ApiFromModules<{
   outreachStore: typeof outreachStore;
   plans: typeof plans;
   providerErrors: typeof providerErrors;
+  relationships: typeof relationships;
   research: typeof research;
   researchStore: typeof researchStore;
   runState: typeof runState;
   runs: typeof runs;
+  sequenceRunner: typeof sequenceRunner;
   system: typeof system;
 }>;
 

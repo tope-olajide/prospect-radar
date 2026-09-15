@@ -42,6 +42,19 @@ const entityKind = v.union(v.literal("person"), v.literal("organization"), v.lit
 const contactKind = v.union(v.literal("email"), v.literal("form"), v.literal("linkedin"));
 const signalType = v.union(v.literal("hiring"), v.literal("project_request"), v.literal("rfp"), v.literal("complaint"), v.literal("funding"), v.literal("launch"), v.literal("expansion"), v.literal("other"));
 const contactRoute = v.object({ kind: contactKind, value: v.string(), publicSource: v.string() });
+const pipelineStage = v.union(
+  v.literal("contacted"), v.literal("replied"), v.literal("engaged"),
+  v.literal("meeting"), v.literal("proposal"), v.literal("won"),
+  v.literal("lost"), v.literal("dormant"),
+);
+const followUpStatus = v.union(
+  v.literal("scheduled"), v.literal("due"), v.literal("done"),
+  v.literal("snoozed"), v.literal("cancelled"),
+);
+const sequenceTrigger = v.union(
+  v.literal("initial"), v.literal("no_reply"), v.literal("followup_due"), v.literal("reply_classified"),
+);
+const sequenceStepStatus = v.union(v.literal("pending"), v.literal("draft_ready"), v.literal("sent"), v.literal("skipped"));
 
 export default defineSchema({
   missions: defineTable({
@@ -202,8 +215,46 @@ export default defineSchema({
     workspaceId: v.string(),
     missionId: v.id("missions"), matchId: v.union(v.id("matches"), v.null()),
     actionId: v.union(v.id("actionDrafts"), v.null()), counterpart: v.string(), status: outcomeStatus,
+    // Relationship pipeline stage. Optional so pre-pipeline rows keep loading;
+    // readers resolve a stage from status when it is absent.
+    stage: v.optional(pipelineStage),
     latestEvidence: v.string(), linkedThreadId: v.union(v.string(), v.null()), nextAction: v.string(),
-    completionPredicate: v.string(), timeline: v.array(v.object({ type: v.string(), summary: v.string(), createdAt: v.number() })),
+    nextStepAt: v.optional(v.union(v.number(), v.null())),
+    completionPredicate: v.string(), timeline: v.array(v.object({ type: v.string(), summary: v.string(), createdAt: v.number(), reference: v.optional(v.union(v.string(), v.null())) })),
     createdAt: v.number(), updatedAt: v.number(),
-  }).index("by_missionId", ["missionId"]).index("by_actionId", ["actionId"]).index("by_linkedThreadId", ["linkedThreadId"]),
+  }).index("by_missionId", ["missionId"])
+    .index("by_actionId", ["actionId"])
+    .index("by_matchId", ["matchId"])
+    .index("by_linkedThreadId", ["linkedThreadId"])
+    .index("by_workspaceId_and_stage", ["workspaceId", "stage"]),
+  followUps: defineTable({
+    workspaceId: v.string(), missionId: v.id("missions"),
+    outcomeId: v.union(v.id("outcomes"), v.null()), matchId: v.union(v.id("matches"), v.null()),
+    threadId: v.union(v.string(), v.null()), note: v.string(), dueAt: v.number(),
+    status: followUpStatus,
+    source: v.union(v.literal("user"), v.literal("agent")),
+    createdAt: v.number(), updatedAt: v.number(),
+  }).index("by_missionId", ["missionId"])
+    .index("by_outcomeId", ["outcomeId"])
+    .index("by_workspaceId", ["workspaceId"])
+    .index("by_status_and_dueAt", ["status", "dueAt"]),
+  meetings: defineTable({
+    workspaceId: v.string(), missionId: v.id("missions"),
+    outcomeId: v.union(v.id("outcomes"), v.null()), matchId: v.union(v.id("matches"), v.null()),
+    counterpart: v.string(), scheduledAt: v.number(), notes: v.string(), createdBy: v.string(),
+    createdAt: v.number(),
+  }).index("by_missionId", ["missionId"]).index("by_outcomeId", ["outcomeId"]),
+  outreachSequences: defineTable({
+    workspaceId: v.string(), missionId: v.id("missions"), matchId: v.id("matches"),
+    agentmailInboxId: v.string(),
+    steps: v.array(v.object({
+      index: v.number(), intent: v.string(), trigger: sequenceTrigger,
+      status: sequenceStepStatus, draftId: v.union(v.id("actionDrafts"), v.null()),
+      queuedAt: v.union(v.number(), v.null()),
+    })),
+    status: v.union(v.literal("active"), v.literal("complete"), v.literal("cancelled")),
+    createdAt: v.number(), updatedAt: v.number(),
+  }).index("by_missionId", ["missionId"])
+    .index("by_matchId", ["matchId"])
+    .index("by_missionId_and_status", ["missionId", "status"]),
 });
