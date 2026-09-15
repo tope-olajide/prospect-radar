@@ -3,7 +3,7 @@ import { internalMutation, query } from "./_generated/server";
 
 const mode = v.union(v.literal("opportunity"), v.literal("person"), v.literal("customer"), v.literal("solution"), v.literal("collaborator"));
 const provider = v.union(v.literal("openai"), v.literal("dashscope"));
-const plan = v.object({ _id: v.id("missionPlans"), missionId: v.id("missions"), normalizedGoal: v.string(), mode, mustHave: v.array(v.string()), niceToHave: v.array(v.string()), exclusions: v.array(v.string()), missingFacts: v.array(v.string()), recommendedSources: v.array(v.string()), proposedSteps: v.array(v.string()), completionPredicate: v.string(), provider, model: v.string(), createdAt: v.number() });
+const plan = v.object({ _id: v.id("missionPlans"), missionId: v.id("missions"), normalizedGoal: v.string(), mode, strategyNotes: v.optional(v.string()), mustHave: v.array(v.string()), niceToHave: v.array(v.string()), exclusions: v.array(v.string()), missingFacts: v.array(v.string()), recommendedSources: v.array(v.string()), proposedSteps: v.array(v.string()), completionPredicate: v.string(), provider, model: v.string(), createdAt: v.number() });
 
 export const getForMission = query({
   args: { missionId: v.id("missions") }, returns: v.union(plan, v.null()),
@@ -11,7 +11,7 @@ export const getForMission = query({
 });
 
 export const save = internalMutation({
-  args: { missionId: v.id("missions"), normalizedGoal: v.string(), mode, mustHave: v.array(v.string()), niceToHave: v.array(v.string()), exclusions: v.array(v.string()), missingFacts: v.array(v.string()), recommendedSources: v.array(v.string()), proposedSteps: v.array(v.string()), completionPredicate: v.string(), provider, model: v.string() },
+  args: { missionId: v.id("missions"), normalizedGoal: v.string(), mode, strategyNotes: v.optional(v.string()), mustHave: v.array(v.string()), niceToHave: v.array(v.string()), exclusions: v.array(v.string()), missingFacts: v.array(v.string()), recommendedSources: v.array(v.string()), proposedSteps: v.array(v.string()), completionPredicate: v.string(), provider, model: v.string() },
   returns: v.id("missionPlans"),
   handler: async (ctx, args) => {
     const existing = await ctx.db.query("missionPlans").withIndex("by_missionId", (q) => q.eq("missionId", args.missionId)).first();

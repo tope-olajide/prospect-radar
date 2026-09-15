@@ -33,10 +33,11 @@ const viewTitles: Record<View, { eyebrow: string; title: string; description: st
   activity: { eyebrow: "Durable run", title: "Watch Radar work.", description: "Persisted stages and events — never simulated progress." },
 };
 
-const quickPrompts: { label: string; goal: string; mode: MissionMode }[] = [
-  { label: "Find clients", goal: "Find growth-stage climate companies in Lagos that need a product-design partner.", mode: "customer" },
-  { label: "Find a person", goal: "Find a senior Rust engineer in open-source infrastructure who is open to contract work.", mode: "person" },
-  { label: "Find a solution", goal: "Find vendors that migrate legacy Postgres clusters under 48-hour windows.", mode: "solution" },
+const quickPrompts: { label: string; goal: string }[] = [
+  { label: "Find clients", goal: "Find growth-stage climate companies in Lagos that need a product-design partner." },
+  { label: "Find a person", goal: "Find a senior Rust engineer in open-source infrastructure who is open to contract work." },
+  { label: "Find a solution", goal: "Find vendors that migrate legacy Postgres clusters under 48-hour windows." },
+  { label: "Find customers for my SaaS", goal: "Find potential customers for my SaaS." },
 ];
 
 function shortDate(value: number) {
@@ -49,6 +50,8 @@ export default function App({ backendConnected }: { backendConnected: boolean })
   const missions = useQuery(api.missions.list, backendConnected ? { workspaceId } : "skip");
   const createMission = useMutation(api.missions.create);
   const interpretMission = useAction(api.ai.interpretMission);
+  const classifyIntent = useAction(api.ai.classifyMissionIntent);
+  const reviseGoal = useMutation(api.missions.reviseGoal);
   const searchWeb = useAction(api.research.search);
   const scrapeSource = useAction(api.research.scrape);
   const mapSite = useAction(api.research.mapSite);
@@ -66,7 +69,9 @@ export default function App({ backendConnected }: { backendConnected: boolean })
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   const [goal, setGoal] = useState("Find growth-stage climate companies in Lagos that need a product-design partner.");
-  const [mode, setMode] = useState<MissionMode>("customer");
+  const [clarifyAnswer, setClarifyAnswer] = useState("");
+  const [editingUnderstanding, setEditingUnderstanding] = useState(false);
+  const [understandingDraft, setUnderstandingDraft] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [notice, setNotice] = useState("");
   const [selectedMissionId, setSelectedMissionId] = useState<string | null>(null);
@@ -166,9 +171,17 @@ export default function App({ backendConnected }: { backendConnected: boolean })
     setSubmitting(true);
     setNotice("");
     try {
-      const result = await createMission({ workspaceId, title: goal.trim().slice(0, 80), rawGoal: goal.trim(), mode, constraints: [], sourceScope: "public-web", completionPredicate: "A user-approved next action exists for at least one sourced match." });
+      const result = await createMission({ workspaceId, title: goal.trim().slice(0, 80), rawGoal: goal.trim(), constraints: [], sourceScope: "public-web", completionPredicate: "A user-approved next action exists for at least one sourced match." });
       setSelectedMissionId(result.missionId);
-      setNotice("Mission created. Interpret it with OpenAI, then research it with Firecrawl.");
+      setClarifyAnswer("");
+      setNotice("Mission created. Radar will classify the intent, then plan the strategy.");
+      // Classify immediately so the user sees what Radar understood.
+      try {
+        await classifyIntent({ missionId: result.missionId });
+        setNotice("Radar understood your goal — review the understanding below.");
+      } catch (classifyError) {
+        setNotice(`Classification failed: ${classifyError instanceof Error ? classifyError.message : "unknown error"}. You can retry below.`);
+      }
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Mission creation failed.");
     } finally {
@@ -179,9 +192,43 @@ export default function App({ backendConnected }: { backendConnected: boolean })
   async function onInterpret() {
     if (!missionId) return;
     setPlanning(true); setPlanNotice("");
-    try { await interpretMission({ missionId }); setPlanNotice("Structured plan saved to this mission."); }
+    try { await interpretMission({ missionId }); setPlanNotice("Strategy-bearing plan saved to this mission."); }
     catch (error) { setPlanNotice(error instanceof Error ? error.message : "Mission planning failed."); }
     finally { setPlanning(false); }
+  }
+
+  async function onReclassify() {
+    if (!missionId) return;
+    setPlanning(true); setPlanNotice("");
+    try {
+      const result = await classifyIntent({ missionId });
+      setPlanNotice(result.clarificationNeeded ? "Radar needs one clarification before planning." : "Understanding updated.");
+    } catch (error) {
+      setPlanNotice(error instanceof Error ? error.message : "Re-classification failed.");
+    } finally { setPlanning(false); }
+  }
+
+  async function onClarifySubmit() {
+    if (!missionId || !clarifyAnswer.trim()) return;
+    setPlanning(true);
+    try {
+      await reviseGoal({ workspaceId, missionId, rawGoal: `${selectedMission?.rawGoal ?? ""}
+
+Clarification: ${clarifyAnswer.trim()}` });
+      setClarifyAnswer("");
+      await classifyIntent({ missionId });
+      setPlanNotice("Radar updated its understanding with your clarification.");
+    } catch (error) {
+      setPlanNotice(error instanceof Error ? error.message : "Clarification failed.");
+    } finally { setPlanning(false); }
+  }
+
+  async function onUnderstandingSave() {
+    if (!missionId || !understandingDraft.trim()) return;
+    await reviseGoal({ workspaceId, missionId, rawGoal: understandingDraft.trim() });
+    setEditingUnderstanding(false);
+    await classifyIntent({ missionId });
+    setPlanNotice("Understanding revised — classification updated.");
   }
 
   async function onSearch() {
@@ -394,18 +441,15 @@ export default function App({ backendConnected }: { backendConnected: boolean })
                   <p>Describe the outcome. Radar plans the work, researches public evidence, and comes back when your approval is the only thing missing.</p>
                 </div>
                 <form onSubmit={onSubmit}>
-                  <label className="field-label" htmlFor="mission-goal">Your goal</label>
-                  <textarea id="mission-goal" className="composer-input" rows={2} value={goal} onChange={(event) => setGoal(event.target.value)} aria-label="Opportunity goal" />
+                  <label className="field-label" htmlFor="mission-goal">What can Radar help you find?</label>
+                  <textarea id="mission-goal" className="composer-input" rows={2} value={goal} onChange={(event) => setGoal(event.target.value)} aria-label="Tell Radar what you are looking for, in your own words" placeholder="Tell Radar what you're looking for… e.g. Find businesses that need React development, or I need someone to design a logo for my startup" />
                   <div className="composer-controls">
-                    <select aria-label="Mission mode" value={mode} onChange={(event) => setMode(event.target.value as MissionMode)}>
-                      <option value="opportunity">Find an opportunity</option><option value="person">Find a person</option><option value="customer">Find a customer</option><option value="solution">Find a solution</option><option value="collaborator">Find a collaborator</option>
-                    </select>
-                    <button type="submit" className="btn" disabled={!backendConnected || submitting || !goal.trim()}>{submitting ? "Queuing…" : "Start mission →"}</button>
+                    <button type="submit" className="btn" disabled={!backendConnected || submitting || !goal.trim()}>{submitting ? "Queuing…" : "Run Radar →"}</button>
                   </div>
                   {notice && <p className="stage-note">{notice}</p>}
                   <div className="quick-prompts" aria-label="Starting points">
                     {quickPrompts.map((prompt) => (
-                      <button key={prompt.label} type="button" onClick={() => { setGoal(prompt.goal); setMode(prompt.mode); }}>{prompt.label}</button>
+                      <button key={prompt.label} type="button" onClick={() => setGoal(prompt.goal)}>{prompt.label}</button>
                     ))}
                   </div>
                 </form>
@@ -431,8 +475,40 @@ export default function App({ backendConnected }: { backendConnected: boolean })
                   ) : (
                     <>
                       <h3>{selectedMission.title}</h3>
-                      <p className="muted">{selectedMission.mode} · {selectedMission.sourceScope}</p>
                       {run && <p className="stage-note">Stage {run.currentStage} · status {run.status} · checkpoint {run.checkpointVersion}</p>}
+                      {selectedMission.intent && (
+                        <div className="understanding-card">
+                          <div className="panel-head"><p className="eyebrow">RADAR UNDERSTOOD</p><span className="muted">confidence {Math.round((selectedMission.intent.confidence ?? 0) * 100)}%</span></div>
+                          {editingUnderstanding ? (
+                            <div className="control-row">
+                              <textarea className="composer-input" rows={2} value={understandingDraft} onChange={(e) => setUnderstandingDraft(e.target.value)} aria-label="Revised goal" />
+                              <div className="inline-actions">
+                                <button type="button" className="btn" onClick={onUnderstandingSave}>Save & re-classify</button>
+                                <button type="button" className="btn ghost" onClick={() => setEditingUnderstanding(false)}>Cancel</button>
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              <p><strong>You're looking for:</strong> {selectedMission.relationshipGoal?.replace(/_/g, " ") ?? "see the goal"}</p>
+                              <p><strong>Radar's read:</strong> {selectedMission.intent.rationale || selectedMission.rawGoal}</p>
+                              <p className="stage-note">Intent: {selectedMission.intent.primary.replace("find_", "")}{selectedMission.intent.secondary ? ` + ${selectedMission.intent.secondary.replace("find_", "")}` : ""} · target: {selectedMission.targetEntity?.replace(/_/g, " ") ?? "—"}</p>
+                              <div className="inline-actions">
+                                <button type="button" className="btn ghost" onClick={() => { setEditingUnderstanding(true); setUnderstandingDraft(selectedMission.rawGoal); }}>Adjust</button>
+                                <button type="button" className="btn ghost" onClick={onReclassify} disabled={planning}>{planning ? "Re-checking…" : "Re-classify"}</button>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      )}
+                      {selectedMission.clarification && (
+                        <div className="understanding-card clarify">
+                          <p><strong>Radar needs one detail:</strong> {selectedMission.clarification}</p>
+                          <div className="control-row">
+                            <input className="composer-input" value={clarifyAnswer} onChange={(e) => setClarifyAnswer(e.target.value)} placeholder="Answer in one line…" aria-label="Clarification answer" />
+                            <button type="button" className="btn" disabled={!clarifyAnswer.trim() || planning} onClick={onClarifySubmit}>Answer → re-classify</button>
+                          </div>
+                        </div>
+                      )}
                       {plan ? (
                         <>
                           <p className="plan-goal">{plan.normalizedGoal}</p>

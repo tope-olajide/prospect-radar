@@ -2,6 +2,18 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
 const missionMode = v.union(v.literal("opportunity"), v.literal("person"), v.literal("customer"), v.literal("solution"), v.literal("collaborator"));
+const intentLabel = v.union(
+  v.literal("find_opportunity"), v.literal("find_person"), v.literal("find_solution"),
+  v.literal("find_customer"), v.literal("find_collaborator"), v.literal("find_service"),
+  v.literal("find_client"), v.literal("find_provider"), v.literal("find_business"),
+);
+const targetEntity = v.union(v.literal("person"), v.literal("organization"), v.literal("product_or_service"), v.literal("mixed"));
+const intentObject = v.object({
+  primary: intentLabel,
+  secondary: v.union(intentLabel, v.null()),
+  confidence: v.number(),
+  rationale: v.string(),
+});
 const missionStatus = v.union(v.literal("draft"), v.literal("ready"), v.literal("running"), v.literal("waiting"), v.literal("blocked"), v.literal("complete"), v.literal("failed"), v.literal("expired"), v.literal("cancelled"));
 const runStatus = v.union(v.literal("queued"), v.literal("active"), v.literal("waiting"), v.literal("blocked"), v.literal("complete"), v.literal("failed"), v.literal("cancelled"));
 const runStage = v.union(v.literal("intake"), v.literal("interpret"), v.literal("plan"), v.literal("discover"), v.literal("evaluate"), v.literal("approval"), v.literal("execute"), v.literal("wait"), v.literal("complete"));
@@ -28,11 +40,15 @@ const factSource = v.union(v.literal("user_input"), v.literal("plan_extraction")
 export default defineSchema({
   missions: defineTable({
     workspaceId: v.string(), title: v.string(), rawGoal: v.string(), mode: missionMode,
+    intent: v.optional(intentObject), targetEntity: v.optional(targetEntity),
+    relationshipGoal: v.optional(v.string()),
     status: missionStatus, constraints: v.array(v.string()), sourceScope: v.string(),
-    completionPredicate: v.string(), createdAt: v.number(), updatedAt: v.number(),
+    completionPredicate: v.string(), clarification: v.optional(v.string()),
+    createdAt: v.number(), updatedAt: v.number(),
   }).index("by_workspaceId", ["workspaceId"]).index("by_workspaceId_and_status", ["workspaceId", "status"]),
   missionPlans: defineTable({
     missionId: v.id("missions"), normalizedGoal: v.string(), mode: missionMode,
+    strategyNotes: v.optional(v.string()),
     mustHave: v.array(v.string()), niceToHave: v.array(v.string()), exclusions: v.array(v.string()),
     missingFacts: v.array(v.string()), recommendedSources: v.array(v.string()), proposedSteps: v.array(v.string()),
     completionPredicate: v.string(), provider: planProvider, model: v.string(), createdAt: v.number(),

@@ -70,6 +70,26 @@ export async function recordStep(
   }
 }
 
+/**
+ * Action-callable wrapper for recordStep — actions can't share a mutation ctx,
+ * so they record steps through this internal mutation.
+ */
+export const recordStepForAction = internalMutation({
+  args: {
+    missionId: v.id("missions"),
+    stage: runStage,
+    label: v.string(),
+    summary: v.string(),
+    reference: v.union(v.string(), v.null()),
+    errorCode: v.union(v.string(), v.null()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await recordStep(ctx, args);
+    return null;
+  },
+});
+
 export const transition = internalMutation({
   args: {
     missionId: v.id("missions"), targetStage: runStage, targetStatus: runStatus,

@@ -12,9 +12,25 @@
 - **Auth:** none (demo workspace scope)
 - **AI models:** any OpenAI-compatible model via OPENAI_BASE_URL / OPENAI_MODEL (gpt-5-mini default; provider recorded on plans and classifications)
 - **Started:** 2026-09-13T00:00:00Z
-- **Last updated:** 2026-09-15T17:50:00Z
+- **Last updated:** 2026-09-15T19:10:00Z
 
 ## Log
+
+### 2026-09-15 - working tree
+Shipped AI intent classification: removed the intent/mode dropdown so users
+submit natural language only. A two-stage LLM pipeline now runs before any
+planning — `ai.classifyMissionIntent` semantically classifies the request
+(primary + secondary intent, target entity, relationship goal, one-line
+"Radar understood" summary, clarification question only when ambiguity
+materially changes the search), then `ai.planMission` generates the strategy
+plan using per-intent strategy guidance (`convex/intentStrategy.ts`: entity
+focus, source priorities, evidence requirements, match criteria, recommended
+actions) so intent genuinely changes discovery and evaluation instead of
+decorating prompts. Confirmed context facts resolve references like "what I
+do". The UI shows the AI's understanding with Adjust / Re-classify controls
+and a clarification answer path. 22 new tests drive the classifier, planner,
+strategy data, prompt-injection guard, and schema-invalid replies through
+real Convex functions with a mocked LLM (48/48 total).
 
 ### 2026-09-15 - working tree
 Proved the production webhook flow end-to-end with a signed probe
