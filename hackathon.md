@@ -16,6 +16,15 @@
 
 ## Log
 
+### 2026-09-15 - working tree
+Proved the production webhook flow end-to-end with a signed probe
+(`scripts/signedWebhookProbe.mjs`): a correctly svix-signed event returned
+200 accepted and was ingested by both the component and app stores, an
+identical replay returned duplicate_ignored (idempotent by event_id), and a
+tampered signature was rejected with 401. Hardened the handler to accept both
+svix-* and webhook-* header prefixes and to normalize `from_`/`from` message
+naming before component ingest.
+
 ### 2026-09-15 - cea64ca
 Deployed the app to production: pushed the Convex backend with all four
 components (firecrawl, agentmail, staticHosting) to the prod deployment, built
