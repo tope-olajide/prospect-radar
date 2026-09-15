@@ -14,9 +14,11 @@
     "convex": "latest",
     "react": "latest",
     "react-dom": "latest",
+    "svix": "^2.5.0",
     "vite": "latest"
   },
   "devDependencies": {
+    "@types/node": "^26.5.1",
     "@types/react": "latest",
     "@types/react-dom": "latest",
     "typescript": "latest"

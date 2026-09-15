@@ -43,8 +43,37 @@ h2 { font-size: clamp(1.8rem, 4vw, 3.2rem); letter-spacing: -.05em; line-height:
 .journey p { color: #b2b8b0; font-size: .92rem; line-height: 1.45; margin: 0; }
 .sponsor-grid { display: grid; gap: 12px; grid-template-columns: repeat(4, 1fr); }
 .mission-list { display: grid; gap: 10px; }
-.mission-row { align-items: start; background: #202523; border: 1px solid #59605a; border-radius: 14px; display: flex; justify-content: space-between; gap: 20px; padding: 18px; }
+.mission-row { align-items: start; background: #202523; border: 1px solid #59605a; border-radius: 14px; color: inherit; cursor: pointer; display: flex; justify-content: space-between; gap: 20px; padding: 18px; text-align: left; width: 100%; }.mission-row.selected { border-color: #e6ff62; }
 .mission-row h3 { font-size: 1.1rem; margin: 11px 0 7px; }.mission-row p, .mission-row time, .empty-state { color: #b2b8b0; margin: 0; }.mission-row time { font-size: .84rem; white-space: nowrap; }.status-pill { background: #e6ff62; border-radius: 99px; color: #101313; font-size: .72rem; font-weight: 800; padding: 4px 8px; text-transform: uppercase; }
+.plan-card { background: #202523; border: 1px solid #59605a; border-radius: 14px; display: grid; gap: 16px; padding: 22px; }.plan-card p { line-height: 1.5; margin: 0; }.plan-card strong { color: #e6ff62; }.plan-card ul { color: #cbd1c8; line-height: 1.6; margin: 7px 0 0; padding-left: 20px; }.plan-card button { background: #e6ff62; border: 0; border-radius: 10px; color: #101313; font-weight: 800; padding: 12px 15px; width: fit-content; }
+.toolbar { align-items: center; display: flex; flex-wrap: wrap; gap: 10px; margin: 12px 0; }
+.toolbar input { background: #101313; border: 1px solid #59605a; border-radius: 10px; color: #f5f1e8; flex: 1; min-width: 220px; padding: 10px 12px; }
+.toolbar button, .plan-card .toolbar button, .card button, .draft-form button { background: #e6ff62; border: 0; border-radius: 10px; color: #101313; cursor: pointer; font-weight: 800; padding: 10px 14px; }
+.toolbar button.secondary, .card .toolbar button.secondary { background: #202523; border: 1px solid #59605a; color: #f5f1e8; }
+.toolbar button:disabled, .card button:disabled { cursor: not-allowed; opacity: .55; }
+.card-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); margin-top: 14px; }
+.card { background: #171b19; border: 1px solid #59605a; border-radius: 14px; display: grid; gap: 8px; padding: 16px; }
+.card h3 { font-size: 1.02rem; margin: 0; }
+.card a { color: #e6ff62; overflow-wrap: anywhere; }
+.card p { color: #cbd1c8; line-height: 1.5; margin: 0; }
+.card.message.received { border-left: 3px solid #63e6a6; }
+.card.message.sent { border-left: 3px solid #e6ff62; }
+.prewrap { white-space: pre-wrap; }
+.stack { display: grid; gap: 10px; margin-top: 14px; }
+.thread-row { align-items: start; background: #171b19; border: 1px solid #59605a; border-radius: 12px; color: inherit; cursor: pointer; display: flex; gap: 16px; justify-content: space-between; padding: 14px; text-align: left; width: 100%; }
+.thread-row.selected { border-color: #e6ff62; }
+.thread-row p, .thread-row time { color: #b2b8b0; font-size: .86rem; margin: 6px 0 0; }
+.activity-card { background: #171b19; border: 1px solid #59605a; border-radius: 14px; margin-top: 16px; padding: 16px; }
+.activity-card strong { color: #e6ff62; }
+.activity-card ul { color: #cbd1c8; font-size: .9rem; line-height: 1.6; margin: 10px 0 0; padding-left: 18px; }
+.activity-card li span { color: #e6ff62; font-weight: 700; margin-right: 6px; }
+.draft-form { display: grid; gap: 12px; margin-top: 14px; }
+.draft-form label { color: #cbd1c8; display: grid; font-size: .86rem; gap: 6px; }
+.draft-form input, .draft-form textarea, .draft-form select { background: #101313; border: 1px solid #59605a; border-radius: 10px; color: #f5f1e8; padding: 10px 12px; }
+.status-pill.status-failed, .status-pill.status-blocked, .status-pill.status-negative, .status-pill.status-insufficient { background: #ffb3a7; color: #40170f; }
+.status-pill.status-sent, .status-pill.status-delivered, .status-pill.status-positive, .status-pill.status-complete, .status-pill.status-stronger { background: #63e6a6; color: #0b2a1c; }
+.status-pill.status-running, .status-pill.status-executing, .status-pill.status-approved, .status-pill.status-waiting, .status-pill.status-replied { background: #ffd884; color: #3d2c05; }
+.stage-note.error { color: #ffb3a7; }
 .sponsor-card { background: #202523; border: 1px solid #59605a; border-radius: 14px; min-height: 150px; padding: 18px; }
 .sponsor-card h3 { color: #e6ff62; font-size: 1.05rem; margin-bottom: 34px; }
 .sponsor-card p { color: #d4d9d2; line-height: 1.45; margin: 0; }
