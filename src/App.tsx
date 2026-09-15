@@ -27,6 +27,9 @@ export default function App({ backendConnected }: AppProps) {
   const interpretMission = useAction(api.ai.interpretMission);
   const searchWeb = useAction(api.research.search);
   const scrapeSource = useAction(api.research.scrape);
+  const mapSite = useAction(api.research.mapSite);
+  const startCrawl = useAction(api.research.startCrawl);
+  const syncOutbound = useAction(api.outreach.syncOutbound);
   const draftMessage = useAction(api.outreach.draft);
   const sendMessage = useAction(api.outreach.send);
   const provisionInbox = useAction(api.outreach.provisionInbox);
@@ -42,6 +45,7 @@ export default function App({ backendConnected }: AppProps) {
   const [planNotice, setPlanNotice] = useState("");
 
   const [researchQuery, setResearchQuery] = useState("");
+  const [mapUrl, setMapUrl] = useState("");
   const [researching, setResearching] = useState(false);
   const [researchNotice, setResearchNotice] = useState("");
 
@@ -69,6 +73,7 @@ export default function App({ backendConnected }: AppProps) {
   const drafts = useQuery(api.outreachStore.listDrafts, backendConnected && missionId ? { workspaceId, missionId } : "skip");
   const threads = useQuery(api.inbox.listThreads, backendConnected ? { workspaceId, missionId: null } : "skip");
   const threadMessages = useQuery(api.inbox.listMessages, backendConnected && selectedThreadId ? { workspaceId, threadId: selectedThreadId } : "skip");
+  const classifications = useQuery(api.outreachStore.listClassifications, backendConnected ? { workspaceId, missionId: null } : "skip");
   const outcomes = useQuery(api.outcomes.listForMission, backendConnected && missionId ? { workspaceId, missionId } : "skip");
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -116,6 +121,36 @@ export default function App({ backendConnected }: AppProps) {
     } catch (error) {
       setResearchNotice(error instanceof Error ? error.message : "Firecrawl scrape failed.");
     }
+  }
+
+  async function onMapSite() {
+    if (!missionId) return;
+    const target = (mapUrl.trim() || "").trim();
+    if (!target) { setResearchNotice("Enter a site URL to map (https://…)."); return; }
+    setResearching(true); setResearchNotice("");
+    try {
+      const result = await mapSite({ missionId, requestId: crypto.randomUUID(), url: target, limit: 25 });
+      setResearchNotice(`Firecrawl mapped ${result.linkCount} site URL${result.linkCount === 1 ? "" : "s"}.`);
+    } catch (error) {
+      setResearchNotice(error instanceof Error ? error.message : "Firecrawl map failed.");
+    } finally { setResearching(false); }
+  }
+
+  async function onStartCrawl() {
+    if (!missionId) return;
+    const target = (mapUrl.trim() || "").trim();
+    if (!target) { setResearchNotice("Enter a site URL to crawl (https://…)."); return; }
+    setResearching(true); setResearchNotice("");
+    try {
+      const result = await startCrawl({ missionId, requestId: crypto.randomUUID(), url: target, limit: 10 });
+      setResearchNotice(`Durable crawl started (${result.crawlId}). Pages stream in as they are captured.`);
+    } catch (error) {
+      setResearchNotice(error instanceof Error ? error.message : "Firecrawl crawl failed to start.");
+    } finally { setResearching(false); }
+  }
+
+  async function onSyncOutbound(actionId: Id<"actionDrafts">) {
+    try { await syncOutbound({ workspaceId, actionId }); } catch { /* surfaced through draft state */ }
   }
 
   async function onProvisionInbox() {
@@ -251,7 +286,12 @@ export default function App({ backendConnected }: AppProps) {
                 <input aria-label="Research query" placeholder={plan?.normalizedGoal || selectedMission.rawGoal} value={researchQuery} onChange={(event) => setResearchQuery(event.target.value)} />
                 <button type="button" onClick={onSearch} disabled={!backendConnected || researching}>{researching ? "Researching…" : "Search the public web"}</button>
               </div>
-              <p className="stage-note">{researchNotice || (latestJob ? `Latest Firecrawl job: ${latestJob.operation} · ${latestJob.status} · ${latestJob.resultCount} sources` : "No Firecrawl jobs yet for this mission.")}</p>
+              <div className="toolbar">
+                <input aria-label="Site URL" placeholder="https://example.com — map its structure or run a durable crawl" value={mapUrl} onChange={(event) => setMapUrl(event.target.value)} />
+                <button type="button" className="secondary" onClick={onMapSite} disabled={!backendConnected || researching}>Map site</button>
+                <button type="button" className="secondary" onClick={onStartCrawl} disabled={!backendConnected || researching}>Start durable crawl</button>
+              </div>
+              <p className="stage-note">{researchNotice || (latestJob ? `Latest Firecrawl job: ${latestJob.operation} · ${latestJob.status}${latestJob.crawlStatus ? ` (${latestJob.crawlStatus})` : ""} · ${latestJob.resultCount} sources` : "No Firecrawl jobs yet for this mission.")}</p>
               {matches && matches.length > 0 && (
                 <div className="card-grid">
                   {matches.map((match) => {
@@ -323,6 +363,9 @@ export default function App({ backendConnected }: AppProps) {
                             {sendingActionId === draft._id ? "Sending…" : "Send via AgentMail"}
                           </button>
                         )}
+                        {draft.status === "executing" && draft.outboundId && (
+                          <button type="button" onClick={() => onSyncOutbound(draft._id)}>Check send status</button>
+                        )}
                       </div>
                     </article>
                   ))}
@@ -350,15 +393,44 @@ export default function App({ backendConnected }: AppProps) {
               )}
               {selectedThreadId && threadMessages && (
                 <div className="stack">
-                  {threadMessages.map((message) => (
-                    <article className={`card message ${message.direction}`} key={message._id}>
-                      <div className="toolbar">
-                        <strong>{message.direction === "received" ? "From" : "To"} {message.direction === "received" ? message.sender : message.recipients.join(", ")}</strong>
-                        <span className="stage-note">{shortDate(message.createdAt)}</span>
-                      </div>
-                      <p>{message.preview}</p>
-                    </article>
-                  ))}
+                  {threadMessages.map((message) => {
+                    const classification = classifications?.find((item) => item.messageId === message._id);
+                    const suggestedDraft = classification?.suggestedDraftId
+                      ? drafts?.find((draft) => draft._id === classification.suggestedDraftId)
+                      : undefined;
+                    return (
+                      <article className={`card message ${message.direction}`} key={message._id}>
+                        <div className="toolbar">
+                          <strong>{message.direction === "received" ? "From" : "To"} {message.direction === "received" ? message.sender : message.recipients.join(", ")}</strong>
+                          {classification && <span className={`status-pill status-${classification.label}`}>{classification.label}</span>}
+                          <span className="stage-note">{shortDate(message.createdAt)}</span>
+                        </div>
+                        <p>{message.preview}</p>
+                        {classification && (
+                          <div className="classification-note">
+                            <p className="stage-note">{classification.summary} (confidence {Math.round(classification.confidence * 100)}% · {classification.model})</p>
+                            <p className="stage-note">Suggested next step: {classification.suggestedNextAction}</p>
+                            {suggestedDraft && (
+                              <>
+                                <p className="prewrap draft-suggestion">{suggestedDraft.body}</p>
+                                <div className="toolbar">
+                                  <button type="button" onClick={() => onApprove(suggestedDraft._id)}>
+                                    {suggestedDraft.approvalStatus === "active" ? "Re-approve reply" : "Approve suggested reply"}
+                                  </button>
+                                  {suggestedDraft.status === "approved" && (
+                                    <button type="button" onClick={() => onSend(suggestedDraft._id)} disabled={sendingActionId === suggestedDraft._id}>
+                                      {sendingActionId === suggestedDraft._id ? "Sending…" : "Send reply via AgentMail"}
+                                    </button>
+                                  )}
+                                </div>
+                              </>
+                            )}
+                            {classification.model === "pending" && <p className="stage-note">Classifying this reply…</p>}
+                          </div>
+                        )}
+                      </article>
+                    );
+                  })}
                 </div>
               )}
             </div>

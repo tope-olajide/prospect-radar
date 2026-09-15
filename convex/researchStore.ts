@@ -1,13 +1,22 @@
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { internalMutation, internalQuery, query } from "./_generated/server";
+import type { MutationCtx } from "./_generated/server";
 import { transitionRun } from "./runState";
 
-const researchOperation = v.union(v.literal("search"), v.literal("scrape"));
+const researchOperation = v.union(v.literal("search"), v.literal("scrape"), v.literal("map"), v.literal("crawl"));
+const crawlStatus = v.union(v.literal("scraping"), v.literal("completed"), v.literal("failed"), v.literal("cancelled"));
 const researchJobStatus = v.union(v.literal("running"), v.literal("complete"), v.literal("failed"));
-const sourceType = v.union(v.literal("search_result"), v.literal("scraped_page"));
+const sourceType = v.union(v.literal("search_result"), v.literal("scraped_page"), v.literal("crawled_page"), v.literal("mapped_site"));
 const sourceProcessingStatus = v.union(v.literal("discovered"), v.literal("scraping"), v.literal("scraped"), v.literal("failed"));
 const matchLabel = v.union(v.literal("stronger"), v.literal("promising"), v.literal("uncertain"), v.literal("insufficient"));
+
+const crawlPageInput = v.object({
+  url: v.string(),
+  title: v.string(),
+  content: v.union(v.string(), v.null()),
+  truncated: v.boolean(),
+});
 
 export const sourceInput = v.object({
   url: v.string(),
@@ -90,6 +99,8 @@ export const startJob = internalMutation({
       status: "running",
       provider: "firecrawl",
       providerRequestId: null,
+      crawlId: null,
+      crawlStatus: null,
       resultCount: 0,
       errorSummary: null,
       createdAt: now,
@@ -237,6 +248,267 @@ export const finishJob = internalMutation({
   },
 });
 
+export const startCrawlJob = internalMutation({
+  args: {
+    missionId: v.id("missions"),
+    requestId: v.string(),
+    url: v.string(),
+  },
+  returns: v.object({
+    jobId: v.id("researchJobs"),
+    status: researchJobStatus,
+    resultCount: v.number(),
+    crawlId: v.union(v.string(), v.null()),
+    shouldExecute: v.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    const mission = await ctx.db.get(args.missionId);
+    if (!mission) throw new Error("Mission not found.");
+    if (!args.requestId.trim() || args.requestId.length > 160) throw new Error("INVALID_ARGUMENT: requestId is required.");
+
+    const existing = await ctx.db.query("researchJobs")
+      .withIndex("by_missionId_and_requestId", (q) => q.eq("missionId", args.missionId).eq("requestId", args.requestId))
+      .first();
+    if (existing) {
+      if (existing.operation !== "crawl" || existing.query !== args.url) {
+        throw new Error("IDEMPOTENCY_CONFLICT: requestId is already bound to another research request.");
+      }
+      return {
+        jobId: existing._id,
+        status: existing.status,
+        resultCount: existing.resultCount,
+        crawlId: existing.crawlId,
+        shouldExecute: false,
+      };
+    }
+
+    const run = await ctx.db.query("agentRuns")
+      .withIndex("by_missionId", (q) => q.eq("missionId", args.missionId))
+      .first();
+    if (!run) throw new Error("Mission run not found.");
+    if (["complete", "failed", "cancelled"].includes(run.status)) throw new Error("RUN_NOT_RESUMABLE: this mission run is terminal.");
+
+    const now = Date.now();
+    const jobId = await ctx.db.insert("researchJobs", {
+      missionId: args.missionId,
+      runId: run._id,
+      requestId: args.requestId,
+      operation: "crawl",
+      query: args.url,
+      status: "running",
+      provider: "firecrawl",
+      providerRequestId: null,
+      crawlId: null,
+      crawlStatus: null,
+      resultCount: 0,
+      errorSummary: null,
+      createdAt: now,
+      startedAt: now,
+      finishedAt: null,
+      updatedAt: now,
+    });
+
+    if (["intake", "interpret", "plan", "wait"].includes(run.currentStage)) {
+      await transitionRun(ctx, {
+        missionId: args.missionId,
+        targetStage: "discover",
+        targetStatus: "active",
+        interruption: null,
+        eventType: "source.requested",
+        safeSummary: "Firecrawl durable crawl requested for the mission.",
+      });
+    }
+    return { jobId, status: "running" as const, resultCount: 0, crawlId: null, shouldExecute: true };
+  },
+});
+
+export const attachCrawl = internalMutation({
+  args: { jobId: v.id("researchJobs"), crawlId: v.string(), firecrawlJobId: v.string() },
+  returns: v.id("researchJobs"),
+  handler: async (ctx, args) => {
+    const job = await ctx.db.get(args.jobId);
+    if (!job) throw new Error("Research job not found.");
+    await ctx.db.patch(job._id, {
+      crawlId: args.crawlId,
+      crawlStatus: "scraping",
+      providerRequestId: args.firecrawlJobId,
+      updatedAt: Date.now(),
+    });
+    return job._id;
+  },
+});
+
+export const completeCrawlJob = internalMutation({
+  args: {
+    jobId: v.id("researchJobs"),
+    missionId: v.id("missions"),
+    crawlId: v.string(),
+    crawlStatus: crawlStatus,
+    pageCount: v.number(),
+    error: v.union(v.string(), v.null()),
+    pages: v.array(crawlPageInput),
+  },
+  returns: v.object({ jobId: v.id("researchJobs"), resultCount: v.number() }),
+  handler: async (ctx, args) => completeCrawl(ctx, args),
+});
+
+async function completeCrawl(
+  ctx: MutationCtx,
+  args: {
+    jobId: Id<"researchJobs">;
+    missionId: Id<"missions">;
+    crawlId: string;
+    crawlStatus: "scraping" | "completed" | "failed" | "cancelled";
+    pageCount: number;
+    error: string | null;
+    pages: Array<{ url: string; title: string; content: string | null; truncated: boolean }>;
+  },
+): Promise<{ jobId: Id<"researchJobs">; resultCount: number }> {
+  {
+    const job = await ctx.db.get(args.jobId);
+    if (!job) throw new Error("Research job not found.");
+    if (job.status === "complete") return { jobId: job._id, resultCount: job.resultCount };
+
+    const now = Date.now();
+    let resultCount = 0;
+    if (args.crawlStatus === "completed") {
+      for (const page of args.pages) {
+        const url = normalizedUrl(page.url);
+        if (!url) continue;
+        const existing = await ctx.db.query("sourceRecords")
+          .withIndex("by_missionId_and_url", (q) => q.eq("missionId", job.missionId).eq("url", url))
+          .first();
+        const content = page.content ?? existing?.content ?? null;
+        const sourceValue = {
+          missionId: job.missionId,
+          jobId: job._id,
+          url,
+          title: page.title || existing?.title || new URL(url).hostname,
+          sourceType: "crawled_page" as const,
+          excerpt: content ? bounded(content, 500) : "Crawled page stored without usable text content.",
+          content,
+          fetchedAt: now,
+          freshness: "fresh",
+          firecrawlRequestId: args.crawlId,
+          firecrawlPageId: null,
+          processingStatus: content ? ("scraped" as const) : ("failed" as const),
+          errorSummary: content ? null : "Firecrawl crawl returned no usable page content.",
+          createdAt: existing?.createdAt ?? now,
+          updatedAt: now,
+        };
+        let sourceId: Id<"sourceRecords">;
+        if (existing) {
+          await ctx.db.replace(existing._id, sourceValue);
+          sourceId = existing._id;
+        } else {
+          sourceId = await ctx.db.insert("sourceRecords", sourceValue);
+        }
+
+        const subject = sourceValue.title;
+        const signal = sourceValue.excerpt || "Public source captured by a durable Firecrawl crawl.";
+        const fields = [
+          { key: "url", value: url },
+          { key: "source_type", value: sourceValue.sourceType },
+        ];
+        const discovery = await ctx.db.query("discoveries")
+          .withIndex("by_sourceId", (q) => q.eq("sourceId", sourceId))
+          .first();
+        let discoveryId: Id<"discoveries">;
+        if (discovery) {
+          await ctx.db.patch(discovery._id, { subject, signal, extractedFields: fields, updatedAt: now });
+          discoveryId = discovery._id;
+        } else {
+          discoveryId = await ctx.db.insert("discoveries", {
+            missionId: job.missionId,
+            sourceId,
+            subject,
+            signal,
+            publishedAt: null,
+            extractedFields: fields,
+            createdAt: now,
+            updatedAt: now,
+          });
+        }
+
+        const existingMatch = await ctx.db.query("matches")
+          .withIndex("by_discoveryId", (q) => q.eq("discoveryId", discoveryId))
+          .first();
+        const matchValue = {
+          missionId: job.missionId,
+          discoveryId,
+          sourceId,
+          label: content ? ("promising" as const) : ("insufficient" as const),
+          positiveEvidence: content ? [bounded(content, 300)] : [],
+          unknowns: ["Crawled content has not yet been reviewed against the mission criteria."],
+          risks: content ? [] : ["The crawled page did not return usable content."],
+          freshness: sourceValue.freshness,
+          recommendedAction: "Review the crawled page, then decide whether to prepare outreach.",
+          createdAt: existingMatch?.createdAt ?? now,
+          updatedAt: now,
+        };
+        if (existingMatch) await ctx.db.replace(existingMatch._id, matchValue);
+        else await ctx.db.insert("matches", matchValue);
+        resultCount += 1;
+      }
+    }
+
+    const failed = args.crawlStatus !== "completed";
+    await ctx.db.patch(job._id, {
+      status: failed ? "failed" : "complete",
+      crawlId: args.crawlId,
+      crawlStatus: args.crawlStatus,
+      resultCount,
+      errorSummary: failed
+        ? bounded(args.error ?? `Firecrawl crawl ended with status ${args.crawlStatus}.`, 240)
+        : null,
+      finishedAt: now,
+      updatedAt: now,
+    });
+
+    const run = await ctx.db.get(job.runId);
+    if (run && !["complete", "failed", "cancelled"].includes(run.status)) {
+      await transitionRun(ctx, {
+        missionId: job.missionId,
+        targetStage: failed ? run.currentStage : "evaluate",
+        targetStatus: failed ? "failed" : "active",
+        interruption: failed ? "Firecrawl crawl did not complete. Retry after reviewing the error." : null,
+        eventType: failed ? "source.failed" : "source.ready",
+        safeSummary: failed
+          ? "Firecrawl crawl ended without completing."
+          : `Firecrawl crawl persisted ${resultCount} deduplicated page${resultCount === 1 ? "" : "s"}.`,
+      });
+    }
+    return { jobId: job._id, resultCount };
+  }
+}
+
+export const crawlCompleted = internalMutation({
+  args: {
+    crawlId: v.string(),
+    jobId: v.optional(v.string()),
+    status: v.union(v.literal("completed"), v.literal("failed"), v.literal("cancelled")),
+    pageCount: v.number(),
+    unstored: v.optional(v.number()),
+    error: v.optional(v.string()),
+    context: v.any(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const context = (args.context ?? {}) as { missionId?: string; jobId?: string };
+    if (!context.missionId || !context.jobId) return null;
+    await completeCrawl(ctx, {
+      jobId: context.jobId as Id<"researchJobs">,
+      missionId: context.missionId as Id<"missions">,
+      crawlId: args.crawlId,
+      crawlStatus: args.status,
+      pageCount: args.pageCount,
+      error: args.error ?? null,
+      pages: [],
+    });
+    return null;
+  },
+});
+
 export const failJob = internalMutation({
   args: { jobId: v.id("researchJobs"), errorSummary: v.string() },
   returns: v.id("researchJobs"),
@@ -302,6 +574,8 @@ const jobView = v.object({
   provider: v.literal("firecrawl"),
   providerRequestId: v.union(v.string(), v.null()),
   resultCount: v.number(),
+  crawlId: v.union(v.string(), v.null()),
+  crawlStatus: v.union(crawlStatus, v.null()),
   errorSummary: v.union(v.string(), v.null()),
   createdAt: v.number(),
   startedAt: v.number(),

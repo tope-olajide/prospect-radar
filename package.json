@@ -7,9 +7,12 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@agentmail/convex": "^0.1.0",
+    "@firecrawl/firecrawl-convex": "^0.1.1",
     "@vitejs/plugin-react": "latest",
     "convex": "latest",
     "react": "latest",
@@ -21,6 +24,8 @@
     "@types/node": "^26.5.1",
     "@types/react": "latest",
     "@types/react-dom": "latest",
-    "typescript": "latest"
+    "convex-test": "^0.0.58",
+    "typescript": "latest",
+    "vitest": "^5.0.1"
   }
 }

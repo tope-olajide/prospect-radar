@@ -11,9 +11,16 @@ Convex All Gas Hackathon — `https://www.convex.dev/hackathons/all-gas`
 ## Stack
 
 - Convex: schema, functions, durable state, reactive UI, scheduling, webhooks, and deployment.
-- Firecrawl: public-web search, scrape, map, crawl, structured evidence, and provenance.
-- OpenAI: Responses API structured mission planning, explanations, drafts, and reply classification.
-- AgentMail: agent-owned inboxes, approved sends, delivery receipts, inbound threads, and labels.
+- Firecrawl via the official `@firecrawl/firecrawl-convex` component: public-web search, scrape, map, durable crawls with completion callbacks, structured evidence, and provenance.
+- OpenAI-compatible LLM (`OPENAI_BASE_URL` / `OPENAI_MODEL`, real OpenAI by default): structured mission planning and reply classification with suggested follow-up drafts.
+- AgentMail via the official `@agentmail/convex` component: agent-owned inboxes, durable approved sends, delivery receipts, inbound threads, and labels.
+
+## Build log
+
+- Mission lifecycle, durable runs, and guarded stage transitions implemented on Convex.
+- Firecrawl discovery (search, scrape, map, durable crawl) migrated onto the official Convex component with provenance, deduplication, and run-state transitions.
+- AgentMail outreach (inbox provisioning, approval-bound content-hash sends, durable outbound state, delivery webhooks, inbound replies, reply classification) migrated onto the official Convex component.
+- Automated tests cover approval hashing, content bounding, URL normalization, and provider payload guards (`npm test`).
 
 ## Links
 

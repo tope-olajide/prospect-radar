@@ -10,11 +10,17 @@ current research-and-outreach release.
 - [ ] Configure Convex static hosting at a public convex.site URL.
 - [x] Add the initial Convex schema, validators, mission state, durable runs,
       and append-only run events. Sponsor-specific records follow in later phases.
-- [ ] Add OpenAI Responses API actions for mission interpretation, extraction,
-      match explanations, reply classification, and drafting.
-- [ ] Add Firecrawl search, scrape, map, durable crawl, provenance, and freshness.
-- [ ] Add AgentMail inbox mapping, approved send, delivery state, inbound webhook,
-      labels, and reactive thread updates.
+- [x] Add OpenAI-compatible LLM actions for mission interpretation and reply
+      classification with suggested follow-up drafts (any OpenAI-compatible
+      endpoint via OPENAI_BASE_URL / OPENAI_MODEL).
+- [x] Add Firecrawl search, scrape, map, durable crawl, provenance, and freshness
+      through the official @firecrawl/firecrawl-convex component.
+- [x] Add AgentMail inbox provisioning, approval-bound durable send, delivery
+      state, inbound webhook, and reactive thread updates through the official
+      @agentmail/convex component.
+- [x] Add automated tests for approval hashing, content bounding, URL
+      normalization, and event guards (`npm test`).
+- [ ] Add OpenAI match explanations (ai.explainMatches) on top of stored evidence.
 - [ ] Complete the sponsor verification run in integration-verification.md.
 - [x] Create and maintain root hackathon.md once the application runtime exists.
 - [ ] Deploy, test in a clean browser, record the short demo, and submit.
