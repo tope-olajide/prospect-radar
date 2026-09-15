@@ -8,6 +8,8 @@
  * @module
  */
 
+import type * as missions from "../missions.js";
+import type * as runs from "../runs.js";
 import type * as system from "../system.js";
 
 import type {
@@ -17,6 +19,8 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  missions: typeof missions;
+  runs: typeof runs;
   system: typeof system;
 }>;
 
