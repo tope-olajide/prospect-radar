@@ -4,6 +4,7 @@ import { components } from "./_generated/api";
 import { internalMutation, internalQuery, query } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
 import { transitionRun } from "./runState";
+import { confirmedFactPairs } from "./context";
 
 const researchOperation = v.union(v.literal("search"), v.literal("scrape"), v.literal("map"), v.literal("crawl"));
 const crawlStatus = v.union(v.literal("scraping"), v.literal("completed"), v.literal("failed"), v.literal("cancelled"));
@@ -671,6 +672,7 @@ export const missionForExplanation = internalQuery({
     mustHave: v.array(v.string()),
     normalizedGoal: v.string(),
     completionPredicate: v.string(),
+    confirmedFacts: v.array(v.object({ category: v.string(), value: v.string() })),
   }), v.null()),
   handler: async (ctx, args) => {
     const mission = await ctx.db.get(args.missionId);
@@ -679,6 +681,9 @@ export const missionForExplanation = internalQuery({
       .withIndex("by_missionId", (q) => q.eq("missionId", args.missionId))
       .order("desc")
       .first();
+    const factRows = await ctx.db.query("contextFacts")
+      .withIndex("by_workspaceId", (q) => q.eq("workspaceId", mission.workspaceId))
+      .take(100);
     return {
       _id: mission._id,
       rawGoal: mission.rawGoal,
@@ -686,6 +691,7 @@ export const missionForExplanation = internalQuery({
       mustHave: plan?.mustHave ?? [],
       normalizedGoal: plan?.normalizedGoal ?? mission.rawGoal,
       completionPredicate: plan?.completionPredicate ?? mission.completionPredicate,
+      confirmedFacts: confirmedFactPairs(factRows, mission._id),
     };
   },
 });
@@ -736,6 +742,7 @@ export const matchDraftContext = internalQuery({
     sourceUrl: v.string(),
     sourceTitle: v.string(),
     content: v.union(v.string(), v.null()),
+    confirmedFacts: v.array(v.object({ category: v.string(), value: v.string() })),
   }), v.null()),
   handler: async (ctx, args) => {
     const mission = await ctx.db.get(args.missionId);
@@ -748,6 +755,9 @@ export const matchDraftContext = internalQuery({
       ctx.db.get(match.sourceId),
     ]);
     if (!discovery || !source) return null;
+    const factRows = await ctx.db.query("contextFacts")
+      .withIndex("by_workspaceId", (q) => q.eq("workspaceId", mission.workspaceId))
+      .take(100);
     return {
       normalizedGoal: plan?.normalizedGoal ?? mission.rawGoal,
       mode: mission.mode,
@@ -757,6 +767,7 @@ export const matchDraftContext = internalQuery({
       sourceUrl: source.url,
       sourceTitle: source.title,
       content: source.content ? bounded(source.content, 4000) : null,
+      confirmedFacts: confirmedFactPairs(factRows, mission._id),
     };
   },
 });

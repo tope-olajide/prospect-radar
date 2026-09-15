@@ -4,7 +4,7 @@ import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
 
 type MissionMode = "opportunity" | "person" | "customer" | "solution" | "collaborator";
-type View = "home" | "discover" | "outreach" | "inbox" | "outcomes" | "activity";
+type View = "home" | "discover" | "outreach" | "inbox" | "outcomes" | "context" | "activity";
 
 const sponsorCapabilities: Array<[string, string]> = [
   ["Convex", "Durable missions, guarded run transitions, reactive subscriptions, scheduling, and signed webhook routes."],
@@ -19,6 +19,7 @@ const navItems: { id: View; label: string; hint: string }[] = [
   { id: "outreach", label: "Outreach", hint: "Draft, approve, send" },
   { id: "inbox", label: "Inbox", hint: "Live replies and threads" },
   { id: "outcomes", label: "Outcomes", hint: "Relationship memory" },
+  { id: "context", label: "Context", hint: "Your profile facts Radar may use" },
   { id: "activity", label: "Activity", hint: "The run's truthful trail" },
 ];
 
@@ -28,6 +29,7 @@ const viewTitles: Record<View, { eyebrow: string; title: string; description: st
   outreach: { eyebrow: "Approval boundary", title: "Nothing sends without you.", description: "Approve the exact recipient, subject, and body — then Radar sends." },
   inbox: { eyebrow: "Agent-owned inbox", title: "Replies arrive live.", description: "Inbound mail is untrusted data: classified, never auto-sent." },
   outcomes: { eyebrow: "Relationship memory", title: "Keep the momentum.", description: "Every conversation keeps its evidence and next step." },
+  context: { eyebrow: "Verified profile", title: "You stay the source of truth.", description: "Confirm, correct, or reject every fact before Radar ever uses it in plans, matches, or drafts." },
   activity: { eyebrow: "Durable run", title: "Watch Radar work.", description: "Persisted stages and events — never simulated progress." },
 };
 
@@ -86,6 +88,10 @@ export default function App({ backendConnected }: { backendConnected: boolean })
   const [provisioning, setProvisioning] = useState(false);
 
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
+  const [factCategory, setFactCategory] = useState("");
+  const [factValue, setFactValue] = useState("");
+  const [editingFactId, setEditingFactId] = useState<Id<"contextFacts"> | null>(null);
+  const [factEditValue, setFactEditValue] = useState("");
   const [aiDraftingMatchId, setAiDraftingMatchId] = useState<Id<"matches"> | null>(null);
 
   const selectedMission = missions?.find((mission) => mission._id === selectedMissionId) ?? missions?.[0];
@@ -104,6 +110,13 @@ export default function App({ backendConnected }: { backendConnected: boolean })
   const classifications = useQuery(api.outreachStore.listClassifications, backendConnected ? { workspaceId, missionId: null } : "skip");
   const outcomes = useQuery(api.outcomes.listForMission, backendConnected && missionId ? { workspaceId, missionId } : "skip");
   const crawlProgress = useQuery(api.researchStore.latestCrawlProgress, backendConnected && missionId ? { missionId } : "skip");
+  const contextFacts = useQuery(api.context.list, backendConnected ? { workspaceId, missionId: null } : "skip");
+  const addFact = useMutation(api.context.add);
+  const confirmFact = useMutation(api.context.confirm);
+  const correctFact = useMutation(api.context.correct);
+  const rejectFact = useMutation(api.context.reject);
+  const deleteFact = useMutation(api.context.deleteFact);
+  const setThreadLabel = useMutation(api.inbox.setLabel);
 
   const latestJob = jobs?.[0];
   const pendingDrafts = (drafts ?? []).filter((draft) => ["draft", "awaiting_approval", "approved", "executing"].includes(draft.status));
@@ -116,6 +129,7 @@ export default function App({ backendConnected }: { backendConnected: boolean })
     outreach: actionableDrafts.length || null,
     inbox: threads?.length || null,
     outcomes: openOutcomes.length || null,
+    context: null,
     activity: null,
   };
 
@@ -619,10 +633,20 @@ export default function App({ backendConnected }: { backendConnected: boolean })
                   {threads === undefined ? <p className="empty-state">Loading…</p> : threads.length === 0 ? <p className="empty-state">No conversations yet. Inbound AgentMail events appear here automatically.</p> : (
                     <div className="row-list">
                       {threads.map((thread) => (
-                        <button key={thread.threadId} type="button" className={selectedThreadId === thread.threadId ? "row-item selected" : "row-item"} onClick={() => setSelectedThreadId(thread.threadId)}>
-                          <div><strong>{thread.subject || "(no subject)"}</strong><em>{thread.senderSummary} · {thread.preview}</em></div>
+                      <article className={selectedThreadId === thread.threadId ? "row-item static selected" : "row-item static"} key={thread._id}>
+                        <button type="button" className="thread-select" onClick={() => setSelectedThreadId(thread.threadId)}>
+                          <strong>{thread.subject || "(no subject)"}</strong>
+                          <em>{thread.senderSummary} · {thread.preview}</em>
                           <span className="thread-meta">{thread.labels.map((label) => `#${label}`).join(" ")}</span>
                         </button>
+                        {selectedThreadId === thread.threadId && (
+                          <div className="inline-actions">
+                            {(["new", "waiting", "reply", "closed"] as const).map((label) => (
+                              <button key={label} type="button" className={thread.labels.includes(label) ? "btn" : "btn ghost"} onClick={() => setThreadLabel({ workspaceId, threadId: thread._id, label, set: !thread.labels.includes(label) })}>{label}</button>
+                            ))}
+                          </div>
+                        )}
+                      </article>
                       ))}
                     </div>
                   )}
@@ -695,6 +719,51 @@ export default function App({ backendConnected }: { backendConnected: boolean })
                         <div className="inline-actions">
                           <button type="button" className="btn ghost" onClick={() => onOutcomeStatus(outcome._id, "positive")}>Mark positive</button>
                           <button type="button" className="btn ghost" onClick={() => onOutcomeStatus(outcome._id, "closed")}>Close outcome</button>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </section>
+            </div>
+          )}
+
+          {activeView === "context" && (
+            <div className="view-stack">
+              <section className="panel" aria-label="Add a profile fact">
+                <div className="panel-head"><p className="eyebrow">ADD A FACT</p></div>
+                <p className="stage-note">User-entered facts are confirmed immediately. Anything Radar infers later starts unreviewed and is never used until you confirm it.</p>
+                <div className="control-row">
+                  <input className="composer-input" style={{ flex: "0 0 220px" }} placeholder="Category (e.g. my skills)" value={factCategory} onChange={(e) => setFactCategory(e.target.value)} aria-label="Fact category" maxLength={60} />
+                  <input className="composer-input" placeholder="Value (e.g. React, TypeScript, product design)" value={factValue} onChange={(e) => setFactValue(e.target.value)} aria-label="Fact value" maxLength={240} />
+                  <button type="button" className="btn" disabled={!backendConnected || !factCategory.trim() || !factValue.trim()} onClick={async () => { await addFact({ workspaceId, missionId: null, category: factCategory, value: factValue, sourceType: "user_input", sourceReference: null, confidence: 1, visibility: "workspace" }); setFactCategory(""); setFactValue(""); }}>Add fact</button>
+                </div>
+              </section>
+
+              <section className="panel" aria-label="Profile facts">
+                <div className="panel-head"><p className="eyebrow">PROFILE FACTS</p><span className="muted">{contextFacts?.length ?? 0} stored</span></div>
+                {contextFacts === undefined ? <p className="empty-state">Loading facts…</p> : contextFacts.length === 0 ? <p className="empty-state">No profile facts yet. Add skills, services, goals, or constraints — confirmed facts guide plans, match explanations, and drafts.</p> : (
+                  <div className="row-list">
+                    {contextFacts.map((fact) => (
+                      <article className="row-item static" key={fact._id}>
+                        <div>
+                          <strong>{fact.category}</strong>
+                          <em>{fact.value}</em>
+                          <span className="muted">{fact.sourceType} · added {shortDate(fact.createdAt)}</span>
+                        </div>
+                        <div className="inline-actions">
+                          <span className={`status-pill status-${fact.verificationStatus}`}>{fact.verificationStatus.replace("user_", "")}</span>
+                          {fact.verificationStatus !== "user_confirmed" && <button type="button" className="btn ghost" onClick={() => confirmFact({ workspaceId, factId: fact._id })}>Confirm</button>}
+                          {editingFactId === fact._id ? (
+                            <>
+                              <input className="composer-input" style={{ maxWidth: 220 }} value={factEditValue} onChange={(e) => setFactEditValue(e.target.value)} aria-label="Corrected value" maxLength={240} />
+                              <button type="button" className="btn ghost" onClick={async () => { await correctFact({ workspaceId, factId: fact._id, value: factEditValue }); setEditingFactId(null); }}>Save</button>
+                            </>
+                          ) : (
+                            <button type="button" className="btn ghost" onClick={() => { setEditingFactId(fact._id); setFactEditValue(fact.value); }}>Correct</button>
+                          )}
+                          <button type="button" className="btn ghost" onClick={() => rejectFact({ workspaceId, factId: fact._id })}>Reject</button>
+                          <button type="button" className="btn ghost" onClick={() => deleteFact({ workspaceId, factId: fact._id })}>Delete</button>
                         </div>
                       </article>
                     ))}

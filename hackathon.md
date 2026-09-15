@@ -63,6 +63,17 @@ outreach, inbox, outcomes, activity) with attention cards, quick prompts, and
 full approval cards showing context and side effects (`src/App.tsx`,
 `src/index.css`).
 
+### 2026-09-15 - 2e2f7a2
+Closed the Phase 2 trust and profile work: approval-bypass, tampering, expiry,
+idempotency-conflict, webhook-replay, cross-workspace, label-scope, and
+context-verification tests (20 passing) via convex-test; context facts with
+confirm/correct/reject/delete and a new Context screen; inbox label toggles;
+send-time hash recheck so approvals are bound to exact bytes; wake-on-reply
+run transitions; and confirmed profile facts now guide match explanations and
+drafting (`convex/context.ts`, `convex/inbox.ts`, `convex/outreach.ts`,
+`convex/outreachStore.ts`, `convex/researchStore.ts`, `convex/ai.ts`,
+`tests/trust.test.ts`, `src/App.tsx`).
+
 ### 2026-09-15 - working tree
 Finished Phase 1: `ai.draftMessage` drafts outreach grounded in one match's
 stored evidence and accepts a recipient only when the address literally
