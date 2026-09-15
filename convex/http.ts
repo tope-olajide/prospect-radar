@@ -1,5 +1,6 @@
 import { httpRouter } from "convex/server";
 import { verifyAgentMailWebhook } from "@agentmail/convex";
+import { registerStaticRoutes } from "@convex-dev/static-hosting";
 import { api, components } from "./_generated/api";
 import { httpAction } from "./_generated/server";
 
@@ -62,5 +63,9 @@ http.route({ path: "/agentmail/webhook", method: "POST", handler: agentmailWebho
 
 // Firecrawl crawl progress webhooks are mounted automatically at /firecrawl/webhook
 // by convex.config.ts (httpPrefix: "/firecrawl/").
+
+// Static hosting catch-all: registered AFTER exact app routes so /agentmail/webhook
+// and /firecrawl/* keep priority; everything else serves the built frontend.
+registerStaticRoutes(http, components.staticHosting);
 
 export default http;
