@@ -38,7 +38,9 @@ export const queueNextStep = internalMutation({
  * Marks overdue follow-ups as due and wakes the sequence engine.
  *
  * Runs on a schedule (see `crons.ts`). It never sends anything: a due follow-up
- * produces a draft, and a draft still needs approval.
+ * produces a draft, and a draft still needs approval. The queue trigger is the
+ * no-reply window, so steps are drafted in the order they were written; a
+ * later sweep falls back to the next pending step.
  */
 export const sweepDueFollowUps = internalMutation({
   args: { now: v.optional(v.number()) },
@@ -60,7 +62,7 @@ export const sweepDueFollowUps = internalMutation({
       if (!sequence) continue;
       await ctx.scheduler.runAfter(0, internal.sequenceRunner.queueNextStep, {
         sequenceId: sequence._id,
-        trigger: "followup_due",
+        trigger: "no_reply",
       });
       queued += 1;
     }
