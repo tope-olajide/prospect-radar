@@ -16,10 +16,14 @@ const agentmailWebhook = httpAction(async (ctx, request) => {
   if (request.method !== "POST") return new Response("Method not allowed", { status: 405 });
   const rawBody = await request.text();
   const secret = process.env.AGENTMAIL_WEBHOOK_SECRET ?? "";
+  // Svix signs with either the classic svix-* or the standard webhook-* header
+  // prefix; accept both so real provider events never fail on naming.
+  const headerValue = (name: string) =>
+    request.headers.get(`svix-${name}`) ?? request.headers.get(`webhook-${name}`) ?? "";
   const headers = {
-    "svix-id": request.headers.get("svix-id") ?? "",
-    "svix-timestamp": request.headers.get("svix-timestamp") ?? "",
-    "svix-signature": request.headers.get("svix-signature") ?? "",
+    "svix-id": headerValue("id"),
+    "svix-timestamp": headerValue("timestamp"),
+    "svix-signature": headerValue("signature"),
   };
   if (!secret) return new Response("AGENTMAIL_WEBHOOK_SECRET is not configured", { status: 500 });
 
@@ -33,6 +37,20 @@ const agentmailWebhook = httpAction(async (ctx, request) => {
   const eventId = typeof event.event_id === "string" ? event.event_id : "";
   if (!eventType || !eventId) {
     return new Response("Webhook payload is missing event identity", { status: 400 });
+  }
+
+  // Normalize message field naming before component ingest: the component's
+  // schema requires `message.from` + array `to`, while some AgentMail payloads
+  // use `from_`. Our app-side ingest accepts both spellings.
+  const message = isRecord(event.message) ? event.message : null;
+  if (message) {
+    if (typeof message.from !== "string") {
+      const fromArray = Array.isArray(message.from_) ? message.from_ : [];
+      message.from = typeof message.from_ === "string"
+        ? message.from_
+        : typeof fromArray[0] === "string" ? fromArray[0] : "unknown";
+    }
+    if (!Array.isArray(message.to)) message.to = [];
   }
 
   // Durable component ingest: dedupes by event_id and dispatches configured callbacks.
@@ -58,6 +76,10 @@ const agentmailWebhook = httpAction(async (ctx, request) => {
     headers: { "Content-Type": "application/json" },
   });
 });
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
 
 http.route({ path: "/agentmail/webhook", method: "POST", handler: agentmailWebhook });
 
