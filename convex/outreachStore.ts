@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
+import type { MutationCtx } from "./_generated/server";
 import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
 import { contentHash, boundedText } from "./hash";
 import { transitionRun } from "./runState";
@@ -571,9 +572,59 @@ export const saveClassification = internalMutation({
       await ctx.db.replace(existing._id, value);
       return existing._id;
     }
-    return await ctx.db.insert("replyClassifications", value);
+    const classificationId = await ctx.db.insert("replyClassifications", value);
+    await wakeRunOnReply(ctx, {
+      missionId: message.missionId,
+      label: args.label,
+      nextAction: value.suggestedNextAction,
+    });
+    return classificationId;
   },
 });
+
+/**
+ * Consume the wake stamped by an inbound reply: move a waiting run back to
+ * active evaluation and log the classification for the user. Advisory only —
+ * classification data is persisted regardless of run state.
+ */
+async function wakeRunOnReply(
+  ctx: MutationCtx,
+  args: { missionId: Id<"missions"> | null; label: string; nextAction: string },
+) {
+  if (!args.missionId) return;
+  const missionId: Id<"missions"> = args.missionId;
+  const run = await ctx.db.query("agentRuns")
+    .withIndex("by_missionId", (q) => q.eq("missionId", missionId))
+    .first();
+  if (!run || ["complete", "failed", "cancelled"].includes(run.status)) return;
+  const summary = `Reply classified as ${args.label}. Suggested next step: ${args.nextAction}`;
+  if (run.status === "waiting" && run.currentStage === "wait") {
+    try {
+      await transitionRun(ctx, {
+        missionId: args.missionId,
+        targetStage: "evaluate",
+        targetStatus: "active",
+        interruption: null,
+        eventType: "reply.classified",
+        safeSummary: summary,
+      });
+      return;
+    } catch {
+      // Fall through to the advisory event below.
+    }
+  }
+  // Runs still mid-pipeline (or in a stage that cannot legally re-evaluate):
+  // log the reply and clear the wake stamp so it is not left dangling.
+  await ctx.db.patch(run._id, { nextWakeAt: null, updatedAt: Date.now() });
+  await ctx.db.insert("runEvents", {
+    missionId: args.missionId,
+    runId: run._id,
+    type: "reply.classified",
+    stage: run.currentStage,
+    safeSummary: summary,
+    createdAt: Date.now(),
+  });
+}
 
 export const saveSuggestedDraftId = internalMutation({
   args: { classificationId: v.id("replyClassifications"), suggestedDraftId: v.id("actionDrafts") },

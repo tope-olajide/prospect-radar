@@ -76,6 +76,24 @@ and the full deletion/retention pipeline.
 - Every async surface shows the required interaction states, including stale
   and partial results, and no status label overstates delivery (a draft never
   reads as sent).
+
+### Status (2026-09-15)
+- ✅ ContextFact model: `convex/context.ts` (add/confirm/correct/reject/delete;
+  inferred facts start unreviewed) + Context view in `src/App.tsx`.
+- ✅ `inbox.setLabel` with the doc label vocabulary (new/approved/waiting/reply/
+  closed) + per-thread label toggles in the Inbox.
+- ✅ Trust tests (`tests/trust.test.ts`, 11 cases, convex-test): cross-workspace
+  send rejected, unapproved send refused, mutated content → `APPROVAL_STALE`,
+  expired approval → `APPROVAL_STALE`, exact-bytes send + idempotent replay,
+  `IDEMPOTENCY_CONFLICT` on clientRequestId reuse, webhook replay deduped by
+  event_id, label scope enforcement, context-fact confirmation gating.
+- ✅ Wake-on-reply: reply classification transitions a waiting run back to
+  active/evaluate (`reply.classified`) instead of leaving `nextWakeAt` dangling.
+- ✅ Confirmed context facts now feed the plan/match/draft LLM prompts as a
+  requester profile (never presented as evidence about a match).
+- 🟡 Remaining: run step records, outcome delete/reopen, stale/truncated source
+  labels, error-class alignment, event-vocabulary additions, full
+  interaction-state matrix pass.
 - `npm test` fails on: an unapproved send, a hash-mismatched send, an expired
   approval, a replayed webhook event, and a cross-workspace read or write.
 - The Context screen lists facts with confirm/reject and deleting a source

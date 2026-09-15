@@ -126,6 +126,24 @@ export const deleteFact = mutation({
   },
 });
 
+/**
+ * Filter raw fact rows down to the pairs safe to place in an LLM prompt:
+ * only user-confirmed/user-corrected facts ever influence generation, and
+ * workspace-level facts apply to every mission while mission-scoped facts
+ * apply only to their own mission.
+ */
+export function confirmedFactPairs(
+  rows: Array<{ verificationStatus: string; missionId: Id<"missions"> | null; category: string; value: string }>,
+  missionId: Id<"missions"> | null,
+) {
+  return rows
+    .filter((row) =>
+      ["user_confirmed", "user_corrected"].includes(row.verificationStatus) &&
+      (row.missionId === null || row.missionId === missionId))
+    .slice(0, 12)
+    .map((row) => ({ category: row.category, value: boundedText(row.value, 240) }));
+}
+
 /** Test seed path: insert a fact bypassing user confirmation defaults. */
 export const seedForTest = internalMutation({
   args: {
