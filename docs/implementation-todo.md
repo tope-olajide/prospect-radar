@@ -20,7 +20,9 @@ current research-and-outreach release.
       @agentmail/convex component.
 - [x] Add automated tests for approval hashing, content bounding, URL
       normalization, and event guards (`npm test`).
-- [ ] Add OpenAI match explanations (ai.explainMatches) on top of stored evidence.
+- [x] Add ai.explainMatches: LLM-generated match labels, evidence, unknowns,
+      risks, and recommended actions grounded in stored source content, with
+      provider/model provenance persisted per match.
 - [ ] Complete the sponsor verification run in integration-verification.md.
 - [x] Create and maintain root hackathon.md once the application runtime exists.
 - [ ] Deploy, test in a clean browser, record the short demo, and submit.
