@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { components } from "./_generated/api";
 import { internalMutation, internalQuery, query } from "./_generated/server";
-import type { MutationCtx } from "./_generated/server";
+import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { transitionRun } from "./runState";
 import { confirmedFactPairs } from "./context";
 import { classifyProviderError } from "./providerErrors";
@@ -562,10 +562,22 @@ export const failJob = internalMutation({
 
 export const sourceForScrape = internalQuery({
   args: { missionId: v.id("missions"), sourceId: v.id("sourceRecords") },
-  returns: v.union(v.object({ _id: v.id("sourceRecords"), url: v.string() }), v.null()),
+  returns: v.union(v.object({
+    _id: v.id("sourceRecords"), url: v.string(), title: v.string(), excerpt: v.string(),
+    workspaceId: v.string(), processingStatus: v.string(),
+  }), v.null()),
   handler: async (ctx, args) => {
     const source = await ctx.db.get(args.sourceId);
-    return source && source.missionId === args.missionId ? { _id: source._id, url: source.url } : null;
+    if (!source || source.missionId !== args.missionId) return null;
+    const mission = await ctx.db.get(args.missionId);
+    return {
+      _id: source._id,
+      url: source.url,
+      title: source.title,
+      excerpt: source.excerpt,
+      workspaceId: mission?.workspaceId ?? "",
+      processingStatus: source.processingStatus,
+    };
   },
 });
 
@@ -646,6 +658,17 @@ const matchView = v.object({
   signal: v.string(),
   sourceUrl: v.string(),
   sourceTitle: v.string(),
+  entity: v.union(v.null(), v.object({
+    _id: v.id("entities"),
+    name: v.string(),
+    kind: v.union(v.literal("person"), v.literal("organization"), v.literal("product")),
+    expressedNeed: v.union(v.string(), v.null()),
+    offer: v.array(v.string()),
+    contactRoute: v.union(v.null(), v.object({ kind: v.string(), value: v.string(), publicSource: v.string() })),
+    extractionStatus: v.union(v.literal("extracted"), v.literal("snippet_only")),
+    confidence: v.number(),
+    signals: v.array(v.object({ type: v.string(), statement: v.string(), evidenceUrl: v.string() })),
+  })),
   createdAt: v.number(),
   updatedAt: v.number(),
 });
@@ -727,6 +750,17 @@ export const evidenceForExplanation = internalQuery({
     excerpt: v.string(),
     content: v.union(v.string(), v.null()),
     fetchedAt: v.number(),
+    entity: v.union(v.null(), v.object({
+      name: v.string(),
+      kind: v.string(),
+      summary: v.string(),
+      expressedNeed: v.union(v.string(), v.null()),
+      offer: v.array(v.string()),
+      attributes: v.array(v.object({ key: v.string(), value: v.string() })),
+      contactRoute: v.union(v.null(), v.object({ kind: v.string(), value: v.string(), publicSource: v.string() })),
+      extractionStatus: v.string(),
+      signals: v.array(v.object({ type: v.string(), statement: v.string(), evidenceUrl: v.string() })),
+    })),
   })),
   handler: async (ctx, args) => {
     const matches = await ctx.db.query("matches")
@@ -736,6 +770,28 @@ export const evidenceForExplanation = internalQuery({
     for (const match of matches) {
       const [discovery, source] = await Promise.all([ctx.db.get(match.discoveryId), ctx.db.get(match.sourceId)]);
       if (!discovery || !source) continue;
+      // Attach the resolved entity + extracted signals so explanations cite
+      // structured evidence rather than only raw snippets.
+      const entityRow = await ctx.db.query("entities")
+        .withIndex("by_sourceId", (q) => q.eq("sourceId", source._id))
+        .first();
+      let entity = null;
+      if (entityRow) {
+        const signalRows = await ctx.db.query("entitySignals")
+          .withIndex("by_entityId", (q) => q.eq("entityId", entityRow._id))
+          .take(10);
+        entity = {
+          name: entityRow.name,
+          kind: entityRow.kind,
+          summary: entityRow.summary,
+          expressedNeed: entityRow.expressedNeed ?? null,
+          offer: entityRow.skillsOrOffer.slice(0, 6),
+          attributes: entityRow.attributes.slice(0, 8),
+          contactRoute: entityRow.contactRoute ?? null,
+          extractionStatus: entityRow.extractionStatus,
+          signals: signalRows.map((signal) => ({ type: signal.type, statement: signal.statement, evidenceUrl: signal.evidenceUrl })),
+        };
+      }
       result.push({
         matchId: match._id,
         subject: discovery.subject,
@@ -745,6 +801,7 @@ export const evidenceForExplanation = internalQuery({
         excerpt: bounded(discovery.signal || source.excerpt, 500),
         content: source.content ? bounded(source.content, 4000) : null,
         fetchedAt: source.fetchedAt,
+        entity,
       });
     }
     return result;
@@ -869,6 +926,28 @@ export const listSources = query({
   },
 });
 
+/** Compact entity summary for match cards (null when unresolved). */
+async function entityForSourceCard(ctx: QueryCtx, sourceId: Id<"sourceRecords">) {
+  const entity = await ctx.db.query("entities")
+    .withIndex("by_sourceId", (q) => q.eq("sourceId", sourceId))
+    .first();
+  if (!entity) return null;
+  const signals = await ctx.db.query("entitySignals")
+    .withIndex("by_entityId", (q) => q.eq("entityId", entity._id))
+    .take(5);
+  return {
+    _id: entity._id,
+    name: entity.name,
+    kind: entity.kind,
+    expressedNeed: entity.expressedNeed ?? null,
+    offer: entity.skillsOrOffer.slice(0, 5),
+    contactRoute: entity.contactRoute ?? null,
+    extractionStatus: entity.extractionStatus,
+    confidence: entity.confidence,
+    signals: signals.map((signal) => ({ type: signal.type, statement: signal.statement, evidenceUrl: signal.evidenceUrl })),
+  };
+}
+
 export const listMatches = query({
   args: { missionId: v.id("missions") },
   returns: v.array(matchView),
@@ -898,6 +977,7 @@ export const listMatches = query({
         signal: discovery.signal,
         sourceUrl: source.url,
         sourceTitle: source.title,
+        entity: await entityForSourceCard(ctx, source._id),
         createdAt: match.createdAt,
         updatedAt: match.updatedAt,
       });

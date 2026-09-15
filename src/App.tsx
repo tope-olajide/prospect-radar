@@ -59,6 +59,7 @@ export default function App({ backendConnected }: { backendConnected: boolean })
   const mapSite = useAction(api.research.mapSite);
   const startCrawl = useAction(api.research.startCrawl);
   const explainMatches = useAction(api.ai.explainMatches);
+  const resolveEntities = useAction(api.research.resolveEntities);
   const aiDraftMessage = useAction(api.ai.draftMessage);
   const draftMessage = useAction(api.outreach.draft);
   const sendMessage = useAction(api.outreach.send);
@@ -114,6 +115,8 @@ export default function App({ backendConnected }: { backendConnected: boolean })
   const jobs = useQuery(api.researchStore.listJobs, backendConnected && missionId ? { missionId } : "skip");
   const sources = useQuery(api.researchStore.listSources, backendConnected && missionId ? { missionId } : "skip");
   const matches = useQuery(api.researchStore.listMatches, backendConnected && missionId ? { missionId } : "skip");
+  const entities = useQuery(api.entityStore.listForMission, backendConnected && missionId ? { missionId } : "skip");
+  const missionSignals = useQuery(api.entityStore.listSignalsForMission, backendConnected && missionId ? { missionId } : "skip");
   const inbox = useQuery(api.outreachStore.getInbox, backendConnected ? { workspaceId } : "skip");
   const drafts = useQuery(api.outreachStore.listDrafts, backendConnected && missionId ? { workspaceId, missionId } : "skip");
   const threads = useQuery(api.inbox.listThreads, backendConnected ? { workspaceId, missionId: null } : "skip");
@@ -315,6 +318,21 @@ Clarification: ${clarifyAnswer.trim()}` });
       setResearchNotice(`Durable crawl started (${result.crawlId}). Pages stream in as they are captured.`);
     } catch (error) {
       setResearchNotice(error instanceof Error ? error.message : "Firecrawl crawl failed to start.");
+    } finally { setResearching(false); }
+  }
+
+  async function onResolveEntities() {
+    if (!missionId) return;
+    setResearching(true); setResearchNotice("");
+    try {
+      const result = await resolveEntities({ workspaceId, missionId, limit: 8 });
+      setResearchNotice(
+        result.resolved === 0
+          ? "No unscraped sources left to resolve."
+          : `Resolved ${result.resolved} entit${result.resolved === 1 ? "y" : "ies"} (${result.extracted} extracted, ${result.fallback} snippet-only).`,
+      );
+    } catch (error) {
+      setResearchNotice(error instanceof Error ? error.message : "Entity resolution failed.");
     } finally { setResearching(false); }
   }
 
@@ -625,6 +643,7 @@ Clarification: ${clarifyAnswer.trim()}` });
                     <div className="control-row">
                       <input aria-label="Research query" placeholder={plan?.normalizedGoal || selectedMission.rawGoal} value={researchQuery} onChange={(event) => setResearchQuery(event.target.value)} />
                       <button type="button" className="btn" onClick={onSearch} disabled={!backendConnected || researching}>{researching ? "Researching…" : "Search"}</button>
+                      <button type="button" className="btn ghost" onClick={onResolveEntities} disabled={!backendConnected || researching}>Resolve entities</button>
                       <button type="button" className="btn ghost" onClick={onExplainMatches} disabled={!backendConnected || researching}>Explain matches</button>
                     </div>
                     <div className="control-row">
@@ -640,6 +659,46 @@ Clarification: ${clarifyAnswer.trim()}` });
                     <p className="stage-note">{researchNotice || (latestJob ? `Latest job: ${latestJob.operation} · ${latestJob.status}${latestJob.crawlStatus ? ` (${latestJob.crawlStatus})` : ""} · ${latestJob.resultCount} sources` : "No Firecrawl jobs yet for this mission.")}</p>
                   </section>
 
+                  {entities && entities.length > 0 && (
+                    <section aria-label="Entities and signals" className="panel">
+                      <div className="panel-head">
+                        <p className="eyebrow">ENTITIES & SIGNALS</p>
+                        <span className="muted">{entities.length} resolved · {missionSignals?.length ?? 0} signals</span>
+                      </div>
+                      <div className="entity-list">
+                        {entities.map((entity) => {
+                          const signals = (missionSignals ?? []).filter((signal) => signal.entityId === entity._id);
+                          return (
+                            <article className="entity-card" key={entity._id}>
+                              <div className="entity-head">
+                                <span className={`kind-pill kind-${entity.kind}`}>{entity.kind}</span>
+                                <strong>{entity.name}</strong>
+                                {entity.extractionStatus === "snippet_only" && <span className="mono-tag">snippet-only</span>}
+                                <span className="muted">confidence {Math.round(entity.confidence * 100)}%</span>
+                              </div>
+                              {entity.expressedNeed && <p className="stage-note"><b>Needs</b>{entity.expressedNeed}</p>}
+                              {entity.skillsOrOffer.length > 0 && <p className="stage-note"><b>Offers</b>{entity.skillsOrOffer.join(" · ")}</p>}
+                              {entity.contactRoute ? (
+                                <p className="stage-note">
+                                  <b>Contact</b>{entity.contactRoute.kind}: {entity.contactRoute.value}{" "}
+                                  <a className="source-link" href={entity.contactRoute.publicSource} target="_blank" rel="noreferrer">public source</a>
+                                </p>
+                              ) : (
+                                <p className="stage-note warn"><b>Contact</b>No public route found — Radar will research an alternate route instead of guessing.</p>
+                              )}
+                              {signals.map((signal) => (
+                                <p className="signal-row" key={signal._id}>
+                                  <span className="signal-chip">{signal.type.replace(/_/g, " ")}</span>{signal.statement}
+                                </p>
+                              ))}
+                              <a className="source-link" href={entity.canonicalUrl} target="_blank" rel="noreferrer">Evidence: {new URL(entity.canonicalUrl).hostname}</a>
+                            </article>
+                          );
+                        })}
+                      </div>
+                    </section>
+                  )}
+
                   <section aria-label="Matches">
                     {matches === undefined ? <p className="empty-state">Loading matches…</p> : matches.length === 0 ? (
                       <div className="panel"><p className="empty-state">No matches yet. Run a search — Radar explains which constraint limited discovery rather than inventing candidates.</p></div>
@@ -653,7 +712,16 @@ Clarification: ${clarifyAnswer.trim()}` });
                                 <span className={`status-pill status-${match.label}`}>{match.label}</span>
                                 {match.explanationModel && <span className="mono-tag">{match.explanationModel}</span>}
                               </div>
-                              <h3>{match.subject}</h3>
+                              <h3>{match.entity?.name ?? match.subject}</h3>
+                              {match.entity && (
+                                <div className="entity-inline">
+                                  <span className={`kind-pill kind-${match.entity.kind}`}>{match.entity.kind}</span>
+                                  {match.entity.expressedNeed && <span className="muted">needs: {match.entity.expressedNeed.slice(0, 90)}{match.entity.expressedNeed.length > 90 ? "…" : ""}</span>}
+                                  {match.entity.contactRoute
+                                    ? <span className="muted">· {match.entity.contactRoute.kind} via <a className="source-link" href={match.entity.contactRoute.publicSource} target="_blank" rel="noreferrer">public source</a></span>
+                                    : <span className="muted">· no public contact route</span>}
+                                </div>
+                              )}
                               <a className="source-link" href={match.sourceUrl} target="_blank" rel="noreferrer">View source: {new URL(match.sourceUrl).hostname}{source ? ` · fetched ${shortDate(source.fetchedAt)}` : ""}</a>
                               <p className="match-signal">{match.explanationSummary || match.signal}</p>
                               {match.positiveEvidence.length > 0 && <p className="stage-note">Evidence: {match.positiveEvidence[0]}</p>}

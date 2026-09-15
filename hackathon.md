@@ -12,9 +12,25 @@
 - **Auth:** none (demo workspace scope)
 - **AI models:** any OpenAI-compatible model via OPENAI_BASE_URL / OPENAI_MODEL (gpt-5-mini default; provider recorded on plans and classifications)
 - **Started:** 2026-09-13T00:00:00Z
-- **Last updated:** 2026-09-15T21:05:00Z
+- **Last updated:** 2026-09-15T21:30:00Z
 
 ## Log
+
+### 2026-09-15 - working tree
+Shipped the entity and signal engine: discovery output now resolves into
+entities (person / organization / product) with extracted attributes,
+expressed needs, offers, signals, and a provenance-checked contact route
+(new entities + entitySignals tables with canonical-URL, normalized-name,
+and evidence-URL dedupe). Resolution uses Firecrawl JSON mode (json format
+with a strict schema over cached scrapes); when the provider fails or
+returns an untrustworthy shape, Radar keeps a snippet-only entity instead of
+a guess and records the classified error. Contact routes survive only with a
+real public source URL, and email values are validated. The orchestrator now
+resolves entities before explaining, and match explanations cite extracted
+attributes and signals — with an explicit rule that a match with no known
+route gets "research_alt_route" rather than outreach. UI adds an Entities &
+Signals panel (kind badges, needs/offers, sourced contact, signal chips) and
+enriched match cards. 17 new tests (81/81 total). Deployed to production.
 
 ### 2026-09-15 - working tree
 Built the autonomous mission orchestrator: a scheduled internal action now
