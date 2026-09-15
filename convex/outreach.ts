@@ -108,7 +108,10 @@ export const send = action({
     }
     const approval = await ctx.runQuery(internal.outreachStore.activeApprovalFor, { actionId: args.actionId });
     if (!approval) throw new Error("APPROVAL_REQUIRED: no active approval exists for this draft.");
-    if (approval.contentHash !== draftRow.contentHash) {
+    // Recompute the hash from the stored content at send time: an approval is
+    // bound to exact bytes, so any drift between approval and draft fails closed.
+    const sendTimeHash = await contentHash(draftRow.recipient, draftRow.subject, draftRow.body);
+    if (approval.contentHash !== sendTimeHash || draftRow.contentHash !== sendTimeHash) {
       throw new Error("APPROVAL_STALE: draft changed after approval; approve again.");
     }
     if (approval.expiresAt <= Date.now()) throw new Error("APPROVAL_STALE: approval expired; approve again.");
