@@ -38,6 +38,10 @@ const factVisibility = v.union(v.literal("mission"), v.literal("workspace"));
 const factSource = v.union(v.literal("user_input"), v.literal("plan_extraction"), v.literal("source_extraction"), v.literal("agent_inference"));
 const queryKind = v.union(v.literal("search"), v.literal("crawl"));
 const queryStatus = v.union(v.literal("pending"), v.literal("done"), v.literal("skipped"));
+const entityKind = v.union(v.literal("person"), v.literal("organization"), v.literal("product"));
+const contactKind = v.union(v.literal("email"), v.literal("form"), v.literal("linkedin"));
+const signalType = v.union(v.literal("hiring"), v.literal("project_request"), v.literal("rfp"), v.literal("complaint"), v.literal("funding"), v.literal("launch"), v.literal("expansion"), v.literal("other"));
+const contactRoute = v.object({ kind: contactKind, value: v.string(), publicSource: v.string() });
 
 export default defineSchema({
   missions: defineTable({
@@ -121,6 +125,27 @@ export default defineSchema({
   }).index("by_missionId", ["missionId"])
     .index("by_discoveryId", ["discoveryId"])
     .index("by_sourceId", ["sourceId"]),
+
+  entities: defineTable({
+    workspaceId: v.string(), missionId: v.id("missions"), sourceId: v.id("sourceRecords"),
+    kind: entityKind, name: v.string(), nameLower: v.string(), canonicalUrl: v.string(),
+    attributes: v.array(v.object({ key: v.string(), value: v.string() })),
+    summary: v.string(), expressedNeed: v.optional(v.string()), skillsOrOffer: v.array(v.string()),
+    contactRoute: v.optional(contactRoute),
+    extractionStatus: v.union(v.literal("extracted"), v.literal("snippet_only")),
+    confidence: v.number(), firstSeenAt: v.number(), updatedAt: v.number(),
+  }).index("by_missionId", ["missionId"])
+    .index("by_missionId_and_canonicalUrl", ["missionId", "canonicalUrl"])
+    .index("by_missionId_and_nameLower", ["missionId", "nameLower"])
+    .index("by_sourceId", ["sourceId"])
+    .index("by_workspaceId", ["workspaceId"]),
+  entitySignals: defineTable({
+    workspaceId: v.string(), missionId: v.id("missions"), entityId: v.id("entities"),
+    type: signalType, statement: v.string(), evidenceUrl: v.string(),
+    observedAt: v.union(v.number(), v.null()), confidence: v.number(), createdAt: v.number(),
+  }).index("by_entityId", ["entityId"])
+    .index("by_missionId", ["missionId"])
+    .index("by_entityId_and_evidenceUrl", ["entityId", "evidenceUrl"]),
 
   agentInboxes: defineTable({
     workspaceId: v.string(), agentmailInboxId: v.string(), email: v.string(),

@@ -167,6 +167,22 @@ export const runStage = internalAction({
             await ctx.scheduler.runAfter(0, internal.missionOrchestrator.runStage, { missionId: args.missionId });
             return null;
           }
+          // Resolve scraped sources into entities + signals before explaining,
+          // so matches are grounded in extracted attributes rather than
+          // snippets. Extraction failures fall back per source and never block
+          // the stage; a missing mission record does not stop evaluation either.
+          const mission = await ctx.runQuery(internal.missionsInternal.get, { missionId: args.missionId });
+          if (mission) {
+            try {
+              await ctx.runAction(api.research.resolveEntities, {
+                workspaceId: mission.workspaceId,
+                missionId: args.missionId,
+                limit: 6,
+              });
+            } catch {
+              // Fallback entities (or provider trouble) must not stop evaluation.
+            }
+          }
           await ctx.runAction(api.ai.explainMatches, { missionId: args.missionId });
           await ctx.runMutation(internal.orchestratorStore.stageDone, {
             missionId: args.missionId, stage: "evaluate", nextStage: "approval",

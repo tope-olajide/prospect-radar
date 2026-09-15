@@ -230,6 +230,21 @@ label { display: grid; gap: 6px; color: var(--muted); font-size: 10px; font-weig
 
 .run-controls { margin-top: 10px; }
 
+.kind-pill { display: inline-block; padding: 1px 8px; border-radius: 999px; border: 1px solid rgba(111,214,232,.35); background: rgba(111,214,232,.08); color: var(--cyan); font-size: 9px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+.kind-person { border-color: rgba(167,139,250,.4); background: rgba(167,139,250,.1); color: #c4b5fd; }
+.kind-organization { border-color: rgba(111,214,232,.35); background: rgba(111,214,232,.08); color: var(--cyan); }
+.kind-product { border-color: rgba(52,199,123,.35); background: rgba(52,199,123,.08); color: #7fd9a6; }
+
+.entity-list { display: grid; gap: 12px; margin-top: 6px; }
+.entity-card { padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: rgba(255,255,255,.015); }
+.entity-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.entity-head strong { color: #e9edf4; font-size: 13px; }
+.entity-inline { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 4px; font-size: 10px; }
+.entity-card .source-link { margin-top: 8px; display: inline-block; }
+
+.signal-row { margin: 6px 0 0; color: var(--muted); font-size: 10px; line-height: 1.5; }
+.signal-chip { display: inline-block; margin-right: 8px; padding: 1px 8px; border-radius: 999px; border: 1px solid rgba(250,204,21,.3); background: rgba(250,204,21,.07); color: #fde68a; font-size: 9px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+
 .app-footer { margin-top: 8px; padding-top: 16px; border-top: 1px solid var(--line); color: #5c6a7d; font-size: 9px; }
 
 /* ---------- Responsive ---------- */
