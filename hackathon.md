@@ -3,18 +3,27 @@
 - **Project:** Prospect Radar
 - **Event:** Convex All Gas Hackathon
 - **What it does:** Turns a natural-language opportunity goal into sourced, explained matches, approval-bound AgentMail outreach, live replies, and persisted outcomes on Convex.
-- **Live app:** not deployed
+- **Live app:** https://wry-walrus-528.convex.site
 - **Repo:** https://github.com/tope-olajide/prospect-radar
-- **Frontend:** not deployed (React/Vite; Convex static hosting planned)
-- **Convex deployment:** not deployed (local dev deployment in use)
+- **Frontend:** Convex static hosting (@convex-dev/static-hosting)
+- **Convex deployment:** wry-walrus-528 (production, team tope-olajide, project prospect-radar)
 - **Components:** @firecrawl/firecrawl-convex, @agentmail/convex
 - **Convex features:** schema, indexes, queries, mutations, actions, scheduler, HTTP webhooks, reactive subscriptions, function handles
 - **Auth:** none (demo workspace scope)
 - **AI models:** any OpenAI-compatible model via OPENAI_BASE_URL / OPENAI_MODEL (gpt-5-mini default; provider recorded on plans and classifications)
 - **Started:** 2026-09-13T00:00:00Z
-- **Last updated:** 2026-09-15T15:25:00Z
+- **Last updated:** 2026-09-15T17:50:00Z
 
 ## Log
+
+### 2026-09-15 - cea64ca
+Deployed the app to production: pushed the Convex backend with all four
+components (firecrawl, agentmail, staticHosting) to the prod deployment, built
+the frontend against the prod URL, and published static files via the official
+Convex Static Hosting component. Live at https://wry-walrus-528.convex.site —
+verified the served bundle points at the prod backend with no localhost
+references; production env keys set for Firecrawl, AgentMail, and the
+OpenAI-compatible LLM endpoint.
 
 ### 2026-09-13 - 5717024
 Defined the Convex-first product plan across eleven docs: mission lifecycle,
