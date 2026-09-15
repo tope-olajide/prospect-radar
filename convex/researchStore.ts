@@ -5,11 +5,14 @@ import { internalMutation, internalQuery, query } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
 import { transitionRun } from "./runState";
 import { confirmedFactPairs } from "./context";
+import { classifyProviderError } from "./providerErrors";
+import { recordStep } from "./runs";
 
 const researchOperation = v.union(v.literal("search"), v.literal("scrape"), v.literal("map"), v.literal("crawl"));
 const crawlStatus = v.union(v.literal("scraping"), v.literal("completed"), v.literal("failed"), v.literal("cancelled"));
 const researchJobStatus = v.union(v.literal("running"), v.literal("complete"), v.literal("failed"));
 const sourceType = v.union(v.literal("search_result"), v.literal("scraped_page"), v.literal("crawled_page"), v.literal("mapped_site"));
+const sourceFreshness = v.union(v.literal("fresh"), v.literal("cached"), v.literal("truncated"), v.literal("failed"));
 const sourceProcessingStatus = v.union(v.literal("discovered"), v.literal("scraping"), v.literal("scraped"), v.literal("failed"));
 const matchLabel = v.union(v.literal("stronger"), v.literal("promising"), v.literal("uncertain"), v.literal("insufficient"));
 
@@ -38,7 +41,7 @@ export const sourceInput = v.object({
   sourceType,
   excerpt: v.string(),
   content: v.union(v.string(), v.null()),
-  freshness: v.string(),
+  freshness: sourceFreshness,
   firecrawlRequestId: v.union(v.string(), v.null()),
   firecrawlPageId: v.union(v.string(), v.null()),
   processingStatus: sourceProcessingStatus,
@@ -115,6 +118,7 @@ export const startJob = internalMutation({
       providerRequestId: null,
       crawlId: null,
       crawlStatus: null,
+      errorCode: null,
       resultCount: 0,
       errorSummary: null,
       createdAt: now,
@@ -314,6 +318,7 @@ export const startCrawlJob = internalMutation({
       providerRequestId: null,
       crawlId: null,
       crawlStatus: null,
+      errorCode: null,
       resultCount: 0,
       errorSummary: null,
       createdAt: now,
@@ -402,7 +407,7 @@ async function completeCrawl(
           excerpt: content ? bounded(content, 500) : "Crawled page stored without usable text content.",
           content,
           fetchedAt: now,
-          freshness: "fresh",
+          freshness: page.truncated ? ("truncated" as const) : ("fresh" as const),
           firecrawlRequestId: args.crawlId,
           firecrawlPageId: null,
           processingStatus: content ? ("scraped" as const) : ("failed" as const),
@@ -524,13 +529,14 @@ export const crawlCompleted = internalMutation({
 });
 
 export const failJob = internalMutation({
-  args: { jobId: v.id("researchJobs"), errorSummary: v.string() },
+  args: { jobId: v.id("researchJobs"), errorSummary: v.string(), errorCode: v.union(v.string(), v.null()) },
   returns: v.id("researchJobs"),
   handler: async (ctx, args) => {
     const job = await ctx.db.get(args.jobId);
     if (!job) throw new Error("Research job not found.");
     const now = Date.now();
-    await ctx.db.patch(job._id, { status: "failed", errorSummary: bounded(args.errorSummary, 240), finishedAt: now, updatedAt: now });
+    await ctx.db.patch(job._id, { status: "failed", errorSummary: bounded(args.errorSummary, 240), errorCode: args.errorCode, finishedAt: now, updatedAt: now });
+    const classified = classifyProviderError(args.errorSummary);
     const run = await ctx.db.get(job.runId);
     if (run && !["complete", "failed", "cancelled"].includes(run.status)) {
       await transitionRun(ctx, {
@@ -542,6 +548,14 @@ export const failJob = internalMutation({
         safeSummary: "Firecrawl research failed; no side effect was attempted.",
       });
     }
+    await recordStep(ctx, {
+      missionId: job.missionId,
+      stage: run && ["intake", "interpret", "plan", "wait"].includes(run.currentStage) ? "discover" : run?.currentStage ?? "discover",
+      label: `firecrawl.${job.operation}.failed`,
+      summary: `${classified.summary} ${classified.nextAction}`,
+      reference: job.crawlId ?? job.providerRequestId,
+      errorCode: args.errorCode ?? classified.code,
+    });
     return job._id;
   },
 });

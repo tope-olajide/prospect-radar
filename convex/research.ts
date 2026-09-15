@@ -4,6 +4,7 @@ import { v } from "convex/values";
 import { FirecrawlClient } from "@firecrawl/firecrawl-convex";
 import { components, internal } from "./_generated/api";
 import { action } from "./_generated/server";
+import { classifyProviderError } from "./providerErrors";
 
 const firecrawl = new FirecrawlClient(components.firecrawl);
 
@@ -43,9 +44,12 @@ export const search = action({
       });
       return { jobId: finished.jobId, resultCount: finished.resultCount, status: "complete" as const };
     } catch (error) {
+      const message = error instanceof Error ? error.message : "Firecrawl search failed.";
+      const classified = classifyProviderError(message);
       await ctx.runMutation(internal.researchStore.failJob, {
         jobId: started.jobId,
-        errorSummary: error instanceof Error ? error.message : "Firecrawl search failed.",
+        errorSummary: message,
+        errorCode: classified.code,
       });
       throw error;
     }
@@ -92,8 +96,9 @@ export const scrape = action({
       return { jobId: finished.jobId, sourceId: args.sourceId, status: "complete" as const };
     } catch (error) {
       const message = error instanceof Error ? error.message : "Firecrawl scrape failed.";
+      const classified = classifyProviderError(message);
       await ctx.runMutation(internal.researchStore.markSourceFailed, { sourceId: args.sourceId, errorSummary: message });
-      await ctx.runMutation(internal.researchStore.failJob, { jobId: started.jobId, errorSummary: message });
+      await ctx.runMutation(internal.researchStore.failJob, { jobId: started.jobId, errorSummary: message, errorCode: classified.code });
       throw error;
     }
   },
@@ -142,7 +147,7 @@ export const mapSite = action({
           sourceType: "mapped_site" as const,
           excerpt: "Site structure discovered through a Firecrawl map of this domain.",
           content: null,
-          freshness: "fresh",
+          freshness: "fresh" as const,
           firecrawlRequestId: result.id ?? null,
           firecrawlPageId: null,
           processingStatus: "discovered" as const,
@@ -151,9 +156,12 @@ export const mapSite = action({
       });
       return { jobId: finished.jobId, linkCount: finished.resultCount, status: "complete" as const };
     } catch (error) {
+      const message = error instanceof Error ? error.message : "Firecrawl map failed.";
+      const classified = classifyProviderError(message);
       await ctx.runMutation(internal.researchStore.failJob, {
         jobId: started.jobId,
-        errorSummary: error instanceof Error ? error.message : "Firecrawl map failed.",
+        errorSummary: message,
+        errorCode: classified.code,
       });
       throw error;
     }
@@ -207,9 +215,12 @@ export const startCrawl = action({
       });
       return { jobId: started.jobId, crawlId, status: "running" as const };
     } catch (error) {
+      const message = error instanceof Error ? error.message : "Firecrawl crawl failed to start.";
+      const classified = classifyProviderError(message);
       await ctx.runMutation(internal.researchStore.failJob, {
         jobId: started.jobId,
-        errorSummary: error instanceof Error ? error.message : "Firecrawl crawl failed to start.",
+        errorSummary: message,
+        errorCode: classified.code,
       });
       throw error;
     }
@@ -250,12 +261,26 @@ type NormalizedSource = {
   sourceType: "search_result" | "scraped_page";
   excerpt: string;
   content: string | null;
-  freshness: string;
+  freshness: "fresh" | "cached" | "truncated" | "failed";
   firecrawlRequestId: string | null;
   firecrawlPageId: string | null;
   processingStatus: "discovered" | "scraping" | "scraped" | "failed";
   label: "stronger" | "promising" | "uncertain" | "insufficient";
 };
+
+/**
+ * Freshness labeling from component metadata (docs/technical-architecture.md:
+ * stale cache and truncation are explicit states, never silent).
+ *  - metadata.cacheState === "hit" → served from Firecrawl's cache → "cached";
+ *  - a provider warning or hard content cap → "truncated".
+ */
+function freshnessFor(metadata: { cacheState?: string } | undefined, warning: unknown, content: string | null): "fresh" | "cached" | "truncated" {
+  const hardCap = 12000;
+  const wasTruncated = (typeof warning === "string" && warning.trim().length > 0) ||
+    (content !== null && content.length >= hardCap);
+  if (wasTruncated) return "truncated";
+  return metadata?.cacheState === "hit" ? "cached" : "fresh";
+}
 
 function normalizeSearchResults(response: unknown, requestId: string) {
   const items = isRecord(response) && Array.isArray(response.web) ? response.web.filter(isRecord) : [];
@@ -274,13 +299,14 @@ function normalizeSearchResults(response: unknown, requestId: string) {
       500,
     );
     const content = markdown || null;
+    const itemMetadata = isRecord(item.metadata) ? item.metadata as { cacheState?: string } : undefined;
     results.push({
       url,
       title,
       sourceType: "search_result",
       excerpt: excerpt || "Firecrawl returned this public-web result without a description.",
       content,
-      freshness: "fresh",
+      freshness: freshnessFor(itemMetadata, item.warning, content),
       firecrawlRequestId: requestId,
       firecrawlPageId: null,
       processingStatus: content ? "scraped" : "discovered",
@@ -305,7 +331,7 @@ function normalizeScrapeResult(document: unknown, sourceUrl: string, requestId: 
     sourceType: "scraped_page" as const,
     excerpt: excerpt || "Firecrawl returned a page without a text summary.",
     content: content || null,
-    freshness: "fresh",
+    freshness: freshnessFor(metadata as { cacheState?: string } | undefined, doc.warning, content || null),
     firecrawlRequestId: requestId || null,
     firecrawlPageId: typeof metadata.pageId === "string" ? metadata.pageId : null,      processingStatus: content ? ("scraped" as const) : ("failed" as const),
       label: content ? ("promising" as const) : ("insufficient" as const),
