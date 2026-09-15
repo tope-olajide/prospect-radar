@@ -326,6 +326,30 @@ export const listMessages = query({
   },
 });
 
+const threadLabel = v.union(
+  v.literal("new"),
+  v.literal("approved"),
+  v.literal("waiting"),
+  v.literal("reply"),
+  v.literal("closed"),
+);
+
+export const setLabel = mutation({
+  args: { workspaceId: v.string(), threadId: v.id("inboxThreads"), label: threadLabel, set: v.boolean() },
+  returns: v.array(v.string()),
+  handler: async (ctx, args) => {
+    const thread = await ctx.db.get(args.threadId);
+    if (!thread || thread.workspaceId !== args.workspaceId) {
+      throw new Error("FORBIDDEN_SCOPE: thread is not in this workspace.");
+    }
+    const labels = args.set
+      ? Array.from(new Set([...thread.labels, args.label]))
+      : thread.labels.filter((label) => label !== args.label);
+    await ctx.db.patch(thread._id, { labels, updatedAt: Date.now() });
+    return labels;
+  },
+});
+
 export const threadForWorkspace = internalQuery({
   args: { workspaceId: v.string(), threadId: v.string() },
   returns: v.union(v.id("inboxThreads"), v.null()),

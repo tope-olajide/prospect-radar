@@ -15,6 +15,9 @@ const matchLabel = v.union(v.literal("stronger"), v.literal("promising"), v.lite
 const actionStatus = v.union(v.literal("draft"), v.literal("awaiting_approval"), v.literal("approved"), v.literal("executing"), v.literal("sent"), v.literal("delivered"), v.literal("failed"), v.literal("cancelled"), v.literal("unverified"));
 const approvalStatus = v.union(v.literal("active"), v.literal("used"), v.literal("expired"), v.literal("revoked"));
 const outcomeStatus = v.union(v.literal("open"), v.literal("waiting"), v.literal("replied"), v.literal("positive"), v.literal("negative"), v.literal("closed"), v.literal("unknown"));
+const factStatus = v.union(v.literal("unreviewed"), v.literal("user_confirmed"), v.literal("user_corrected"), v.literal("user_rejected"));
+const factVisibility = v.union(v.literal("mission"), v.literal("workspace"));
+const factSource = v.union(v.literal("user_input"), v.literal("plan_extraction"), v.literal("source_extraction"), v.literal("agent_inference"));
 
 export default defineSchema({
   missions: defineTable({
@@ -39,6 +42,15 @@ export default defineSchema({
     missionId: v.id("missions"), runId: v.id("agentRuns"), type: v.string(),
     stage: runStage, safeSummary: v.string(), createdAt: v.number(),
   }).index("by_runId", ["runId"]).index("by_missionId", ["missionId"]),
+  contextFacts: defineTable({
+    workspaceId: v.string(), missionId: v.union(v.id("missions"), v.null()),
+    category: v.string(), value: v.string(), sourceType: factSource,
+    sourceReference: v.union(v.string(), v.null()), confidence: v.number(),
+    verificationStatus: factStatus, visibility: factVisibility,
+    createdAt: v.number(), updatedAt: v.number(),
+  }).index("by_workspaceId", ["workspaceId"])
+    .index("by_workspaceId_and_category", ["workspaceId", "category"])
+    .index("by_missionId", ["missionId"]),
 
   researchJobs: defineTable({
     missionId: v.id("missions"), runId: v.id("agentRuns"), requestId: v.string(),
