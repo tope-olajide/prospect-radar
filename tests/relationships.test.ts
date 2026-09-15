@@ -278,6 +278,11 @@ describe("relationship pipeline (docs/execution-plan.md Phase 3)", () => {
     const due = await t.run(async (ctx) => ctx.db.get(followUpId));
     expect(due?.status).toBe("due");
 
+    // The sweep queues the step written first (the no-reply value-add), not the
+    // gentle close, so the sequence is drafted in the order it was planned.
+    const sequence = await sequencesFor(t, matchId as never);
+    expect(sequence[0].steps.map((step) => step.index)).toEqual([0, 1, 2]);
+
     await t.mutation(api.relationships.snoozeFollowUp, {
       workspaceId: WORKSPACE, followUpId, dueAt: Date.now() + 4 * dayMs,
     });
