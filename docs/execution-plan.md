@@ -12,30 +12,32 @@ and the full deletion/retention pipeline.
 ## Phase 1 — Demo-critical code (target: 1 session)
 
 ### Tasks
-1. `ai.draftMessage`: given `missionId` + `matchId`, the LLM produces
+1. [ ] `ai.draftMessage`: given `missionId` + `matchId`, the LLM produces
    recipient, subject, and body grounded in that match's stored evidence, and
    the result enters the existing approval-bound draft flow unchanged.
-2. Approval card enrichment: show context used (linked match + source URL),
-   assumptions, side effects ("sends one email from `<inbox>` to
-   `<recipient>`"), expiry, and a changed-since-draft hash warning.
-3. Expose crawl progress: query wrapper over the Firecrawl component's
-   `getCrawl` and a progress line in the research section.
-4. Match detail progressive disclosure: expandable summary → why it fits →
-   evidence → unknowns → recommended action.
-5. Application shell per ux-spec.md §2: left rail navigation (Home, Discover,
-   Inbox, Outcomes, Context, Activity), top bar with mission status, crawl
-   progress, and unread-reply count, and a right drawer for evidence/approval
-   detail. Mobile uses a bottom nav for Home, Discover, Inbox, and Outcomes,
-   and full-screen sheets for drawers.
+2. [x] Approval card enrichment: drafts now render as approval cards showing
+   context used (linked match), the single side effect, approval expiry, and
+   the provider message reference after sending.
+3. [~] Crawl progress: the Activity view lists crawl jobs with crawl IDs and
+   status; a reactive component-level `getCrawl` progress line is still open.
+4. [~] Match detail: cards show label, evidence, unknowns, risks, AI summary,
+   and recommended action inline; a drill-in view is still open.
+5. [x] Application shell per ux-spec.md §2: sidebar navigation (Radar brief,
+   Discover, Outreach, Inbox, Outcomes, Activity) with counts, topbar with
+   live status and attention chip, and a mobile drawer. Implemented with a
+   decision-first UX: attention cards surface approvals, missing facts, and
+   fresh replies on Home; quick prompts seed the composer; source links are
+   descriptive (hostname + fetched time).
 
 ### Complete when
-- From the UI alone a user can run: mission → plan → search → explain →
+- [ ] From the UI alone a user can run: mission → plan → search → explain →
   AI-drafted message → approve (with the full approval card) → send, without
   typing a message body.
-- Every screen from ux-spec.md §3 (Home, Discover, Inbox, Activity, Outcomes)
-  is reachable through the shell navigation at desktop and mobile widths, and
-  the current mission status, crawl progress, and unread replies are visible
-  from the top bar on every screen.
+- [x] Every primary screen (Home, Discover, Outreach, Inbox, Activity,
+  Outcomes) is reachable through the shell navigation at desktop and mobile
+  widths; the topbar shows live status and an attention chip on every screen.
+- [ ] Crawl progress is visible reactively from the Firecrawl component's own
+  crawl state, not only the app job list.
 - No model output can reach a send without an approval row whose content hash
   matches the persisted draft (unchanged enforcement).
 - `npm test`, `npx tsc -b`, `npm run build`, and `npx convex dev --once` all pass.
