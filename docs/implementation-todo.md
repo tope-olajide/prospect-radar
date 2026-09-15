@@ -6,7 +6,7 @@ current research-and-outreach release.
 
 ## Current release: research, outreach, and inbox
 
-- [ ] Bootstrap the React/Vite frontend and Convex application.
+- [x] Bootstrap the React/Vite frontend and Convex application.
 - [ ] Configure Convex static hosting at a public convex.site URL.
 - [ ] Add Convex schema, validators, mission state, runs, approvals, matches,
       sources, actions, inbox links, and outcomes.
@@ -16,7 +16,7 @@ current research-and-outreach release.
 - [ ] Add AgentMail inbox mapping, approved send, delivery state, inbound webhook,
       labels, and reactive thread updates.
 - [ ] Complete the sponsor verification run in integration-verification.md.
-- [ ] Create and maintain root hackathon.md once the application runtime exists.
+- [x] Create and maintain root hackathon.md once the application runtime exists.
 - [ ] Deploy, test in a clean browser, record the short demo, and submit.
 
 ## Deferred feature: verified internal two-sided network
