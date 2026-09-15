@@ -13,6 +13,7 @@ import type * as context from "../context.js";
 import type * as hash from "../hash.js";
 import type * as http from "../http.js";
 import type * as inbox from "../inbox.js";
+import type * as intentStrategy from "../intentStrategy.js";
 import type * as missions from "../missions.js";
 import type * as missionsInternal from "../missionsInternal.js";
 import type * as outcomes from "../outcomes.js";
@@ -38,6 +39,7 @@ declare const fullApi: ApiFromModules<{
   hash: typeof hash;
   http: typeof http;
   inbox: typeof inbox;
+  intentStrategy: typeof intentStrategy;
   missions: typeof missions;
   missionsInternal: typeof missionsInternal;
   outcomes: typeof outcomes;
