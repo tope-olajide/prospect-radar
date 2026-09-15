@@ -75,6 +75,15 @@ drafting (`convex/context.ts`, `convex/inbox.ts`, `convex/outreach.ts`,
 `tests/trust.test.ts`, `src/App.tsx`).
 
 ### 2026-09-15 - working tree
+Phase 3 deployment wiring: installed the official Convex Static Hosting
+component (`@convex-dev/static-hosting`), registered it in
+`convex/convex.config.ts`, mounted `registerStaticRoutes` after the exact app
+webhook routes in `convex/http.ts` (so `/agentmail/webhook` and `/firecrawl/*`
+keep priority), and added the `npm run deploy` script. Frontend target:
+`https://<deployment>.convex.site`. Cloud deployment pending `npx convex login`
+(user authentication step) plus production env keys.
+
+### 2026-09-15 - working tree
 Finished Phase 1: `ai.draftMessage` drafts outreach grounded in one match's
 stored evidence and accepts a recipient only when the address literally
 appears in that evidence, otherwise returning the draft for manual review;
