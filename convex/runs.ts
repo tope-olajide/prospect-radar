@@ -26,6 +26,7 @@ const stepView = v.object({
   summary: v.string(),
   reference: v.union(v.string(), v.null()),
   errorCode: v.union(v.string(), v.null()),
+  tool: v.optional(v.string()),
   createdAt: v.number(),
 });
 
@@ -48,6 +49,7 @@ export async function recordStep(
     summary: string;
     reference?: string | null;
     errorCode?: string | null;
+    tool?: string | null;
   },
 ) {
   try {
@@ -63,6 +65,7 @@ export async function recordStep(
       summary: args.summary.slice(0, 400),
       reference: args.reference ?? null,
       errorCode: args.errorCode ?? null,
+      tool: args.tool ?? undefined,
       createdAt: Date.now(),
     });
   } catch {
@@ -82,6 +85,7 @@ export const recordStepForAction = internalMutation({
     summary: v.string(),
     reference: v.union(v.string(), v.null()),
     errorCode: v.union(v.string(), v.null()),
+    tool: v.union(v.string(), v.null()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {

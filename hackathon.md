@@ -12,9 +12,24 @@
 - **Auth:** none (demo workspace scope)
 - **AI models:** any OpenAI-compatible model via OPENAI_BASE_URL / OPENAI_MODEL (gpt-5-mini default; provider recorded on plans and classifications)
 - **Started:** 2026-09-13T00:00:00Z
-- **Last updated:** 2026-09-15T19:10:00Z
+- **Last updated:** 2026-09-15T21:05:00Z
 
 ## Log
+
+### 2026-09-15 - working tree
+Built the autonomous mission orchestrator: a scheduled internal action now
+drives each run through interpret → plan → discover → evaluate → approval
+using per-mission search queries and crawl targets materialized from the
+strategy plan (new missionQueries table), one durable stage per invocation.
+The approval gate is a hard stop — nothing sends without a human. Added a
+user Stop control, blocked-stage retry with classified error codes and
+bounded auto-retries, a live agent transcript (run steps now carry the tool
+that produced them: llm.classify, llm.plan, firecrawl.search,
+firecrawl.crawl, orchestrator), a pipeline stage strip in the UI, and a
+completion predicate check after every send that flips the mission complete
+when a sourced match was approved and sent. 16 new orchestrator tests
+(64/64 total) cover stage dispatch, the hard gate, stop/no-op semantics,
+failure blocking, retry, and the predicate. Deployed to production.
 
 ### 2026-09-15 - working tree
 Shipped AI intent classification: removed the intent/mode dropdown so users

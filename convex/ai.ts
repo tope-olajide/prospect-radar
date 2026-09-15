@@ -36,13 +36,15 @@ const classificationSchema = {
 
 const planSchema = {
   type: "object", additionalProperties: false,
-  required: ["normalizedGoal", "mode", "mustHave", "niceToHave", "exclusions", "missingFacts", "recommendedSources", "proposedSteps", "completionPredicate", "strategyNotes"],
+  required: ["normalizedGoal", "mode", "mustHave", "niceToHave", "exclusions", "missingFacts", "recommendedSources", "proposedSteps", "completionPredicate", "strategyNotes", "searchQueries", "crawlTargets"],
   properties: {
     normalizedGoal: { type: "string" },
     mode: { type: "string", enum: ["opportunity", "person", "customer", "solution", "collaborator"] },
     mustHave: { type: "array", items: { type: "string" } }, niceToHave: { type: "array", items: { type: "string" } }, exclusions: { type: "array", items: { type: "string" } },
     missingFacts: { type: "array", items: { type: "string" } }, recommendedSources: { type: "array", items: { type: "string" } }, proposedSteps: { type: "array", items: { type: "string" } }, completionPredicate: { type: "string" },
     strategyNotes: { type: "string" },
+    searchQueries: { type: "array", items: { type: "string" }, maxItems: 6 },
+    crawlTargets: { type: "array", items: { type: "string" }, maxItems: 3 },
   },
 };
 
@@ -107,7 +109,12 @@ export const classifyMissionIntent = action({
         ],
       }),
     });
-    if (!response.ok) throw new Error(`LLM request failed (${response.status}).`);
+    if (!response.ok) {
+      // Include a bounded slice of the provider body so downstream error
+      // classification (credits, rate limits) can see the real cause.
+      const bodyText = await response.text().catch(() => "");
+      throw new Error(`LLM request failed (${response.status}). ${boundedText(bodyText, 200)}`);
+    }
     const payload = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
     const content = payload.choices?.[0]?.message?.content;
     if (!content) throw new Error("The model returned no classification.");
@@ -154,6 +161,7 @@ export const classifyMissionIntent = action({
         summary: understanding,
         reference: null,
         errorCode: null,
+        tool: "llm.classify",
       });
     }
     try {
@@ -216,19 +224,29 @@ export const planMission = action({
         response_format: { type: "json_object" },
       }),
     });
-    if (!response.ok) throw new Error(`LLM request failed (${response.status}).`);
+    if (!response.ok) {
+      // Include a bounded slice of the provider body so downstream error
+      // classification (credits, rate limits) can see the real cause.
+      const bodyText = await response.text().catch(() => "");
+      throw new Error(`LLM request failed (${response.status}). ${boundedText(bodyText, 200)}`);
+    }
     const payload = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
     const content = payload.choices?.[0]?.message?.content;
     if (!content) throw new Error("The model returned no structured mission plan.");
-    const parsed = JSON.parse(content) as { normalizedGoal: string; mode: "opportunity" | "person" | "customer" | "solution" | "collaborator"; mustHave: string[]; niceToHave: string[]; exclusions: string[]; missingFacts: string[]; recommendedSources: string[]; proposedSteps: string[]; completionPredicate: string; strategyNotes: string };
-    const planId: Id<"missionPlans"> = await ctx.runMutation(internal.plans.save, { missionId: args.missionId, normalizedGoal: parsed.normalizedGoal, mode: parsed.mode, strategyNotes: typeof parsed.strategyNotes === "string" ? boundedText(parsed.strategyNotes, 600) : "", mustHave: parsed.mustHave, niceToHave: parsed.niceToHave, exclusions: parsed.exclusions, missingFacts: parsed.missingFacts, recommendedSources: parsed.recommendedSources, proposedSteps: parsed.proposedSteps, completionPredicate: parsed.completionPredicate, provider, model });
+    const parsed = JSON.parse(content) as { normalizedGoal: string; mode: "opportunity" | "person" | "customer" | "solution" | "collaborator"; mustHave: string[]; niceToHave: string[]; exclusions: string[]; missingFacts: string[]; recommendedSources: string[]; proposedSteps: string[]; completionPredicate: string; strategyNotes: string; searchQueries?: unknown; crawlTargets?: unknown };
+    const stringList = (value: unknown, max: number): string[] =>
+      Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0).map((item) => item.trim().slice(0, 300)).slice(0, max) : [];
+    const searchQueries = stringList(parsed.searchQueries, 6);
+    const crawlTargets = stringList(parsed.crawlTargets, 3);
+    const planId: Id<"missionPlans"> = await ctx.runMutation(internal.plans.save, { missionId: args.missionId, normalizedGoal: parsed.normalizedGoal, mode: parsed.mode, strategyNotes: typeof parsed.strategyNotes === "string" ? boundedText(parsed.strategyNotes, 600) : "", mustHave: parsed.mustHave, niceToHave: parsed.niceToHave, exclusions: parsed.exclusions, missingFacts: parsed.missingFacts, recommendedSources: parsed.recommendedSources, proposedSteps: parsed.proposedSteps, completionPredicate: parsed.completionPredicate, provider, model, searchQueries, crawlTargets });
     await ctx.runMutation(internal.runs.recordStepForAction, {
       missionId: args.missionId,
       stage: "plan",
       label: "plan.created",
-      summary: `Strategy: ${strategy.entityFocus}`,
+      summary: `Strategy: ${strategy.entityFocus} · ${searchQueries.length} search quer${searchQueries.length === 1 ? "y" : "ies"}${crawlTargets.length ? `, ${crawlTargets.length} crawl target${crawlTargets.length === 1 ? "" : "s"}` : ""} queued.`,
       reference: planId as unknown as string,
       errorCode: null,
+      tool: "llm.plan",
     });
     try {
       await ctx.runMutation(internal.runs.transition, {
@@ -311,7 +329,12 @@ export const explainMatches = action({
         ],
       }),
     });
-    if (!response.ok) throw new Error(`LLM request failed (${response.status}).`);
+    if (!response.ok) {
+      // Include a bounded slice of the provider body so downstream error
+      // classification (credits, rate limits) can see the real cause.
+      const bodyText = await response.text().catch(() => "");
+      throw new Error(`LLM request failed (${response.status}). ${boundedText(bodyText, 200)}`);
+    }
     const payload = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
     const content = payload.choices?.[0]?.message?.content;
     if (!content) throw new Error("The model returned no match explanations.");
@@ -418,7 +441,12 @@ export const draftMessage = action({
         ],
       }),
     });
-    if (!response.ok) throw new Error(`LLM request failed (${response.status}).`);
+    if (!response.ok) {
+      // Include a bounded slice of the provider body so downstream error
+      // classification (credits, rate limits) can see the real cause.
+      const bodyText = await response.text().catch(() => "");
+      throw new Error(`LLM request failed (${response.status}). ${boundedText(bodyText, 200)}`);
+    }
     const payload = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
     const content = payload.choices?.[0]?.message?.content;
     if (!content) throw new Error("The model returned no draft.");

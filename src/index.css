@@ -218,6 +218,18 @@ label { display: grid; gap: 6px; color: var(--muted); font-size: 10px; font-weig
 .event-trail em { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; font-style: normal; line-height: 1.5; }
 .event-trail small { display: block; margin-top: 3px; color: #647388; font-size: 9px; }
 
+.tool-chip { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line); background: rgba(111,214,232,.08); font-size: 9px; font-weight: 500; letter-spacing: .02em; color: var(--cyan); font-style: normal; vertical-align: middle; }
+
+.stage-strip { list-style: none; margin: 14px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.stage-strip li { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); font-size: 9px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: #647388; }
+.stage-strip li .stage-dot { width: 6px; height: 6px; border-radius: 50%; background: #3c4a5e; }
+.stage-strip li.done { color: #7fd9a6; border-color: rgba(127,217,166,.35); }
+.stage-strip li.done .stage-dot { background: #34c77b; }
+.stage-strip li.active { color: #e9edf4; border-color: rgba(111,214,232,.5); background: rgba(111,214,232,.08); }
+.stage-strip li.active .stage-dot { background: var(--cyan); }
+
+.run-controls { margin-top: 10px; }
+
 .app-footer { margin-top: 8px; padding-top: 16px; border-top: 1px solid var(--line); color: #5c6a7d; font-size: 9px; }
 
 /* ---------- Responsive ---------- */
