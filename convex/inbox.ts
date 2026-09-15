@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
-import { httpAction, internalMutation, query } from "./_generated/server";
-import { internal } from "./_generated/api";
+import { internalAction, internalMutation, internalQuery, mutation, query } from "./_generated/server";
+import { api, internal } from "./_generated/api";
 import { boundedText } from "./hash";
 import { recordDeliveryOutcome, recordReplyOutcome } from "./outcomes";
 
@@ -50,50 +50,40 @@ function parseTimestamp(value: unknown, fallback: number) {
   if (typeof value !== "string") return fallback;
   const parsed = Date.parse(value);
   return Number.isFinite(parsed) ? parsed : fallback;
-}export const agentmailWebhook = httpAction(async (ctx, request) => {
-  if (request.method !== "POST") return new Response("Method not allowed", { status: 405 });
+}
 
-  const svixId = request.headers.get("svix-id");
-  const svixTimestamp = request.headers.get("svix-timestamp");
-  const svixSignature = request.headers.get("svix-signature");
-  if (!svixId || !svixTimestamp || !svixSignature) {
-    return new Response("Missing webhook signature headers", { status: 400 });
-  }
-  const rawBody = await request.text();
-
-  let verified: Record<string, unknown>;
-  try {
-    verified = await ctx.runAction(internal.inboxVerify.verifyEvent, {
-      rawBody,
-      svixId,
-      svixTimestamp,
-      svixSignature,
-    });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Webhook verification failed";
-    if (message.includes("not configured")) return new Response(message, { status: 500 });
-    return new Response("Invalid webhook signature", { status: 400 });
-  }
-
-  const eventType = asString(verified.event_type);
-  const eventId = asString(verified.event_id);
-  if (!eventType || !eventId) return new Response("Webhook payload is missing event identity", { status: 400 });
-
-    const accepted = await ctx.runMutation(internal.inbox.recordEvent, {
-      eventId,
-      eventType,
-    });
-    if (!accepted) return new Response(JSON.stringify({ status: "duplicate_ignored" }), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
+/** App-owned ingest for one verified AgentMail event. Idempotent by event_id. */
+export const ingestEvent = mutation({
+  args: {
+    eventId: v.string(),
+    eventType: v.string(),
+    message: v.any(),
+    thread: v.any(),
+    send: v.any(),
+    delivery: v.any(),
+    bounce: v.any(),
+    reject: v.any(),
+    complaint: v.any(),
+  },
+  returns: v.object({ accepted: v.boolean() }),
+  handler: async (ctx, args) => {
+    const existing = await ctx.db.query("providerEvents")
+      .withIndex("by_provider_and_eventId", (q) => q.eq("provider", "agentmail").eq("eventId", args.eventId))
+      .first();
+    if (existing) return { accepted: false };
+    await ctx.db.insert("providerEvents", {
+      provider: "agentmail",
+      eventId: args.eventId,
+      eventType: args.eventType,
+      createdAt: Date.now(),
     });
 
-    if (eventType === "message.received" || eventType.startsWith("message.received.")) {
-      const message = isRecord(verified.message) ? verified.message : {};
-      const thread = isRecord(verified.thread) ? verified.thread : {};
-      await ctx.runMutation(internal.inbox.recordInboundMessage, {
-        eventId,
-        eventType,
+    if (args.eventType === "message.received" || args.eventType.startsWith("message.received.")) {
+      const message = isRecord(args.message) ? args.message : {};
+      const thread = isRecord(args.thread) ? args.thread : {};
+      const inboxMessageId: Id<"inboxMessages"> | null = await ctx.runMutation(internal.inbox.recordInboundMessage, {
+        eventId: args.eventId,
+        eventType: args.eventType,
         inboxId: asString(message.inbox_id),
         threadId: asString(message.thread_id) || asString(thread.thread_id),
         messageId: asString(message.message_id),
@@ -103,47 +93,43 @@ function parseTimestamp(value: unknown, fallback: number) {
         preview: asString(message.preview) || boundedText(asString(message.text), 280),
         occurredAt: parseTimestamp(message.timestamp, Date.now()),
       });
-    } else if (eventType === "message.sent" || eventType === "message.delivered" || eventType === "message.bounced" || eventType === "message.rejected" || eventType === "message.complained") {
-      const detail = isRecord(verified.send) ? verified.send
-        : isRecord(verified.delivery) ? verified.delivery
-        : isRecord(verified.bounce) ? verified.bounce
-        : isRecord(verified.reject) ? verified.reject
-        : isRecord(verified.complaint) ? verified.complaint
+      if (inboxMessageId) {
+        await ctx.scheduler.runAfter(0, internal.inbox.classifyInboundMessage, {
+          workspaceId: "demo-workspace",
+          messageId: inboxMessageId,
+        });
+      }
+    } else if (
+      args.eventType === "message.sent" ||
+      args.eventType === "message.delivered" ||
+      args.eventType === "message.bounced" ||
+      args.eventType === "message.rejected" ||
+      args.eventType === "message.complained"
+    ) {
+      const detail = isRecord(args.send) ? args.send
+        : isRecord(args.delivery) ? args.delivery
+        : isRecord(args.bounce) ? args.bounce
+        : isRecord(args.reject) ? args.reject
+        : isRecord(args.complaint) ? args.complaint
         : {};
       await ctx.runMutation(internal.inbox.recordDeliveryEvent, {
-        eventId,
-        eventType,
+        eventId: args.eventId,
+        eventType: args.eventType,
         inboxId: asString(detail.inbox_id),
         threadId: asString(detail.thread_id),
         messageId: asString(detail.message_id),
         occurredAt: parseTimestamp(detail.timestamp, Date.now()),
       });
     }
-
-  return new Response(JSON.stringify({ status: "accepted" }), {
-    status: 200,
-    headers: { "Content-Type": "application/json" },
-  });
+    return { accepted: true };
+  },
 });
 
-export const recordEvent = internalMutation({
-  args: {
-    eventId: v.string(),
-    eventType: v.string(),
-  },
-  returns: v.boolean(),
+export const classifyInboundMessage = internalAction({
+  args: { workspaceId: v.string(), messageId: v.id("inboxMessages") },
+  returns: v.null(),
   handler: async (ctx, args) => {
-    const existing = await ctx.db.query("providerEvents")
-      .withIndex("by_provider_and_eventId", (q) => q.eq("provider", "agentmail").eq("eventId", args.eventId))
-      .first();
-    if (existing) return false;
-    await ctx.db.insert("providerEvents", {
-      provider: "agentmail",
-      eventId: args.eventId,
-      eventType: args.eventType,
-      createdAt: Date.now(),
-    });
-    return true;
+    await ctx.runAction(api.outreach.classifyReply, args);
   },
 });
 
@@ -209,9 +195,7 @@ export const recordInboundMessage = internalMutation({
     const preview = boundedText(args.preview, 320);
     if (existingThread) {
       await ctx.db.patch(existingThread._id, {
-        labels: asStringArraySafe(existingThread.labels).includes("replied")
-          ? existingThread.labels
-          : [...existingThread.labels, "replied"],
+        labels: existingThread.labels.includes("replied") ? existingThread.labels : [...existingThread.labels, "replied"],
         senderSummary: sender,
         subject: subject || existingThread.subject,
         preview: preview || existingThread.preview,
@@ -251,9 +235,8 @@ export const recordInboundMessage = internalMutation({
         .withIndex("by_missionId", (q) => q.eq("missionId", missionId))
         .first();
       if (run && !["complete", "failed", "cancelled"].includes(run.status)) {
-        const currentStage = run.currentStage;
         const stageOrder = ["intake", "interpret", "plan", "discover", "evaluate", "approval", "execute", "wait", "complete"];
-        if (stageOrder.indexOf(currentStage) < stageOrder.indexOf("wait")) {
+        if (stageOrder.indexOf(run.currentStage) < stageOrder.indexOf("wait")) {
           await ctx.db.patch(run._id, { nextWakeAt: now, updatedAt: now });
         }
       }
@@ -261,10 +244,6 @@ export const recordInboundMessage = internalMutation({
     return messageId;
   },
 });
-
-function asStringArraySafe(value: string[]) {
-  return Array.isArray(value) ? value : [];
-}
 
 export const recordDeliveryEvent = internalMutation({
   args: {
@@ -281,7 +260,7 @@ export const recordDeliveryEvent = internalMutation({
       .withIndex("by_provider_and_eventId", (q) => q.eq("provider", "agentmail").eq("eventId", args.eventId))
       .first();
     if (record) return record._id;
-    await ctx.db.insert("providerEvents", {
+    const inserted = await ctx.db.insert("providerEvents", {
       provider: "agentmail",
       eventId: args.eventId,
       eventType: args.eventType,
@@ -314,7 +293,7 @@ export const recordDeliveryEvent = internalMutation({
         }
       }
     }
-    return args.eventId as Id<"providerEvents">;
+    return inserted;
   },
 });
 
@@ -344,5 +323,16 @@ export const listMessages = query({
       .order("asc")
       .take(100);
     return rows.filter((row) => row.workspaceId === args.workspaceId).map(({ _creationTime, ...row }) => row);
+  },
+});
+
+export const threadForWorkspace = internalQuery({
+  args: { workspaceId: v.string(), threadId: v.string() },
+  returns: v.union(v.id("inboxThreads"), v.null()),
+  handler: async (ctx, args) => {
+    const thread = await ctx.db.query("inboxThreads")
+      .withIndex("by_threadId", (q) => q.eq("threadId", args.threadId))
+      .first();
+    return thread && thread.workspaceId === args.workspaceId ? thread._id : null;
   },
 });

@@ -5,10 +5,12 @@ const missionMode = v.union(v.literal("opportunity"), v.literal("person"), v.lit
 const missionStatus = v.union(v.literal("draft"), v.literal("ready"), v.literal("running"), v.literal("waiting"), v.literal("blocked"), v.literal("complete"), v.literal("failed"), v.literal("expired"), v.literal("cancelled"));
 const runStatus = v.union(v.literal("queued"), v.literal("active"), v.literal("waiting"), v.literal("blocked"), v.literal("complete"), v.literal("failed"), v.literal("cancelled"));
 const runStage = v.union(v.literal("intake"), v.literal("interpret"), v.literal("plan"), v.literal("discover"), v.literal("evaluate"), v.literal("approval"), v.literal("execute"), v.literal("wait"), v.literal("complete"));
-const sourceType = v.union(v.literal("search_result"), v.literal("scraped_page"));
+const sourceType = v.union(v.literal("search_result"), v.literal("scraped_page"), v.literal("crawled_page"), v.literal("mapped_site"));
 const sourceProcessingStatus = v.union(v.literal("discovered"), v.literal("scraping"), v.literal("scraped"), v.literal("failed"));
 const researchJobStatus = v.union(v.literal("running"), v.literal("complete"), v.literal("failed"));
-const researchOperation = v.union(v.literal("search"), v.literal("scrape"));
+const researchOperation = v.union(v.literal("search"), v.literal("scrape"), v.literal("map"), v.literal("crawl"));
+const crawlStatus = v.union(v.literal("scraping"), v.literal("completed"), v.literal("failed"), v.literal("cancelled"));
+const planProvider = v.union(v.literal("openai"), v.literal("dashscope"));
 const matchLabel = v.union(v.literal("stronger"), v.literal("promising"), v.literal("uncertain"), v.literal("insufficient"));
 const actionStatus = v.union(v.literal("draft"), v.literal("awaiting_approval"), v.literal("approved"), v.literal("executing"), v.literal("sent"), v.literal("delivered"), v.literal("failed"), v.literal("cancelled"), v.literal("unverified"));
 const approvalStatus = v.union(v.literal("active"), v.literal("used"), v.literal("expired"), v.literal("revoked"));
@@ -24,7 +26,7 @@ export default defineSchema({
     missionId: v.id("missions"), normalizedGoal: v.string(), mode: missionMode,
     mustHave: v.array(v.string()), niceToHave: v.array(v.string()), exclusions: v.array(v.string()),
     missingFacts: v.array(v.string()), recommendedSources: v.array(v.string()), proposedSteps: v.array(v.string()),
-    completionPredicate: v.string(), provider: v.literal("openai"), model: v.string(), createdAt: v.number(),
+    completionPredicate: v.string(), provider: planProvider, model: v.string(), createdAt: v.number(),
   }).index("by_missionId", ["missionId"]),
   agentRuns: defineTable({
     missionId: v.id("missions"), status: runStatus, currentStage: runStage,
@@ -42,9 +44,11 @@ export default defineSchema({
     missionId: v.id("missions"), runId: v.id("agentRuns"), requestId: v.string(),
     operation: researchOperation, query: v.string(), status: researchJobStatus, provider: v.literal("firecrawl"),
     providerRequestId: v.union(v.string(), v.null()), resultCount: v.number(),
+    crawlId: v.union(v.string(), v.null()), crawlStatus: v.union(crawlStatus, v.null()),
     errorSummary: v.union(v.string(), v.null()), createdAt: v.number(),
     startedAt: v.number(), finishedAt: v.union(v.number(), v.null()), updatedAt: v.number(),
   }).index("by_missionId", ["missionId"])
+    .index("by_crawlId", ["crawlId"])
     .index("by_missionId_and_status", ["missionId", "status"])
     .index("by_missionId_and_requestId", ["missionId", "requestId"]),
   sourceRecords: defineTable({
@@ -72,15 +76,18 @@ export default defineSchema({
 
   agentInboxes: defineTable({
     workspaceId: v.string(), agentmailInboxId: v.string(), email: v.string(),
-    displayName: v.union(v.string(), v.null()), webhookId: v.optional(v.string()), createdAt: v.number(), updatedAt: v.number(),
-  }).index("by_workspaceId", ["workspaceId"]).index("by_agentmailInboxId", ["agentmailInboxId"]),
+    displayName: v.union(v.string(), v.null()), clientRequestId: v.optional(v.string()), webhookId: v.optional(v.string()), createdAt: v.number(), updatedAt: v.number(),
+  }).index("by_workspaceId", ["workspaceId"]).index("by_agentmailInboxId", ["agentmailInboxId"])
+    .index("by_workspaceId_and_clientRequestId", ["workspaceId", "clientRequestId"]),
   actionDrafts: defineTable({
     missionId: v.id("missions"), matchId: v.union(v.id("matches"), v.null()),
     workspaceId: v.string(), agentmailInboxId: v.string(), clientRequestId: v.string(),
     providerDraftId: v.union(v.string(), v.null()), recipient: v.string(), subject: v.string(),
     body: v.string(), contentHash: v.string(), capability: v.literal("send_email"),
-    status: actionStatus, providerMessageId: v.union(v.string(), v.null()),
-    threadId: v.union(v.string(), v.null()), errorSummary: v.union(v.string(), v.null()),
+    status: actionStatus, outboundId: v.union(v.string(), v.null()),
+    providerMessageId: v.union(v.string(), v.null()),
+    threadId: v.union(v.string(), v.null()), inReplyTo: v.optional(v.string()),
+    errorSummary: v.union(v.string(), v.null()),
     createdAt: v.number(), updatedAt: v.number(),
   }).index("by_missionId", ["missionId"])
     .index("by_clientRequestId", ["clientRequestId"])
@@ -111,6 +118,13 @@ export default defineSchema({
   providerEvents: defineTable({
     provider: v.literal("agentmail"), eventId: v.string(), eventType: v.string(), createdAt: v.number(),
   }).index("by_provider_and_eventId", ["provider", "eventId"]),
+  replyClassifications: defineTable({
+    messageId: v.id("inboxMessages"), missionId: v.union(v.id("missions"), v.null()), threadId: v.string(),
+    label: v.union(v.literal("interested"), v.literal("needs_info"), v.literal("not_now"), v.literal("referral"), v.literal("negative"), v.literal("unknown")),
+    confidence: v.number(), summary: v.string(), suggestedNextAction: v.string(),
+    suggestedDraftId: v.union(v.id("actionDrafts"), v.null()), provider: planProvider, model: v.string(),
+    createdAt: v.number(),
+  }).index("by_messageId", ["messageId"]).index("by_missionId", ["missionId"]),
   outcomes: defineTable({
     workspaceId: v.string(),
     missionId: v.id("missions"), matchId: v.union(v.id("matches"), v.null()),

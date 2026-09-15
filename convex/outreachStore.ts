@@ -30,6 +30,7 @@ export const draftView = v.object({
   body: v.string(),
   contentHash: v.string(),
   status: actionStatus,
+  outboundId: v.union(v.string(), v.null()),
   providerDraftId: v.union(v.string(), v.null()),
   providerMessageId: v.union(v.string(), v.null()),
   threadId: v.union(v.string(), v.null()),
@@ -55,6 +56,34 @@ export const inboxForSend = internalQuery({
   },
 });
 
+export const inboxByClientRequestId = internalQuery({
+  args: { workspaceId: v.string(), clientRequestId: v.string() },
+  returns: v.union(v.object({
+    _id: v.id("agentInboxes"),
+    agentmailInboxId: v.string(),
+    email: v.string(),
+  }), v.null()),
+  handler: async (ctx, args) => {
+    const inbox = await ctx.db.query("agentInboxes")
+      .withIndex("by_workspaceId_and_clientRequestId", (q) => q.eq("workspaceId", args.workspaceId).eq("clientRequestId", args.clientRequestId))
+      .first();
+    return inbox ? { _id: inbox._id, agentmailInboxId: inbox.agentmailInboxId, email: inbox.email } : null;
+  },
+});
+
+export const noteInboxClientRequest = internalMutation({
+  args: { inboxId: v.id("agentInboxes"), clientRequestId: v.string() },
+  returns: v.id("agentInboxes"),
+  handler: async (ctx, args) => {
+    const inbox = await ctx.db.get(args.inboxId);
+    if (!inbox) throw new Error("Inbox not found.");
+    if (!inbox.clientRequestId) {
+      await ctx.db.patch(inbox._id, { clientRequestId: args.clientRequestId });
+    }
+    return inbox._id;
+  },
+});
+
 export const prepareDraft = internalMutation({
   args: {
     workspaceId: v.string(),
@@ -66,6 +95,7 @@ export const prepareDraft = internalMutation({
     subject: v.string(),
     body: v.string(),
     contentHash: v.string(),
+    inReplyTo: v.optional(v.string()),
   },
   returns: v.object({
     actionId: v.id("actionDrafts"),
@@ -112,8 +142,10 @@ export const prepareDraft = internalMutation({
       contentHash: args.contentHash,
       capability: "send_email",
       status: "draft",
+      outboundId: null,
       providerMessageId: null,
       threadId: null,
+      inReplyTo: args.inReplyTo,
       errorSummary: null,
       createdAt: now,
       updatedAt: now,
@@ -213,9 +245,11 @@ export const draftForSend = internalQuery({
     body: v.string(),
     contentHash: v.string(),
     status: actionStatus,
+    outboundId: v.union(v.string(), v.null()),
     providerDraftId: v.union(v.string(), v.null()),
     providerMessageId: v.union(v.string(), v.null()),
     threadId: v.union(v.string(), v.null()),
+    inReplyTo: v.union(v.string(), v.null()),
   }), v.null()),
   handler: async (ctx, args) => {
     const draftRow = await ctx.db.get(args.actionId);
@@ -231,10 +265,23 @@ export const draftForSend = internalQuery({
       body: draftRow.body,
       contentHash: draftRow.contentHash,
       status: draftRow.status,
+      outboundId: draftRow.outboundId ?? null,
       providerDraftId: draftRow.providerDraftId,
       providerMessageId: draftRow.providerMessageId,
       threadId: draftRow.threadId,
+      inReplyTo: draftRow.inReplyTo ?? null,
     };
+  },
+});
+
+export const markEnqueued = internalMutation({
+  args: { actionId: v.id("actionDrafts"), outboundId: v.string() },
+  returns: v.id("actionDrafts"),
+  handler: async (ctx, args) => {
+    const draftRow = await ctx.db.get(args.actionId);
+    if (!draftRow) throw new Error("Draft not found.");
+    await ctx.db.patch(args.actionId, { outboundId: args.outboundId, updatedAt: Date.now() });
+    return args.actionId;
   },
 });
 
@@ -360,6 +407,7 @@ export const listDrafts = query({
         body: row.body,
         contentHash: row.contentHash,
         status: row.status,
+        outboundId: row.outboundId ?? null,
         providerDraftId: row.providerDraftId,
         providerMessageId: row.providerMessageId,
         threadId: row.threadId,
@@ -424,5 +472,193 @@ export const getInbox = query({
     return inbox
       ? { _id: inbox._id, agentmailInboxId: inbox.agentmailInboxId, email: inbox.email, displayName: inbox.displayName }
       : null;
+  },
+});
+
+const labelUnion = v.union(v.literal("interested"), v.literal("needs_info"), v.literal("not_now"), v.literal("referral"), v.literal("negative"), v.literal("unknown"));
+const providerUnion = v.union(v.literal("openai"), v.literal("dashscope"));
+
+export const markMessageClassifying = internalMutation({
+  args: { messageId: v.id("inboxMessages") },
+  returns: v.boolean(),
+  handler: async (ctx, args) => {
+    const message = await ctx.db.get(args.messageId);
+    if (!message) return false;
+    const existing = await ctx.db.query("replyClassifications")
+      .withIndex("by_messageId", (q) => q.eq("messageId", args.messageId))
+      .first();
+    if (existing) return false;
+    await ctx.db.insert("replyClassifications", {
+      messageId: args.messageId,
+      missionId: message.missionId,
+      threadId: message.threadId,
+      label: "unknown",
+      confidence: 0,
+      summary: "Classification in progress.",
+      suggestedNextAction: "Wait for classification to finish.",
+      suggestedDraftId: null,
+      provider: "openai",
+      model: "pending",
+      createdAt: Date.now(),
+    });
+    return true;
+  },
+});
+
+export const draftForReply = internalQuery({
+  args: { messageId: v.id("inboxMessages") },
+  returns: v.union(v.object({
+    _id: v.id("inboxMessages"),
+    workspaceId: v.string(),
+    missionId: v.union(v.id("missions"), v.null()),
+    matchId: v.union(v.id("matches"), v.null()),
+    agentmailInboxId: v.string(),
+    threadId: v.string(),
+    messageId: v.string(),
+    sender: v.string(),
+    subject: v.string(),
+    preview: v.string(),
+  }), v.null()),
+  handler: async (ctx, args) => {
+    const message = await ctx.db.get(args.messageId);
+    return message ? {
+      _id: message._id,
+      workspaceId: message.workspaceId,
+      missionId: message.missionId,
+      matchId: null,
+      agentmailInboxId: message.agentmailInboxId,
+      threadId: message.threadId,
+      messageId: message.messageId,
+      sender: message.sender,
+      subject: message.subject,
+      preview: message.preview,
+    } : null;
+  },
+});
+
+export const saveClassification = internalMutation({
+  args: {
+    messageId: v.id("inboxMessages"),
+    label: labelUnion,
+    confidence: v.number(),
+    summary: v.string(),
+    suggestedNextAction: v.string(),
+    suggestedDraftId: v.union(v.id("actionDrafts"), v.null()),
+    provider: providerUnion,
+    model: v.string(),
+  },
+  returns: v.id("replyClassifications"),
+  handler: async (ctx, args) => {
+    const message = await ctx.db.get(args.messageId);
+    if (!message) throw new Error("Inbox message not found.");
+    const existing = await ctx.db.query("replyClassifications")
+      .withIndex("by_messageId", (q) => q.eq("messageId", args.messageId))
+      .first();
+    const value = {
+      messageId: args.messageId,
+      missionId: message.missionId,
+      threadId: message.threadId,
+      label: args.label,
+      confidence: Math.max(0, Math.min(1, args.confidence)),
+      summary: boundedText(args.summary, 600),
+      suggestedNextAction: boundedText(args.suggestedNextAction, 300),
+      suggestedDraftId: args.suggestedDraftId,
+      provider: args.provider,
+      model: args.model,
+      createdAt: Date.now(),
+    };
+    if (existing) {
+      await ctx.db.replace(existing._id, value);
+      return existing._id;
+    }
+    return await ctx.db.insert("replyClassifications", value);
+  },
+});
+
+export const saveSuggestedDraftId = internalMutation({
+  args: { classificationId: v.id("replyClassifications"), suggestedDraftId: v.id("actionDrafts") },
+  returns: v.id("replyClassifications"),
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.classificationId, { suggestedDraftId: args.suggestedDraftId });
+    return args.classificationId;
+  },
+});
+
+export const classificationForMessage = internalQuery({
+  args: { messageId: v.id("inboxMessages") },
+  returns: v.union(v.object({
+    _id: v.id("replyClassifications"),
+    label: labelUnion,
+    summary: v.string(),
+    suggestedNextAction: v.string(),
+    suggestedDraftId: v.union(v.id("actionDrafts"), v.null()),
+  }), v.null()),
+  handler: async (ctx, args) => {
+    const classification = await ctx.db.query("replyClassifications")
+      .withIndex("by_messageId", (q) => q.eq("messageId", args.messageId))
+      .first();
+    if (!classification || classification.model === "pending") return null;
+    return {
+      _id: classification._id,
+      label: classification.label,
+      summary: classification.summary,
+      suggestedNextAction: classification.suggestedNextAction,
+      suggestedDraftId: classification.suggestedDraftId,
+    };
+  },
+});
+
+export const messageProviderIdForReply = internalQuery({
+  args: { messageId: v.id("inboxMessages") },
+  returns: v.union(v.string(), v.null()),
+  handler: async (ctx, args) => {
+    const message = await ctx.db.get(args.messageId);
+    return message ? message.messageId : null;
+  },
+});
+
+export const listClassifications = query({
+  args: { workspaceId: v.string(), missionId: v.union(v.id("missions"), v.null()) },
+  returns: v.array(v.object({
+    _id: v.id("replyClassifications"),
+    messageId: v.id("inboxMessages"),
+    missionId: v.union(v.id("missions"), v.null()),
+    threadId: v.string(),
+    label: labelUnion,
+    confidence: v.number(),
+    summary: v.string(),
+    suggestedNextAction: v.string(),
+    suggestedDraftId: v.union(v.id("actionDrafts"), v.null()),
+    provider: providerUnion,
+    model: v.string(),
+    createdAt: v.number(),
+  })),
+  handler: async (ctx, args) => {
+    const rows = args.missionId
+      ? await ctx.db.query("replyClassifications")
+        .withIndex("by_missionId", (q) => q.eq("missionId", args.missionId))
+        .order("desc")
+        .take(50)
+      : await ctx.db.query("replyClassifications").order("desc").take(50);
+    const result = [];
+    for (const row of rows) {
+      const message = await ctx.db.get(row.messageId);
+      if (!message || message.workspaceId !== args.workspaceId) continue;
+      result.push({
+        _id: row._id,
+        messageId: row.messageId,
+        missionId: row.missionId,
+        threadId: row.threadId,
+        label: row.label,
+        confidence: row.confidence,
+        summary: row.summary,
+        suggestedNextAction: row.suggestedNextAction,
+        suggestedDraftId: row.suggestedDraftId,
+        provider: row.provider,
+        model: row.model,
+        createdAt: row.createdAt,
+      });
+    }
+    return result;
   },
 });

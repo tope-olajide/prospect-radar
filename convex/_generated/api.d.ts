@@ -12,7 +12,6 @@ import type * as ai from "../ai.js";
 import type * as hash from "../hash.js";
 import type * as http from "../http.js";
 import type * as inbox from "../inbox.js";
-import type * as inboxVerify from "../inboxVerify.js";
 import type * as missions from "../missions.js";
 import type * as missionsInternal from "../missionsInternal.js";
 import type * as outcomes from "../outcomes.js";
@@ -36,7 +35,6 @@ declare const fullApi: ApiFromModules<{
   hash: typeof hash;
   http: typeof http;
   inbox: typeof inbox;
-  inboxVerify: typeof inboxVerify;
   missions: typeof missions;
   missionsInternal: typeof missionsInternal;
   outcomes: typeof outcomes;
@@ -76,4 +74,7 @@ export declare const internal: FilterApi<
   FunctionReference<any, "internal">
 >;
 
-export declare const components: {};
+export declare const components: {
+  firecrawl: import("@firecrawl/firecrawl-convex/_generated/component.js").ComponentApi<"firecrawl">;
+  agentmail: import("@agentmail/convex/_generated/component.js").ComponentApi<"agentmail">;
+};

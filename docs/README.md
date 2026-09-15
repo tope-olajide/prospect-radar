@@ -75,11 +75,25 @@ authoritative scores, approval decisions, or run progress.
 
 ## Documentation status
 
-This repository is documentation-only at the time of this rewrite. Every
-feature is therefore **specified**, not automatically **implemented** or
-**verified**. Future updates must use these labels consistently:
+The application is now **implemented**: a React/Vite frontend with a Convex
+backend that calls the official Firecrawl and AgentMail Convex components
+(`@firecrawl/firecrawl-convex`, `@agentmail/convex`) and an OpenAI-compatible
+LLM endpoint. Features below are **implemented** once the code exists and
+passes local checks (`npm test`, `tsc -b`, `vite build`, `npx convex dev`).
+They are **verified** only when the live sponsor boundary has reproducible
+evidence per `integration-verification.md`. Use these labels consistently:
 
 - **Specified** — the behavior and contract are documented.
 - **Implemented** — code exists and passes local checks.
 - **Verified** — the real boundary has reproducible evidence.
 - **Public-ready** — verification, privacy, accessibility, and deployment gates pass.
+
+Implementation notes that diverge from earlier drafts:
+
+- Firecrawl and AgentMail are used through their **official Convex
+  components** (not hand-rolled REST calls), including durable crawls with a
+  completion callback and component-owned outbound send state.
+- The LLM layer is **OpenAI-compatible by design**: `OPENAI_BASE_URL` and
+  `OPENAI_MODEL` select the endpoint, so real OpenAI works by default and any
+  compatible gateway (for example DashScope/Qwen) works by configuration.
+  Plans and classifications record the provider that produced them.

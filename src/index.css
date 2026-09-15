@@ -72,7 +72,11 @@ h2 { font-size: clamp(1.8rem, 4vw, 3.2rem); letter-spacing: -.05em; line-height:
 .draft-form input, .draft-form textarea, .draft-form select { background: #101313; border: 1px solid #59605a; border-radius: 10px; color: #f5f1e8; padding: 10px 12px; }
 .status-pill.status-failed, .status-pill.status-blocked, .status-pill.status-negative, .status-pill.status-insufficient { background: #ffb3a7; color: #40170f; }
 .status-pill.status-sent, .status-pill.status-delivered, .status-pill.status-positive, .status-pill.status-complete, .status-pill.status-stronger { background: #63e6a6; color: #0b2a1c; }
-.status-pill.status-running, .status-pill.status-executing, .status-pill.status-approved, .status-pill.status-waiting, .status-pill.status-replied { background: #ffd884; color: #3d2c05; }
+.status-pill.status-running, .status-pill.status-executing, .status-pill.status-approved, .status-pill.status-waiting, .status-pill.status-replied, .status-pill.status-needs_info, .status-pill.status-referral { background: #ffd884; color: #3d2c05; }
+.status-pill.status-interested, .status-pill.status-positive { background: #63e6a6; color: #0b2a1c; }
+.status-pill.status-not_now, .status-pill.status-negative { background: #ffb3a7; color: #40170f; }
+.classification-note { border-top: 1px dashed #59605a; display: grid; gap: 8px; margin-top: 10px; padding-top: 10px; }
+.draft-suggestion { background: #101313; border: 1px solid #59605a; border-radius: 10px; padding: 12px; }
 .stage-note.error { color: #ffb3a7; }
 .sponsor-card { background: #202523; border: 1px solid #59605a; border-radius: 14px; min-height: 150px; padding: 18px; }
 .sponsor-card h3 { color: #e6ff62; font-size: 1.05rem; margin-bottom: 34px; }
