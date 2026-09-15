@@ -12,9 +12,29 @@
 - **Auth:** none (demo workspace scope)
 - **AI models:** any OpenAI-compatible model via OPENAI_BASE_URL / OPENAI_MODEL (gpt-5-mini default; provider recorded on plans and classifications)
 - **Started:** 2026-09-13T00:00:00Z
-- **Last updated:** 2026-09-15T21:30:00Z
+- **Last updated:** 2026-09-15T22:05:00Z
 
 ## Log
+
+### 2026-09-15 - working tree
+Shipped the relationship pipeline: outcomes now carry a stage (contacted,
+replied, engaged, meeting, proposal, won, lost, dormant), so a relationship
+is a tracked object rather than a single send. Reply classification feeds a
+strict-schema next-step planner (`ai.suggestNextStep`) that advances the
+stage, schedules a follow-up for a deferral, and queues a suggested reply
+draft that still needs approval. New followUps, meetings, and
+outreachSequences tables: the first confirmed send for a match opens a 2-3
+step sequence whose later steps are drafted only when their trigger fires
+(never sent), with each step requiring its own approval - a test proves
+approving step 1 does not approve step 2. A scheduled cron sweep
+(`convex/crons.ts`) marks overdue follow-ups and wakes the sequence engine;
+snooze, complete, and meeting recording are user mutations. Inbound mail on
+a thread Radar opened now inherits its mission and match instead of
+orphaning the reply. UI adds a Pipeline view (stage columns, per-relationship
+timeline, next-step chips with due states, snooze/complete controls, meeting
+recorder) plus a sequence stepper in Outreach; the attention rail now
+includes due follow-ups and queued steps. 12 new tests (93/93 total);
+deployed to production with the live bundle re-verified.
 
 ### 2026-09-15 - working tree
 Shipped the entity and signal engine: discovery output now resolves into

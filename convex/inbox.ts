@@ -167,6 +167,18 @@ export const recordInboundMessage = internalMutation({
       workspaceId = existingThread.workspaceId;
       missionId = existingThread.missionId;
       matchId = existingThread.matchId;
+    } else if (args.threadId) {
+      // First inbound message on a thread Radar opened: inherit the mission and
+      // match from the draft that created the thread, so the reply lands on the
+      // right relationship instead of an orphaned thread.
+      const linkedDraft = await ctx.db.query("actionDrafts")
+        .withIndex("by_threadId", (q) => q.eq("threadId", args.threadId))
+        .first();
+      if (linkedDraft) {
+        workspaceId = workspaceId ?? linkedDraft.workspaceId;
+        missionId = linkedDraft.missionId;
+        matchId = linkedDraft.matchId;
+      }
     }
     if (!workspaceId) return null;
 

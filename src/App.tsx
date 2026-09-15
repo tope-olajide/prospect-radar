@@ -5,6 +5,13 @@ import type { Id } from "../convex/_generated/dataModel";
 
 type MissionMode = "opportunity" | "person" | "customer" | "solution" | "collaborator";
 type View = "home" | "discover" | "outreach" | "inbox" | "outcomes" | "context" | "activity";
+type PipelineStageName = "contacted" | "replied" | "engaged" | "meeting" | "proposal" | "won" | "lost" | "dormant";
+
+const PIPELINE_STAGES: PipelineStageName[] = ["contacted", "replied", "engaged", "meeting", "proposal", "won", "lost", "dormant"];
+const PIPELINE_LABELS: Record<PipelineStageName, string> = {
+  contacted: "Contacted", replied: "Replied", engaged: "Engaged", meeting: "Meeting",
+  proposal: "Proposal", won: "Won", lost: "Lost", dormant: "Dormant",
+};
 
 const sponsorCapabilities: Array<[string, string]> = [
   ["Convex", "Durable missions, guarded run transitions, reactive subscriptions, scheduling, and signed webhook routes."],
@@ -18,7 +25,7 @@ const navItems: { id: View; label: string; hint: string }[] = [
   { id: "discover", label: "Discover", hint: "Sourced, explained matches" },
   { id: "outreach", label: "Outreach", hint: "Draft, approve, send" },
   { id: "inbox", label: "Inbox", hint: "Live replies and threads" },
-  { id: "outcomes", label: "Outcomes", hint: "Relationship memory" },
+  { id: "outcomes", label: "Pipeline", hint: "Relationship stages" },
   { id: "context", label: "Context", hint: "Your profile facts Radar may use" },
   { id: "activity", label: "Activity", hint: "The run's truthful trail" },
 ];
@@ -28,7 +35,7 @@ const viewTitles: Record<View, { eyebrow: string; title: string; description: st
   discover: { eyebrow: "Signal intelligence", title: "Evidence before opinions.", description: "Every match carries its source, freshness, and unknowns." },
   outreach: { eyebrow: "Approval boundary", title: "Nothing sends without you.", description: "Approve the exact recipient, subject, and body — then Radar sends." },
   inbox: { eyebrow: "Agent-owned inbox", title: "Replies arrive live.", description: "Inbound mail is untrusted data: classified, never auto-sent." },
-  outcomes: { eyebrow: "Relationship memory", title: "Keep the momentum.", description: "Every conversation keeps its evidence and next step." },
+  outcomes: { eyebrow: "Relationship pipeline", title: "Keep the momentum.", description: "Every relationship keeps its stage, evidence, next step, and history — and Radar never closes a loop without you." },
   context: { eyebrow: "Verified profile", title: "You stay the source of truth.", description: "Confirm, correct, or reject every fact before Radar ever uses it in plans, matches, or drafts." },
   activity: { eyebrow: "Durable run", title: "Watch Radar work.", description: "Persisted stages and events — never simulated progress." },
 };
@@ -67,6 +74,11 @@ export default function App({ backendConnected }: { backendConnected: boolean })
   const provisionInbox = useAction(api.outreach.provisionInbox);
   const approveDraft = useMutation(api.outreachStore.approve);
   const updateOutcome = useMutation(api.outcomes.updateStatus);
+  const scheduleFollowUp = useMutation(api.relationships.scheduleFollowUp);
+  const snoozeFollowUp = useMutation(api.relationships.snoozeFollowUp);
+  const completeFollowUp = useMutation(api.relationships.completeFollowUp);
+  const recordMeeting = useMutation(api.relationships.recordMeeting);
+  const setOutcomeStage = useMutation(api.relationships.setStage);
   const runPipeline = useMutation(api.orchestratorStore.runPipeline);
   const stopRun = useMutation(api.orchestratorStore.stopRun);
   const retryRunStage = useMutation(api.orchestratorStore.retryStage);
@@ -104,6 +116,10 @@ export default function App({ backendConnected }: { backendConnected: boolean })
   const [editingFactId, setEditingFactId] = useState<Id<"contextFacts"> | null>(null);
   const [factEditValue, setFactEditValue] = useState("");
   const [aiDraftingMatchId, setAiDraftingMatchId] = useState<Id<"matches"> | null>(null);
+  const [meetingFor, setMeetingFor] = useState<Id<"outcomes"> | null>(null);
+  const [meetingAt, setMeetingAt] = useState("");
+  const [meetingNotes, setMeetingNotes] = useState("");
+  const [pipelineNotice, setPipelineNotice] = useState("");
 
   const selectedMission = missions?.find((mission) => mission._id === selectedMissionId) ?? missions?.[0];
   const missionId = selectedMission?._id ?? null;
@@ -123,6 +139,9 @@ export default function App({ backendConnected }: { backendConnected: boolean })
   const threadMessages = useQuery(api.inbox.listMessages, backendConnected && selectedThreadId ? { workspaceId, threadId: selectedThreadId } : "skip");
   const classifications = useQuery(api.outreachStore.listClassifications, backendConnected ? { workspaceId, missionId: null } : "skip");
   const outcomes = useQuery(api.outcomes.listForMission, backendConnected && missionId ? { workspaceId, missionId } : "skip");
+  const followUps = useQuery(api.relationships.followUpsForMission, backendConnected && missionId ? { workspaceId, missionId } : "skip");
+  const meetings = useQuery(api.relationships.meetingsForMission, backendConnected && missionId ? { workspaceId, missionId } : "skip");
+  const sequences = useQuery(api.relationships.sequencesForMission, backendConnected && missionId ? { workspaceId, missionId } : "skip");
   const crawlProgress = useQuery(api.researchStore.latestCrawlProgress, backendConnected && missionId ? { missionId } : "skip");
   const contextFacts = useQuery(api.context.list, backendConnected ? { workspaceId, missionId: null } : "skip");
   const addFact = useMutation(api.context.add);
@@ -135,7 +154,9 @@ export default function App({ backendConnected }: { backendConnected: boolean })
   const latestJob = jobs?.[0];
   const pendingDrafts = (drafts ?? []).filter((draft) => ["draft", "awaiting_approval", "approved", "executing"].includes(draft.status));
   const actionableDrafts = (drafts ?? []).filter((draft) => ["draft", "awaiting_approval", "approved", "executing"].includes(draft.status));
-  const openOutcomes = (outcomes ?? []).filter((outcome) => !["positive", "negative", "closed"].includes(outcome.status));
+  const openOutcomes = (outcomes ?? []).filter((outcome) => !["won", "lost"].includes(outcome.stage));
+  const dueFollowUps = (followUps ?? []).filter((item) => item.status === "due" || item.dueAt <= Date.now());
+  const followUpForOutcome = (outcomeId: Id<"outcomes">) => (followUps ?? []).find((item) => item.outcomeId === outcomeId);
 
   const navCounts: Record<View, number | null> = {
     home: null,
@@ -166,8 +187,15 @@ export default function App({ backendConnected }: { backendConnected: boolean })
     if (freshReplies > 0) {
       items.push({ id: "replies", title: `${freshReplies} inbound repl${freshReplies === 1 ? "y" : "ies"} waiting for review`, detail: "Classifications and suggested next steps are ready in the inbox.", tone: "cyan", view: "inbox" });
     }
+    if (dueFollowUps.length > 0) {
+      items.push({ id: "followups", title: `${dueFollowUps.length} follow-up${dueFollowUps.length === 1 ? "" : "s"} due`, detail: dueFollowUps[0].note, tone: "amber", view: "outcomes" });
+    }
+    const queuedSteps = (sequences ?? []).flatMap((sequence) => sequence.steps).filter((step) => step.status === "draft_ready").length;
+    if (queuedSteps > 0) {
+      items.push({ id: "sequence", title: `${queuedSteps} sequence step${queuedSteps === 1 ? "" : "s"} drafted and awaiting approval`, detail: "A step is queued as a draft. Approving it is the only way it sends.", tone: "amber", view: "outreach" });
+    }
     return items;
-  }, [actionableDrafts, plan, threads]);
+  }, [actionableDrafts, plan, threads, dueFollowUps, sequences]);
 
   function selectView(view: View) {
     setActiveView(view);
@@ -431,8 +459,56 @@ Clarification: ${clarifyAnswer.trim()}` });
     catch (error) { setOutreachNotice(error instanceof Error ? error.message : "Outcome update failed."); }
   }
 
+  async function onAdvanceStage(outcomeId: Id<"outcomes">, stage: PipelineStageName, nextAction: string) {
+    setPipelineNotice("");
+    try { await setOutcomeStage({ workspaceId, outcomeId, stage, nextAction }); setPipelineNotice(`Stage set to ${PIPELINE_LABELS[stage].toLowerCase()}.`); }
+    catch (error) { setPipelineNotice(error instanceof Error ? error.message : "Could not update the stage."); }
+  }
+
+  async function onCreateFollowUp(outcomeId: Id<"outcomes">, matchId: Id<"matches"> | null, counterpart: string) {
+    if (!missionId) return;
+    setPipelineNotice("");
+    try {
+      await scheduleFollowUp({
+        workspaceId, missionId, outcomeId, matchId, threadId: null,
+        note: `Follow up with ${counterpart}`,
+        dueAt: Date.now() + 3 * 24 * 60 * 60 * 1000,
+      });
+      setPipelineNotice("Follow-up scheduled for three days from now.");
+    } catch (error) { setPipelineNotice(error instanceof Error ? error.message : "Could not schedule the follow-up."); }
+  }
+
+  async function onSnoozeFollowUp(followUpId: Id<"followUps">, days: number) {
+    setPipelineNotice("");
+    try {
+      await snoozeFollowUp({ workspaceId, followUpId, dueAt: Date.now() + days * 24 * 60 * 60 * 1000 });
+      setPipelineNotice(`Follow-up snoozed ${days} day${days === 1 ? "" : "s"}.`);
+    } catch (error) { setPipelineNotice(error instanceof Error ? error.message : "Could not snooze the follow-up."); }
+  }
+
+  async function onCompleteFollowUp(followUpId: Id<"followUps">) {
+    setPipelineNotice("");
+    try { await completeFollowUp({ workspaceId, followUpId }); setPipelineNotice("Follow-up marked done."); }
+    catch (error) { setPipelineNotice(error instanceof Error ? error.message : "Could not complete the follow-up."); }
+  }
+
+  async function onRecordMeeting(outcomeId: Id<"outcomes">, matchId: Id<"matches"> | null, counterpart: string) {
+    if (!missionId || !meetingAt) { setPipelineNotice("Pick a meeting time first."); return; }
+    setPipelineNotice("");
+    try {
+      await recordMeeting({
+        workspaceId, missionId, outcomeId, matchId, counterpart,
+        scheduledAt: new Date(meetingAt).getTime(),
+        notes: meetingNotes,
+      });
+      setMeetingFor(null); setMeetingAt(""); setMeetingNotes("");
+      setPipelineNotice("Meeting recorded on the relationship timeline.");
+    } catch (error) { setPipelineNotice(error instanceof Error ? error.message : "Could not record the meeting."); }
+  }
+
   const runWorking = run && ["queued", "active"].includes(run.status);
   const linkedMatchSource = linkedMatchId ? sources?.find((source) => source._id === matches?.find((match) => match._id === linkedMatchId)?.sourceId) : undefined;
+  const meetingsForOutcome = (outcomeId: Id<"outcomes">) => (meetings ?? []).filter((meeting) => meeting.outcomeId === outcomeId);
 
   const sidebar = (
     <aside className="sidebar">
@@ -820,6 +896,34 @@ Clarification: ${clarifyAnswer.trim()}` });
                 )}
                 {outreachNotice && <p className="stage-note">{outreachNotice}</p>}
               </section>
+
+              {sequences && sequences.length > 0 && (
+                <section className="panel" aria-label="Outreach sequences">
+                  <div className="panel-head"><p className="eyebrow">SEQUENCES</p><span className="muted">{sequences.length}</span></div>
+                  <p className="stage-note">A follow-up sequence opens when an approved intro is sent. Each step becomes its own draft — approving one step never approves the next.</p>
+                  <div className="view-stack">
+                    {sequences.map((sequence) => (
+                      <article className="sequence-card" key={sequence._id}>
+                        <div className="panel-head">
+                          <strong>{matches?.find((match) => match._id === sequence.matchId)?.subject ?? "Match"}</strong>
+                          <span className={`status-pill status-${sequence.status}`}>{sequence.status}</span>
+                        </div>
+                        <ol className="sequence-steps">
+                          {sequence.steps.map((step) => (
+                            <li className={`sequence-step ${step.status}`} key={`${sequence._id}-${step.index}`}>
+                              <span className="step-index">{step.index + 1}</span>
+                              <div>
+                                <strong>{step.intent}</strong>
+                                <em>trigger: {step.trigger.replace("_", " ")} · {step.status.replace("_", " ")}</em>
+                              </div>
+                            </li>
+                          ))}
+                        </ol>
+                      </article>
+                    ))}
+                  </div>
+                </section>
+              )}
             </div>
           )}
 
@@ -899,29 +1003,110 @@ Clarification: ${clarifyAnswer.trim()}` });
 
           {activeView === "outcomes" && (
             <div className="view-stack">
-              <section aria-label="Outcomes">
-                {outcomes === undefined ? <p className="empty-state">Loading outcomes…</p> : outcomes.length === 0 ? (
-                  <div className="panel"><p className="empty-state">No outcomes yet. Outcomes are created when approved mail is sent or a reply arrives — Radar keeps the relationship, not just the send.</p></div>
+              {dueFollowUps.length > 0 && (
+                <section className="panel" aria-label="Follow-ups due">
+                  <div className="panel-head"><p className="eyebrow">FOLLOW-UPS DUE</p><span className="muted">{dueFollowUps.length}</span></div>
+                  <p className="stage-note">A due follow-up already produced a draft where Radar could write one. Nothing has been sent.</p>
+                </section>
+              )}
+
+              <section className="panel" aria-label="Follow-ups">
+                <div className="panel-head"><p className="eyebrow">FOLLOW-UPS</p><span className="muted">{(followUps ?? []).length} open</span></div>
+                {(followUps ?? []).length === 0 ? (
+                  <p className="empty-state">No follow-ups. Radar schedules one when a reply defers, and you can schedule your own on any relationship.</p>
                 ) : (
-                  <div className="view-stack">
-                    {outcomes.map((outcome) => (
-                      <article className="panel" key={outcome._id}>
-                        <div className="panel-head">
-                          <span className={`status-pill status-${outcome.status}`}>{outcome.status}</span>
-                          <strong>{outcome.counterpart}</strong>
-                          <span className="muted">updated {shortDate(outcome.updatedAt)}</span>
+                  <div className="row-list">
+                    {(followUps ?? []).map((item) => (
+                      <article className={`row-item static ${item.status === "due" || item.dueAt <= Date.now() ? "attention" : ""}`} key={item._id}>
+                        <div className="row-copy">
+                          <strong>{item.note}</strong>
+                          <em>Due {shortDate(item.dueAt)} · {item.source === "agent" ? "scheduled by Radar" : "scheduled by you"}{item.status === "due" ? " · due now" : ""}</em>
                         </div>
-                        <p>{outcome.latestEvidence}</p>
-                        <p className="next-action"><b>Next</b>{outcome.nextAction}</p>
-                        <p className="stage-note">{outcome.timeline.length} timeline events · thread {outcome.linkedThreadId ?? "unlinked"}</p>
                         <div className="inline-actions">
-                          <button type="button" className="btn ghost" onClick={() => onOutcomeStatus(outcome._id, "positive")}>Mark positive</button>
-                          <button type="button" className="btn ghost" onClick={() => onOutcomeStatus(outcome._id, "closed")}>Close outcome</button>
+                          <button type="button" className="btn ghost" onClick={() => onSnoozeFollowUp(item._id, 1)}>Snooze 1d</button>
+                          <button type="button" className="btn ghost" onClick={() => onSnoozeFollowUp(item._id, 3)}>Snooze 3d</button>
+                          <button type="button" className="btn" onClick={() => onCompleteFollowUp(item._id)}>Done</button>
                         </div>
                       </article>
                     ))}
                   </div>
                 )}
+              </section>
+
+              <section aria-label="Relationship pipeline">
+                {outcomes === undefined ? <p className="empty-state">Loading the pipeline…</p> : outcomes.length === 0 ? (
+                  <div className="panel"><p className="empty-state">No relationships yet. The pipeline fills when an approved message is sent or a reply arrives — Radar keeps the relationship, not just the send.</p></div>
+                ) : (
+                  <div className="pipeline-grid">
+                    {PIPELINE_STAGES.map((stage) => {
+                      const cards = outcomes.filter((outcome) => outcome.stage === stage);
+                      if (cards.length === 0) return null;
+                      return (
+                        <div className="pipeline-column" key={stage}>
+                          <div className="pipeline-column-head">
+                            <span className={`stage-dot stage-${stage}`} />
+                            <strong>{PIPELINE_LABELS[stage]}</strong>
+                            <span className="nav-count">{cards.length}</span>
+                          </div>
+                          <div className="view-stack">
+                            {cards.map((outcome) => {
+                              const followUp = followUpForOutcome(outcome._id);
+                              const outcomeMeetings = meetingsForOutcome(outcome._id);
+                              const overdue = followUp && (followUp.status === "due" || followUp.dueAt <= Date.now());
+                              return (
+                                <article className="panel relationship-card" key={outcome._id}>
+                                  <div className="panel-head">
+                                    <strong>{outcome.counterpart}</strong>
+                                    <span className="muted">updated {shortDate(outcome.updatedAt)}</span>
+                                  </div>
+                                  <p>{outcome.latestEvidence}</p>
+                                  <p className="next-action"><b>Next</b>{outcome.nextAction}</p>
+                                  {followUp && (
+                                    <p className={`stage-note ${overdue ? "error" : ""}`}>
+                                      {overdue ? "Follow-up due now" : `Follow-up ${shortDate(followUp.dueAt)}`} · {followUp.note}
+                                    </p>
+                                  )}
+                                  {outcomeMeetings.length > 0 && (
+                                    <p className="stage-note">Meetings: {outcomeMeetings.map((meeting) => shortDate(meeting.scheduledAt)).join(" · ")}</p>
+                                  )}
+                                  <details className="history-details">
+                                    <summary>{outcome.timeline.length} timeline event{outcome.timeline.length === 1 ? "" : "s"}</summary>
+                                    <ol className="event-trail compact">
+                                      {outcome.timeline.map((event, index) => (
+                                        <li key={`${outcome._id}-${index}`}>
+                                          <span className="event-dot" />
+                                          <div><strong>{event.summary}</strong><em>{event.type} · {shortDate(event.createdAt)}</em></div>
+                                        </li>
+                                      ))}
+                                    </ol>
+                                  </details>
+                                  <div className="inline-actions">
+                                    <button type="button" className="btn ghost" onClick={() => onAdvanceStage(outcome._id, "engaged", "Reply with a concrete next step and keep the conversation moving.")}>Engaged</button>
+                                    <button type="button" className="btn ghost" onClick={() => onAdvanceStage(outcome._id, "proposal", "Put scope, timeline, and terms in writing for review.")}>Proposal</button>
+                                    <button type="button" className="btn ghost" onClick={() => onOutcomeStatus(outcome._id, "positive")}>Won</button>
+                                    <button type="button" className="btn ghost" onClick={() => onOutcomeStatus(outcome._id, "closed")}>Lost</button>
+                                    {!followUp && <button type="button" className="btn ghost" onClick={() => onCreateFollowUp(outcome._id, outcome.matchId, outcome.counterpart)}>Schedule follow-up</button>}
+                                    {meetingFor === outcome._id
+                                      ? <button type="button" className="btn ghost" onClick={() => setMeetingFor(null)}>Cancel meeting</button>
+                                      : <button type="button" className="btn ghost" onClick={() => { setMeetingFor(outcome._id); setMeetingAt(""); setMeetingNotes(""); }}>Record meeting</button>}
+                                  </div>
+                                  {meetingFor === outcome._id && (
+                                    <div className="meeting-form">
+                                      <label>When<input type="datetime-local" value={meetingAt} onChange={(event) => setMeetingAt(event.target.value)} /></label>
+                                      <label>Notes<input value={meetingNotes} onChange={(event) => setMeetingNotes(event.target.value)} placeholder="What was agreed?" maxLength={1200} /></label>
+                                      <button type="button" className="btn" disabled={!meetingAt} onClick={() => onRecordMeeting(outcome._id, outcome.matchId, outcome.counterpart)}>Save meeting</button>
+                                    </div>
+                                  )}
+                                </article>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                {pipelineNotice && <p className="stage-note">{pipelineNotice}</p>}
               </section>
             </div>
           )}

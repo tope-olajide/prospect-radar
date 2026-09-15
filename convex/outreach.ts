@@ -1,6 +1,7 @@
 "use node";
 
 import { v } from "convex/values";
+import type { Id } from "./_generated/dataModel";
 import { AgentMail } from "@agentmail/convex";
 import { api, components, internal } from "./_generated/api";
 import { action } from "./_generated/server";
@@ -25,6 +26,42 @@ type ActionStatus = "draft" | "awaiting_approval" | "approved" | "executing" | "
 
 function validEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+/**
+ * Advances outreach-sequence bookkeeping once a send is confirmed.
+ *
+ * The first confirmed send for a match opens a sequence; later steps close
+ * theirs out. Advisory: sequence progress never fails a send that already
+ * happened.
+ */
+async function advanceSequence(
+  ctx: unknown,
+  args: {
+    workspaceId: string;
+    missionId: Id<"missions">;
+    matchId: Id<"matches"> | null;
+    agentmailInboxId: string;
+    actionId: Id<"actionDrafts">;
+  },
+) {
+  // Narrowed view: the sequence store's signatures drift with generated
+  // bindings, and bookkeeping must never break the send contract.
+  const runner = ctx as { runMutation: (fn: never, args?: never) => Promise<unknown> };
+  try {
+    if (args.matchId) {
+      await runner.runMutation(internal.relationships.ensureSequence as never, {
+        workspaceId: args.workspaceId,
+        missionId: args.missionId,
+        matchId: args.matchId,
+        agentmailInboxId: args.agentmailInboxId,
+        actionId: args.actionId,
+      } as never);
+    }
+    await runner.runMutation(internal.relationships.markStepSent as never, { actionId: args.actionId } as never);
+  } catch {
+    // Advisory: sequence state is bookkeeping, not part of the send contract.
+  }
 }
 
 export const draft = action({
@@ -142,6 +179,13 @@ export const send = action({
           providerMessageId: status.agentmailMessageId,
           threadId: status.threadId,
         });
+        await advanceSequence(ctx, {
+          workspaceId: draftRow.workspaceId,
+          missionId: draftRow.missionId,
+          matchId: draftRow.matchId,
+          agentmailInboxId: draftRow.agentmailInboxId,
+          actionId: draftRow._id,
+        });
         // The plan's completion predicate may now be satisfied.
         try {
           await ctx.runMutation(internal.orchestratorStore.checkCompletion, { missionId: draftRow.missionId });
@@ -182,6 +226,13 @@ export const syncOutbound = action({
         actionId: draftRow._id,
         providerMessageId: status.agentmailMessageId,
         threadId: status.threadId,
+      });
+      await advanceSequence(ctx, {
+        workspaceId: draftRow.workspaceId,
+        missionId: draftRow.missionId,
+        matchId: draftRow.matchId,
+        agentmailInboxId: draftRow.agentmailInboxId,
+        actionId: draftRow._id,
       });
       try {
         await ctx.runMutation(internal.orchestratorStore.checkCompletion, { missionId: draftRow.missionId });
@@ -303,6 +354,17 @@ export const classifyReply = action({
     });
     if (suggestedDraftId) {
       await ctx.runMutation(internal.outreachStore.saveSuggestedDraftId, { classificationId, suggestedDraftId });
+    }
+    // The "observe response → continue" hop: the reply advances the relationship
+    // pipeline and schedules the next step. Advisory — classification stands
+    // even if next-step planning fails.
+    try {
+      await ctx.scheduler.runAfter(0, internal.ai.suggestNextStep, {
+        workspaceId: args.workspaceId,
+        messageId: args.messageId,
+      });
+    } catch {
+      // Advisory: planning is a follow-up to classification, not part of it.
     }
     return { classificationId, label, suggestedDraftId };
   },
