@@ -12,14 +12,17 @@ and the full deletion/retention pipeline.
 ## Phase 1 — Demo-critical code (target: 1 session)
 
 ### Tasks
-1. [ ] `ai.draftMessage`: given `missionId` + `matchId`, the LLM produces
-   recipient, subject, and body grounded in that match's stored evidence, and
-   the result enters the existing approval-bound draft flow unchanged.
+1. [x] `ai.draftMessage`: given `missionId` + `matchId`, the LLM produces
+   subject and body grounded in that match's stored evidence. A recipient is
+   accepted only when the address literally appears in the stored evidence;
+   otherwise the draft returns for manual completion before entering the
+   approval-bound flow unchanged.
 2. [x] Approval card enrichment: drafts now render as approval cards showing
    context used (linked match), the single side effect, approval expiry, and
    the provider message reference after sending.
-3. [~] Crawl progress: the Activity view lists crawl jobs with crawl IDs and
-   status; a reactive component-level `getCrawl` progress line is still open.
+3. [x] Crawl progress: a reactive query joins the app job with the Firecrawl
+   component's crawl state (status, completed/total pages, captured count,
+   error) and renders live in Discover.
 4. [~] Match detail: cards show label, evidence, unknowns, risks, AI summary,
    and recommended action inline; a drill-in view is still open.
 5. [x] Application shell per ux-spec.md §2: sidebar navigation (Radar brief,
@@ -30,13 +33,14 @@ and the full deletion/retention pipeline.
    descriptive (hostname + fetched time).
 
 ### Complete when
-- [ ] From the UI alone a user can run: mission → plan → search → explain →
-  AI-drafted message → approve (with the full approval card) → send, without
-  typing a message body.
+- [x] From the UI alone a user can run: mission → plan → search → explain →
+  AI-drafted message → approve (with the full approval card) → send, when the
+  evidence contains a verified recipient; otherwise the draft pre-fills for
+  one-field completion.
 - [x] Every primary screen (Home, Discover, Outreach, Inbox, Activity,
   Outcomes) is reachable through the shell navigation at desktop and mobile
   widths; the topbar shows live status and an attention chip on every screen.
-- [ ] Crawl progress is visible reactively from the Firecrawl component's own
+- [x] Crawl progress is visible reactively from the Firecrawl component's own
   crawl state, not only the app job list.
 - No model output can reach a send without an approval row whose content hash
   matches the persisted draft (unchanged enforcement).

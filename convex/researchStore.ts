@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
+import { components } from "./_generated/api";
 import { internalMutation, internalQuery, query } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
 import { transitionRun } from "./runState";
@@ -721,6 +722,89 @@ export const evidenceForExplanation = internalQuery({
       });
     }
     return result;
+  },
+});
+
+export const matchDraftContext = internalQuery({
+  args: { missionId: v.id("missions"), matchId: v.id("matches") },
+  returns: v.union(v.object({
+    normalizedGoal: v.string(),
+    mode: v.union(v.literal("opportunity"), v.literal("person"), v.literal("customer"), v.literal("solution"), v.literal("collaborator")),
+    mustHave: v.array(v.string()),
+    subject: v.string(),
+    evidence: v.array(v.string()),
+    sourceUrl: v.string(),
+    sourceTitle: v.string(),
+    content: v.union(v.string(), v.null()),
+  }), v.null()),
+  handler: async (ctx, args) => {
+    const mission = await ctx.db.get(args.missionId);
+    if (!mission) return null;
+    const match = await ctx.db.get(args.matchId);
+    if (!match || match.missionId !== args.missionId) return null;
+    const [plan, discovery, source] = await Promise.all([
+      ctx.db.query("missionPlans").withIndex("by_missionId", (q) => q.eq("missionId", args.missionId)).order("desc").first(),
+      ctx.db.get(match.discoveryId),
+      ctx.db.get(match.sourceId),
+    ]);
+    if (!discovery || !source) return null;
+    return {
+      normalizedGoal: plan?.normalizedGoal ?? mission.rawGoal,
+      mode: mission.mode,
+      mustHave: plan?.mustHave ?? [],
+      subject: discovery.subject,
+      evidence: match.positiveEvidence.slice(0, 5),
+      sourceUrl: source.url,
+      sourceTitle: source.title,
+      content: source.content ? bounded(source.content, 4000) : null,
+    };
+  },
+});
+
+const componentCrawlStatus = v.union(v.literal("scraping"), v.literal("completed"), v.literal("failed"), v.literal("cancelled"));
+
+export const latestCrawlProgress = query({
+  args: { missionId: v.id("missions") },
+  returns: v.union(v.object({
+    jobId: v.id("researchJobs"),
+    crawlId: v.string(),
+    jobStatus: researchJobStatus,
+    crawlStatus: componentCrawlStatus,
+    total: v.union(v.number(), v.null()),
+    completed: v.union(v.number(), v.null()),
+    pageCount: v.number(),
+    error: v.union(v.string(), v.null()),
+  }), v.null()),
+  handler: async (ctx, args) => {
+    const job = await ctx.db.query("researchJobs")
+      .withIndex("by_missionId", (q) => q.eq("missionId", args.missionId))
+      .order("desc")
+      .filter((q) => q.eq(q.field("operation"), "crawl"))
+      .first();
+    if (!job?.crawlId) return null;
+    const crawl = await ctx.runQuery(components.firecrawl.crawl.get, { crawlId: job.crawlId });
+    if (!crawl) {
+      return {
+        jobId: job._id,
+        crawlId: job.crawlId,
+        jobStatus: job.status,
+        crawlStatus: job.crawlStatus ?? "scraping",
+        total: null,
+        completed: null,
+        pageCount: job.resultCount,
+        error: job.errorSummary,
+      };
+    }
+    return {
+      jobId: job._id,
+      crawlId: job.crawlId,
+      jobStatus: job.status,
+      crawlStatus: crawl.status,
+      total: crawl.total ?? null,
+      completed: crawl.completed ?? null,
+      pageCount: crawl.pageCount,
+      error: crawl.error ?? job.errorSummary ?? null,
+    };
   },
 });
 
