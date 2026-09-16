@@ -5,7 +5,14 @@ import { api, internal } from "./_generated/api";
 import { internalAction } from "./_generated/server";
 import type { ActionCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
-import { classifyProviderError } from "./providerErrors";
+import {
+  ORCHESTRATOR_CRAWL_LIMIT,
+  ORCHESTRATOR_SEARCH_LIMIT,
+  estimateCrawl,
+  estimateExtraction,
+  estimateSearch,
+} from "./budget";
+import { BUDGET_BLOCKED_INTERRUPTION, classifyAndDecide } from "./retryPolicy";
 
 /**
  * The mission orchestrator: the agent that drives a run through its stages.
@@ -22,8 +29,6 @@ import { classifyProviderError } from "./providerErrors";
  * Convex allows only actions in "use node" modules, and this module needs the
  * Node runtime for crypto.randomUUID and fetch-based provider calls.
  */
-
-const MAX_STAGE_RETRIES = 2;
 
 /** Runs that may legally advance: active (working) or queued (not started). */
 function advanceable(status: string, stage: string): boolean {
@@ -43,11 +48,65 @@ async function runForMission(ctx: ActionCtx, missionId: Id<"missions">): Promise
   return await ctx.runQuery(internal.orchestratorStore.runRow, { missionId });
 }
 
-/** Marks a stage failure and returns whether the stage may retry. */
-async function failStage(ctx: ActionCtx, args: { missionId: Id<"missions">; stage: Stage; message: string }) {
-  const classified = classifyProviderError(args.message);
+/**
+ * The pre-flight credit gate. Called before a provider call the orchestrator is
+ * about to make; on refusal the run parks in `blocked` with a distinct budget
+ * interruption, keeping its stage so a retry resumes exactly here.
+ *
+ * This is a *budget block*, not a failure: the transcript records it with the
+ * `FIRECRAWL_CREDITS_EXHAUSTED` code and the UI presents it as a spend decision.
+ */
+async function guardBudget(
+  ctx: ActionCtx,
+  args: { missionId: Id<"missions">; estimate: number; label: string },
+): Promise<{ allowed: boolean }> {
+  const mission = await ctx.runQuery(internal.missionsInternal.get, { missionId: args.missionId });
+  if (!mission) return { allowed: true };
+  const check = await ctx.runQuery(internal.budget.check, {
+    workspaceId: mission.workspaceId,
+    estimate: args.estimate,
+  });
+  if (check.allowed) return { allowed: true };
+
   const run = await runForMission(ctx, args.missionId);
-  if (!run || ["cancelled", "complete"].includes(run.status)) return { retry: false };
+  if (!run || ["cancelled", "complete"].includes(run.status)) return { allowed: false };
+  const stage = run.currentStage as Stage;
+  try {
+    await ctx.runMutation(internal.runs.transition, {
+      missionId: args.missionId,
+      targetStage: stage,
+      targetStatus: "blocked",
+      interruption: BUDGET_BLOCKED_INTERRUPTION,
+      eventType: "budget.blocked",
+      safeSummary: `Budget blocked: ${args.label} needs about ${check.estimate} credits and ${check.remaining} remain.`,
+    });
+  } catch {
+    // A concurrent state change won the race; the transcript step below still records why.
+  }
+  await ctx.runMutation(internal.runs.recordStepForAction, {
+    missionId: args.missionId,
+    stage,
+    label: "budget.blocked",
+    summary: `${args.label} is paused: it is estimated at ${check.estimate} credits, ${check.used} of ${check.creditLimit} are already used, and ${check.remaining} remain. Raise the cap or add provider credits, then retry the stage.`,
+    reference: null,
+    errorCode: "FIRECRAWL_CREDITS_EXHAUSTED",
+    tool: "budget",
+  });
+  return { allowed: false };
+}
+
+/**
+ * Marks a stage failure and returns whether the stage may retry.
+ *
+ * The retry decision and the backoff both come from `retryPolicy`, so the
+ * classification a failure receives is the only thing that decides whether it
+ * retries — a non-retryable code such as `FIRECRAWL_CREDITS_EXHAUSTED` or a
+ * policy refusal never loops.
+ */
+async function failStage(ctx: ActionCtx, args: { missionId: Id<"missions">; stage: Stage; message: string }) {
+  const run = await runForMission(ctx, args.missionId);
+  if (!run || ["cancelled", "complete"].includes(run.status)) return { retry: false, delayMs: 0, classified: null };
+  const { classified, retry, delayMs } = classifyAndDecide(args.message, run.retryCount ?? 0);
   // Block at the run's CURRENT stage: a stage handler may have already
   // advanced the run (e.g. intake → interpret) before the failure, and
   // transitionRun only permits legal edges. Research-level failures may also
@@ -77,11 +136,10 @@ async function failStage(ctx: ActionCtx, args: { missionId: Id<"missions">; stag
     errorCode: classified.code,
     tool: "orchestrator",
   });
-  const retry = (run.retryCount ?? 0) + 1 <= MAX_STAGE_RETRIES && classified.retryable;
   if (retry) {
     await ctx.runMutation(internal.orchestratorStore.bumpRetry, { missionId: args.missionId });
   }
-  return { retry };
+  return { retry, delayMs, classified };
 }
 
 export const runStage = internalAction({
@@ -134,6 +192,12 @@ export const runStage = internalAction({
               await ctx.scheduler.runAfter(0, internal.missionOrchestrator.runStage, { missionId: args.missionId });
               return null;
             }
+            const budget = await guardBudget(ctx, {
+              missionId: args.missionId,
+              estimate: estimateCrawl(ORCHESTRATOR_CRAWL_LIMIT),
+              label: `the crawl of ${parsed.hostname}`,
+            });
+            if (!budget.allowed) return null;
             // Durable crawl: startCrawlJob keeps the run in discover, the
             // crawl runs asynchronously, and its completion callback
             // (crawlCompleted → completeCrawl) wakes the run.
@@ -145,8 +209,14 @@ export const runStage = internalAction({
             });
             return null;
           }
+          const budget = await guardBudget(ctx, {
+            missionId: args.missionId,
+            estimate: estimateSearch(ORCHESTRATOR_SEARCH_LIMIT),
+            label: `the search "${next.query.slice(0, 80)}"`,
+          });
+          if (!budget.allowed) return null;
           const result = await ctx.runAction(api.research.search, {
-            missionId: args.missionId, requestId: crypto.randomUUID(), query: next.query, limit: 6,
+            missionId: args.missionId, requestId: crypto.randomUUID(), query: next.query, limit: ORCHESTRATOR_SEARCH_LIMIT,
           });
           await ctx.runMutation(internal.orchestratorStore.completeQuery, {
             queryId: next._id, missionId: args.missionId, resultCount: result.resultCount,
@@ -173,14 +243,21 @@ export const runStage = internalAction({
           // the stage; a missing mission record does not stop evaluation either.
           const mission = await ctx.runQuery(internal.missionsInternal.get, { missionId: args.missionId });
           if (mission) {
-            try {
-              await ctx.runAction(api.research.resolveEntities, {
-                workspaceId: mission.workspaceId,
-                missionId: args.missionId,
-                limit: 6,
-              });
-            } catch {
-              // Fallback entities (or provider trouble) must not stop evaluation.
+            const budget = await guardBudget(ctx, {
+              missionId: args.missionId,
+              estimate: estimateExtraction(1),
+              label: "resolving sources into entities",
+            });
+            if (budget.allowed) {
+              try {
+                await ctx.runAction(api.research.resolveEntities, {
+                  workspaceId: mission.workspaceId,
+                  missionId: args.missionId,
+                  limit: 6,
+                });
+              } catch {
+                // Fallback entities (or provider trouble) must not stop evaluation.
+              }
             }
           }
           await ctx.runAction(api.ai.explainMatches, { missionId: args.missionId });
@@ -207,9 +284,9 @@ export const runStage = internalAction({
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Stage failed.";
-      const { retry } = await failStage(ctx, { missionId: args.missionId, stage, message });
+      const { retry, delayMs } = await failStage(ctx, { missionId: args.missionId, stage, message });
       if (retry) {
-        await ctx.scheduler.runAfter(30_000, internal.missionOrchestrator.runStage, { missionId: args.missionId });
+        await ctx.scheduler.runAfter(delayMs, internal.missionOrchestrator.runStage, { missionId: args.missionId });
       }
       return null;
     }

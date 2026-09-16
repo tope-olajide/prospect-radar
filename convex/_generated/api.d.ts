@@ -9,6 +9,7 @@
  */
 
 import type * as ai from "../ai.js";
+import type * as budget from "../budget.js";
 import type * as commandCenter from "../commandCenter.js";
 import type * as context from "../context.js";
 import type * as crons from "../crons.js";
@@ -31,6 +32,7 @@ import type * as providerErrors from "../providerErrors.js";
 import type * as relationships from "../relationships.js";
 import type * as research from "../research.js";
 import type * as researchStore from "../researchStore.js";
+import type * as retryPolicy from "../retryPolicy.js";
 import type * as runState from "../runState.js";
 import type * as runs from "../runs.js";
 import type * as sequenceRunner from "../sequenceRunner.js";
@@ -44,6 +46,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   ai: typeof ai;
+  budget: typeof budget;
   commandCenter: typeof commandCenter;
   context: typeof context;
   crons: typeof crons;
@@ -66,6 +69,7 @@ declare const fullApi: ApiFromModules<{
   relationships: typeof relationships;
   research: typeof research;
   researchStore: typeof researchStore;
+  retryPolicy: typeof retryPolicy;
   runState: typeof runState;
   runs: typeof runs;
   sequenceRunner: typeof sequenceRunner;
