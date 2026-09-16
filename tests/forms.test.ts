@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { convexTest } from "convex-test";
 import { api, internal } from "../convex/_generated/api";
 import schema from "../convex/schema";
-import { validateScout } from "../convex/formFlows";
+import { parseFormControls, parseSubmitSelector, validateScout } from "../convex/formFlows";
 import { formPayloadHash } from "../convex/formStore";
 
 const convexModules = import.meta.glob("../convex/**/*.*s");
@@ -22,10 +22,15 @@ let executionResult: () => Promise<unknown> = async () => ({
   metadata: { statusCode: 200 },
 });
 let scrapeCalls = 0;
+let lastActions: Array<Record<string, unknown>> = [];
 const scrapeImpl = async (_url: string, options?: unknown) => {
   scrapeCalls += 1;
   const actions = typeof options === "object" && options !== null ? (options as { actions?: unknown[] }).actions : undefined;
-  return Array.isArray(actions) ? await executionResult() : await scoutResult();
+  if (Array.isArray(actions)) {
+    lastActions = actions as Array<Record<string, unknown>>;
+    return await executionResult();
+  }
+  return await scoutResult();
 };
 vi.mock("@firecrawl/firecrawl-convex", () => {
   class FirecrawlClient {
@@ -66,11 +71,44 @@ function stubFetch() {
   }));
 }
 
+// The real httpbin.org/forms/post markup (a public form built for exactly this
+// purpose). It uses a bare <button> with no type attribute and labels that wrap
+// their inputs — both of which the deterministic parser must handle.
+const HTTPBIN_FORM_HTML = `<!DOCTYPE html>
+<html>
+  <head>
+  </head>
+  <body>
+  <form method="post" action="/post">
+   <p><label>Customer name: <input name="custname"></label></p>
+   <p><label>Telephone: <input type=tel name="custtel"></label></p>
+   <p><label>E-mail address: <input type=email name="custemail"></label></p>
+   <fieldset>
+    <legend> Pizza Size </legend>
+    <p><label> <input type=radio name=size value="small"> Small </label></p>
+    <p><label> <input type=radio name=size value="medium"> Medium </label></p>
+    <p><label> <input type=radio name=size value="large"> Large </label></p>
+   </fieldset>
+   <fieldset>
+    <legend> Pizza Toppings </legend>
+    <p><label> <input type=checkbox name="topping" value="bacon"> Bacon </label></p>
+    <p><label> <input type=checkbox name="topping" value="cheese"> Extra Cheese </label></p>
+    <p><label> <input type=checkbox name="topping" value="onion"> Onion </label></p>
+    <p><label> <input type=checkbox name="topping" value="mushroom"> Mushroom </label></p>
+   </fieldset>
+   <p><label>Preferred delivery time: <input type=time min="11:00" max="21:00" step="900" name="delivery"></label></p>
+   <p><label>Delivery instructions: <textarea name="comments"></textarea></label></p>
+   <p><button>Submit order</button></p>
+  </form>
+  </body>
+</html>`;
+
 function validScout(overrides: Record<string, unknown> = {}) {
   return {
     formFound: true,
     formTitle: "Contact Acme",
     submitLabel: "Send message",
+    submitSelector: 'button[type="submit"]',
     loginRequired: false,
     humanCheck: false,
     notes: "",
@@ -195,6 +233,7 @@ beforeEach(() => {
     metadata: { statusCode: 200 },
   });
   scrapeCalls = 0;
+  lastActions = [];
   fillValues = [];
   fillNote = "";
   stubFetch();
@@ -213,6 +252,7 @@ describe("validateScout — form structure validation", () => {
     expect(result?.formTitle).toBe("Contact Acme");
     expect(result?.fields).toHaveLength(3);
     expect(result?.confidence).toBe(1);
+    expect(result?.submitSelector).toBe('button[type="submit"]');
   });
 
   it("normalizes an unknown field type and drops entries with no name or label", () => {
@@ -233,7 +273,93 @@ describe("validateScout — form structure validation", () => {
   });
 });
 
+describe("parseFormControls — deterministic DOM parsing", () => {
+  it("reads the real httpbin form: names, types, groups, and honest required flags", () => {
+    const fields = parseFormControls(HTTPBIN_FORM_HTML);
+    expect(fields.map((field) => field.name)).toEqual(["custname", "custtel", "custemail", "size", "topping", "delivery", "comments"]);
+    expect(fields.map((field) => field.type)).toEqual(["text", "tel", "email", "radio", "checkbox", "text", "textarea"]);
+    // httpbin marks nothing required; inferring it would wrongly block approval.
+    expect(fields.every((field) => field.required === false)).toBe(true);
+    expect(fields.find((field) => field.name === "size")?.options).toEqual(["small", "medium", "large"]);
+    expect(fields.find((field) => field.name === "topping")?.options).toEqual(["bacon", "cheese", "onion", "mushroom"]);
+    // Selectors come from the markup, not from a label guess.
+    expect(fields.find((field) => field.name === "custemail")?.selector).toBe('input[name="custemail"]');
+    expect(fields.find((field) => field.name === "comments")?.selector).toBe('textarea[name="comments"]');
+    expect(fields.find((field) => field.name === "custname")?.label).toContain("Customer name");
+  });
+
+  it("reads a select's options, checkbox groups, required flags, and id selectors", () => {
+    const html = '<form><label for="plan">Plan</label><select id="plan" name="plan"><option value="free">Free</option><option value="pro">Pro</option></select>'
+      + '<label><input type="checkbox" name="extras" value="support"> Support</label>'
+      + '<label><input type="checkbox" name="extras" value="training" required> Training</label>'
+      + '<button type="submit">Go</button></form>';
+    const fields = parseFormControls(html);
+    const plan = fields.find((field) => field.name === "plan");
+    expect(plan?.type).toBe("select");
+    expect(plan?.options).toEqual(["free", "pro"]);
+    expect(plan?.selector).toBe("#plan");
+    const extras = fields.find((field) => field.name === "extras");
+    expect(extras?.type).toBe("checkbox");
+    expect(extras?.options).toEqual(["support", "training"]);
+    expect(extras?.required).toBe(true);
+    expect(plan?.label).toBe("Plan");
+  });
+
+  it("skips hidden and button controls and never fills file inputs", () => {
+    const fields = parseFormControls('<form><input type="hidden" name="token" value="x"><input type="submit" name="go" value="Send"><input type="file" name="cv"><input type="text" name="who"></form>');
+    expect(fields.map((field) => field.name)).toEqual(["cv", "who"]);
+    expect(fields[0].type).toBe("file");
+  });
+
+  it("returns nothing for markup with no usable controls", () => {
+    expect(parseFormControls("")).toEqual([]);
+    expect(parseFormControls("<html><body><p>An article.</p></body></html>")).toEqual([]);
+  });
+
+  it("finds a bare <button> submit control and typed submit inputs", () => {
+    expect(parseSubmitSelector(HTTPBIN_FORM_HTML)).toBe("form button");
+    expect(parseSubmitSelector('<form><button id="send">Send</button></form>')).toBe("#send");
+    expect(parseSubmitSelector('<form><input type="submit" name="commit"></form>')).toBe('input[name="commit"]');
+    expect(parseSubmitSelector("<p>nothing here</p>")).toBe("");
+  });
+});
+
 describe("scoutForm — Firecrawl structured extraction", () => {
+  it("prefers the DOM structure over the model's invented field names", async () => {
+    const t = convexTest(schema, convexModules);
+    const { missionId, sourceId } = await seedSource(t);
+    // The model hallucinated names and marked everything required; the DOM wins.
+    scoutResult = async () => ({
+      json: validScout({
+        fields: [
+          { name: "customer_name", label: "Customer name", type: "text", required: true, options: [], selector: 'input[name="customer_name"]', placeholder: "" },
+        ],
+        submitSelector: 'button[type="submit"]',
+      }),
+      html: HTTPBIN_FORM_HTML,
+      markdown: "Customer name:",
+    });
+    const result = await t.action(api.formFlows.scoutForm, { workspaceId: WORKSPACE, missionId: missionId as never, sourceId: sourceId as never });
+    expect(result.blockedReason).toBeNull();
+    const template = (await templatesFor(t, missionId))[0];
+    expect(template.fields.map((field) => field.name)).toEqual(["custname", "custtel", "custemail", "size", "topping", "delivery", "comments"]);
+    expect(template.fields.every((field) => field.required === false)).toBe(true);
+    expect(template.submitSelector).toBe("form button");
+    expect(template.confidence).toBeGreaterThan(0.9);
+    const steps = await stepsFor(t, missionId);
+    expect(steps.find((step) => step.label === "form.scouted")?.summary).toContain("parsed from the DOM");
+  });
+
+  it("falls back to the model's field list when the markup cannot be parsed", async () => {
+    const t = convexTest(schema, convexModules);
+    const { missionId, sourceId } = await seedSource(t);
+    scoutResult = async () => ({ json: validScout(), html: "<html><body><div>no form</div></body></html>", markdown: "Contact" });
+    const result = await t.action(api.formFlows.scoutForm, { workspaceId: WORKSPACE, missionId: missionId as never, sourceId: sourceId as never });
+    expect(result.fieldCount).toBe(3);
+    const steps = await stepsFor(t, missionId);
+    expect(steps.find((step) => step.label === "form.scouted")?.summary).toContain("model-extracted");
+  });
+
   it("persists the scouted fields and records a firecrawl.scout receipt", async () => {
     const t = convexTest(schema, convexModules);
     const { missionId, sourceId } = await seedSource(t);
@@ -406,6 +532,54 @@ describe("executeFormSubmission — one approval, one submission", () => {
     expect(listed[0].evidenceUrl).toBeTruthy();
     const steps = await stepsFor(t, missionId);
     expect(steps.some((step) => step.label === "form.executed" && step.tool === "firecrawl.form")).toBe(true);
+  });
+
+  it("clicks the scouted submit control, including a bare <button> with no type", async () => {
+    const t = convexTest(schema, convexModules);
+    const { missionId, sourceId } = await seedSource(t);
+    // Real forms commonly omit type="submit", which a generic selector misses.
+    scoutResult = async () => ({ json: validScout({ submitLabel: "Submit order", submitSelector: "form button" }), markdown: "Submit order" });
+    const { proposalId } = await prepareApprovedProposal(t, missionId, sourceId);
+    await t.action(api.formFlows.executeFormSubmission, { workspaceId: WORKSPACE, proposalId: proposalId as never });
+    expect(lastActions.filter((action) => action.type === "click" && action.selector === "form button")).toHaveLength(1);
+    expect(lastActions.some((action) => action.type === "screenshot")).toBe(true);
+  });
+
+  it("clicks the matching option for a radio group by attribute, not by label", async () => {
+    const t = convexTest(schema, convexModules);
+    const { missionId, sourceId } = await seedSource(t);
+    scoutResult = async () => ({
+      json: validScout({
+        fields: [
+          { name: "custname", label: "Customer name", type: "text", required: false, options: [], selector: 'input[name="custname"]', placeholder: "" },
+          { name: "size", label: "Pizza Size", type: "radio", required: false, options: ["small", "medium", "large"], selector: 'input[name="size"]', placeholder: "" },
+        ],
+        submitSelector: "form button",
+      }),
+      markdown: "Pizza Size",
+    });
+    await addFact(t, missionId, "full_name", "Proof Run");
+    await addFact(t, missionId, "pizza_size", "medium");
+    const scouted = await t.action(api.formFlows.scoutForm, { workspaceId: WORKSPACE, missionId: missionId as never, sourceId: sourceId as never });
+    fillValues = [
+      { name: "custname", value: "Proof Run", factIndex: 1 },
+      { name: "size", value: "medium", factIndex: 2 },
+    ];
+    const proposed = await t.action(api.formFlows.proposeFill, { workspaceId: WORKSPACE, missionId: missionId as never, templateId: scouted.templateId });
+    await t.run(async (ctx) => ctx.runMutation(api.formStore.approveProposal, { workspaceId: WORKSPACE, proposalId: proposed.proposalId }));
+    await t.action(api.formFlows.executeFormSubmission, { workspaceId: WORKSPACE, proposalId: proposed.proposalId });
+    expect(lastActions.some((action) => action.type === "click" && action.selector === 'input[name="size"][value="medium"]')).toBe(true);
+    expect(lastActions.some((action) => action.type === "click" && action.selector === 'input[name="custname"]')).toBe(true);
+  });
+
+  it("falls back to a generic submit selector when scouting found none", async () => {
+    const t = convexTest(schema, convexModules);
+    const { missionId, sourceId } = await seedSource(t);
+    scoutResult = async () => ({ json: validScout({ submitSelector: "" }), markdown: "Send message" });
+    const { proposalId } = await prepareApprovedProposal(t, missionId, sourceId);
+    await t.action(api.formFlows.executeFormSubmission, { workspaceId: WORKSPACE, proposalId: proposalId as never });
+    const submit = lastActions.find((action) => action.type === "click" && String(action.selector).includes("form button"));
+    expect(submit).toBeTruthy();
   });
 
   it("is idempotent: a second call does not submit again", async () => {
