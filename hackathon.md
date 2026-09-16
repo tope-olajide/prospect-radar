@@ -12,9 +12,50 @@
 - **Auth:** none (demo workspace scope)
 - **AI models:** any OpenAI-compatible model via OPENAI_BASE_URL / OPENAI_MODEL (gpt-5-mini default; provider recorded on plans and classifications)
 - **Started:** 2026-09-13T00:00:00Z
-- **Last updated:** 2026-09-16T14:55:00Z
+- **Last updated:** 2026-09-16T15:30:00Z
 
 ## Log
+
+### 2026-09-16 - working tree
+Stale-run reaper, and the failure-path proofs (Phase 7, item 2).
+
+**The reaper (`convex/runReaper.ts`, cron every 10 minutes).** A run only
+advances because a stage schedules its successor or is waiting on an external
+callback. A stage that dies without transitioning — a provider call made outside
+the orchestrator's try/catch, a scheduled continuation that never fired — left
+the row `active` forever, so the command center kept reporting abandoned work as
+in progress. Production showed exactly that: five runs stuck `active` at
+`evaluate`. The reaper parks an `active` run whose `updatedAt` has not moved in
+30 minutes as `blocked` with `activeInterruption: "stale_run"`, keeping its stage
+so the ordinary retry control resumes it. It never touches runs that are
+deliberately parked (`waiting` on a crawl, `blocked` on a classified failure,
+terminal) or simply not started (`queued`). **Live proof:** the scheduled sweep
+fired on its own and parked all five in one pass (identical `updatedAt`, no
+client connected).
+
+The same audit fixed a smaller lie: the overview counted `queued` runs as
+"working". It now reports **Working now** (a stage is executing), **Ready to run**
+(created, waiting for the user), and **Parked** — so the Home screen's numbers
+mean what they say.
+
+**Failure-path proofs (`scripts/failurePathsProof.mjs`, 13/13).** Evidence in
+`proof/failure-paths.json` and docs/integration-verification.md §8.2. The harness
+labels each entry **REAL** (probed live during the run) or **TEST-VERIFIED**
+(cannot be forced through the public API, so proven by a *named* test it executes
+and records):
+
+- **REAL:** unsigned webhook → 401; forged `svix-signature` → 401; and a live
+  login wall — `https://github.com/login` scouted as `blockedReason:
+  login_required` with 3 fields refused and no proposal created.
+- **TEST-VERIFIED:** replayed webhook event, expired approval, tampered draft
+  after approval, approval bypass, cross-workspace send, tampered form payload,
+  login wall at scout time, human check, auth wall at execution, and form
+  submission without approval.
+
+The consistent property across all thirteen: the dangerous path fails **closed**
+and records *why* — never a fabricated success.
+
+4 new reaper tests plus the failure-path harness; **158 tests** across 12 files.
 
 ### 2026-09-16 - working tree
 Phase 6: hardening and operations. "Run Radar end-to-end" spends real Firecrawl

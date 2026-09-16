@@ -676,6 +676,8 @@ Clarification: ${clarifyAnswer.trim()}` });
   const runWorking = run && ["queued", "active"].includes(run.status);
   // A budget block is a spend decision, not a failure: the run keeps its stage.
   const budgetBlocked = run?.activeInterruption === "budget_blocked";
+  // A reaped run was parked because it went quiet with no state change.
+  const staleRun = run?.activeInterruption === "stale_run";
   const linkedMatchSource = linkedMatchId ? sources?.find((source) => source._id === matches?.find((match) => match._id === linkedMatchId)?.sourceId) : undefined;
   const meetingsForOutcome = (outcomeId: Id<"outcomes">) => (meetings ?? []).filter((meeting) => meeting.outcomeId === outcomeId);
 
@@ -803,8 +805,9 @@ Clarification: ${clarifyAnswer.trim()}` });
                     ))}
                   </div>
                   <div className="run-strip" aria-label="Run states">
-                    <span><em>Working</em><strong>{overview.counts.runsActive}</strong></span>
-                    <span><em>Awaiting you</em><strong>{overview.counts.runsWaiting}</strong></span>
+                    <span><em>Working now</em><strong>{overview.counts.runsActive}</strong></span>
+                    <span><em>Ready to run</em><strong>{overview.counts.runsReady}</strong></span>
+                    <span><em>Parked</em><strong>{overview.counts.runsWaiting}</strong></span>
                     <span><em>Blocked</em><strong>{overview.counts.runsBlocked}</strong></span>
                     <span><em>Approved sends</em><strong>{overview.counts.draftsApproved}</strong></span>
                     <span><em>Blocked forms</em><strong>{overview.counts.blockedSubmissions}</strong></span>
@@ -918,7 +921,7 @@ Clarification: ${clarifyAnswer.trim()}` });
                           <button type="button" className="btn" onClick={onStopRun}>■ Stop</button>
                           {run.status === "blocked" && (
                             <button type="button" className="btn ghost" onClick={onRetryStage}>
-                              {budgetBlocked ? "↻ Resume after raising the cap" : "↻ Retry stage"}
+                              {budgetBlocked ? "↻ Resume after raising the cap" : staleRun ? "↻ Resume stage" : "↻ Retry stage"}
                             </button>
                           )}
                           {run.status === "waiting" && run.currentStage === "interpret" && <span className="stage-note">Radar understood the goal and will continue automatically…</span>}
@@ -926,7 +929,9 @@ Clarification: ${clarifyAnswer.trim()}` });
                             <span className="stage-note">
                               {budgetBlocked
                                 ? "Budget block: nothing failed — the estimate no longer fits the cap."
-                                : `Paused after a ${run.activeInterruption ?? "provider"} failure. Retry once provider conditions change.`}
+                                : staleRun
+                                  ? "Parked, not failed: this run went quiet without advancing, so the reaper stopped counting it as work in progress. Resume the stage to pick up where it stopped."
+                                  : `Paused after a ${run.activeInterruption ?? "provider"} failure. Retry once provider conditions change.`}
                             </span>
                           )}
                         </div>

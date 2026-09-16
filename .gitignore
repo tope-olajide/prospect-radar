@@ -141,3 +141,7 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# Raw proof harness intermediates (contain absolute local paths); the distilled
+# evidence artifacts that ship are proof/*.json and proof/*.png.
+proof/.*.json

@@ -317,7 +317,11 @@ describe("backfillSearch — legacy rows become searchable", () => {
     expect(filled.entities).toBe(1);
     expect(filled.runs).toBe(1);
     expect(await t.query(api.commandCenter.search, { workspaceId: WORKSPACE, query: "legacy" })).not.toHaveLength(0);
-    expect((await t.query(api.commandCenter.overview, { workspaceId: WORKSPACE })).counts.runsActive).toBe(1);
+    // A freshly created run is `queued`, which means it is waiting for the user,
+    // not working — so the overview must report it as ready, not active.
+    const overview = await t.query(api.commandCenter.overview, { workspaceId: WORKSPACE });
+    expect(overview.counts.runsReady).toBe(1);
+    expect(overview.counts.runsActive).toBe(0);
 
     // Re-running is a no-op.
     const again = await t.run(async (ctx) => ctx.runMutation(internal.commandCenter.backfillSearch, { workspaceId: WORKSPACE }));

@@ -114,7 +114,10 @@ export default defineSchema({
     createdAt: v.number(), updatedAt: v.number(),
   }).index("by_missionId", ["missionId"])
     .index("by_workspaceId", ["workspaceId"])
-    .index("by_workspaceId_and_status", ["workspaceId", "status"]),
+    .index("by_workspaceId_and_status", ["workspaceId", "status"])
+    // Global status index so the stale-run reaper can sweep every workspace in
+    // one bounded query instead of scanning workspaces.
+    .index("by_status", ["status"]),
   runEvents: defineTable({
     missionId: v.id("missions"), runId: v.id("agentRuns"), type: v.string(),
     stage: runStage, safeSummary: v.string(), createdAt: v.number(),
