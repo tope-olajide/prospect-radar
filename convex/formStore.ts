@@ -19,7 +19,7 @@ import { recordStep } from "./runs";
 
 const formFieldType = v.union(
   v.literal("text"), v.literal("email"), v.literal("tel"), v.literal("url"),
-  v.literal("textarea"), v.literal("select"), v.literal("checkbox"),
+  v.literal("textarea"), v.literal("select"), v.literal("checkbox"), v.literal("radio"),
   v.literal("file"), v.literal("unknown"),
 );
 const formBlockReason = v.union(
@@ -54,6 +54,7 @@ export const templateView = v.object({
   url: v.string(),
   formTitle: v.string(),
   submitLabel: v.string(),
+  submitSelector: v.string(),
   fields: v.array(formField),
   blockedReason: v.union(formBlockReason, v.null()),
   blockedDetail: v.string(),
@@ -127,7 +128,7 @@ function normalizeField(raw: {
     name: boundedText(raw.name, 120),
     label: boundedText(raw.label, 160),
     type: raw.type as
-      | "text" | "email" | "tel" | "url" | "textarea" | "select" | "checkbox" | "file" | "unknown",
+      | "text" | "email" | "tel" | "url" | "textarea" | "select" | "checkbox" | "radio" | "file" | "unknown",
     required: raw.required,
     options: raw.options.slice(0, 30).map((option) => boundedText(option, 120)),
     selector: boundedText(raw.selector, 200),
@@ -144,6 +145,7 @@ export const saveTemplate = internalMutation({
     url: v.string(),
     formTitle: v.string(),
     submitLabel: v.string(),
+    submitSelector: v.string(),
     fields: v.array(formField),
     blockedReason: v.union(formBlockReason, v.null()),
     blockedDetail: v.string(),
@@ -165,6 +167,7 @@ export const saveTemplate = internalMutation({
         sourceId: args.sourceId,
         formTitle: boundedText(args.formTitle, 200) || existing.formTitle,
         submitLabel: boundedText(args.submitLabel, 120),
+        submitSelector: boundedText(args.submitSelector, 300),
         fields,
         blockedReason: args.blockedReason,
         blockedDetail: boundedText(args.blockedDetail, 500),
@@ -181,6 +184,7 @@ export const saveTemplate = internalMutation({
       url: args.url,
       formTitle: boundedText(args.formTitle, 200) || "Untitled form",
       submitLabel: boundedText(args.submitLabel, 120),
+      submitSelector: boundedText(args.submitSelector, 300),
       fields,
       blockedReason: args.blockedReason,
       blockedDetail: boundedText(args.blockedDetail, 500),
@@ -556,10 +560,12 @@ export const claimExecution = internalMutation({
     if (approval.contentHash !== recheckHash || proposal.payloadHash !== recheckHash) {
       throw new Error("APPROVAL_STALE: the payload changed after approval; approve again.");
     }
+    // Only real submissions consume the cap: a blocked or failed attempt sent
+    // nothing, so it must not burn the workspace's daily allowance.
     const recent = await ctx.db.query("formSubmissions")
       .withIndex("by_workspaceId", (q) => q.eq("workspaceId", args.workspaceId))
       .take(200);
-    const inWindow = recent.filter((row) => row.createdAt >= now - DAY_MS).length;
+    const inWindow = recent.filter((row) => row.createdAt >= now - DAY_MS && row.status === "submitted").length;
     if (inWindow >= DAILY_SUBMISSION_CAP) {
       throw new Error(`FORM_CAP_REACHED: the daily submission cap of ${DAILY_SUBMISSION_CAP} was reached for this workspace.`);
     }
@@ -740,7 +746,7 @@ export const capStatus = query({
     const rows = await ctx.db.query("formSubmissions")
       .withIndex("by_workspaceId", (q) => q.eq("workspaceId", args.workspaceId))
       .take(200);
-    const used = rows.filter((row) => row.createdAt >= Date.now() - DAY_MS).length;
+    const used = rows.filter((row) => row.createdAt >= Date.now() - DAY_MS && row.status === "submitted").length;
     return { used, cap: DAILY_SUBMISSION_CAP };
   },
 });

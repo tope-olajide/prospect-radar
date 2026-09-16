@@ -9,14 +9,25 @@ const runStage = v.union(v.literal("intake"), v.literal("interpret"), v.literal(
 const run = v.object({ _id: v.id("agentRuns"), status: runStatus, currentStage: runStage, checkpointVersion: v.number(), activeInterruption: v.union(v.string(), v.null()), nextWakeAt: v.union(v.number(), v.null()), retryCount: v.number(), startedAt: v.union(v.number(), v.null()), finishedAt: v.union(v.number(), v.null()), createdAt: v.number(), updatedAt: v.number() });
 const event = v.object({ _id: v.id("runEvents"), missionId: v.id("missions"), runId: v.id("agentRuns"), type: v.string(), stage: runStage, safeSummary: v.string(), createdAt: v.number() });
 
+// Views are contracts: returning the raw document leaks `_creationTime` (and
+// table-only foreign keys), which fails the return validator at runtime. The
+// Activity view depends on these queries, so the fields are mapped explicitly.
 export const forMission = query({
   args: { missionId: v.id("missions") }, returns: v.union(run, v.null()),
-  handler: async (ctx, args) => await ctx.db.query("agentRuns").withIndex("by_missionId", (q) => q.eq("missionId", args.missionId)).first(),
+  handler: async (ctx, args) => {
+    const row = await ctx.db.query("agentRuns").withIndex("by_missionId", (q) => q.eq("missionId", args.missionId)).first();
+    if (!row) return null;
+    const { _creationTime, missionId, ...view } = row;
+    return view;
+  },
 });
 
 export const events = query({
   args: { runId: v.id("agentRuns") }, returns: v.array(event),
-  handler: async (ctx, args) => await ctx.db.query("runEvents").withIndex("by_runId", (q) => q.eq("runId", args.runId)).order("asc").take(100),
+  handler: async (ctx, args) => {
+    const rows = await ctx.db.query("runEvents").withIndex("by_runId", (q) => q.eq("runId", args.runId)).order("asc").take(100);
+    return rows.map(({ _creationTime, ...row }) => row);
+  },
 });
 
 const stepView = v.object({
@@ -32,8 +43,10 @@ const stepView = v.object({
 
 export const steps = query({
   args: { runId: v.id("agentRuns") }, returns: v.array(stepView),
-  handler: async (ctx, args) =>
-    await ctx.db.query("runSteps").withIndex("by_runId", (q) => q.eq("runId", args.runId)).order("asc").take(100),
+  handler: async (ctx, args) => {
+    const rows = await ctx.db.query("runSteps").withIndex("by_runId", (q) => q.eq("runId", args.runId)).order("asc").take(100);
+    return rows.map(({ _creationTime, missionId, runId, ...row }) => row);
+  },
 });
 
 /**

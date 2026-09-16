@@ -12,9 +12,41 @@
 - **Auth:** none (demo workspace scope)
 - **AI models:** any OpenAI-compatible model via OPENAI_BASE_URL / OPENAI_MODEL (gpt-5-mini default; provider recorded on plans and classifications)
 - **Started:** 2026-09-13T00:00:00Z
-- **Last updated:** 2026-09-16T13:30:00Z
+- **Last updated:** 2026-09-16T13:55:00Z
 
 ## Log
+
+### 2026-09-16 - working tree
+Live end-to-end form-flow proof run against the production deployment
+(`scripts/formFlowProof.mjs`, evidence in `proof/form-flow.json` and
+`proof/form-flow-screenshot.png`, target `https://httpbin.org/forms/post` - a
+public form built to echo a POST, so nothing unsolicited was sent to a real
+business). The run discovered the form through Firecrawl search, scouted 7
+fields, filled 6 from confirmed facts with the live OpenAI-compatible model
+(`dashscope:qwen-max`), bound an approval to the payload hash, executed the
+Firecrawl `actions` submission, stored a 1920x1080 screenshot, and proved
+idempotency (a second execution returned `already_submitted` with no second
+Firecrawl call and one submission row). The target's own echo of the request
+body is the proof: `custname`, `custtel`, `custemail`, `size: "medium"`,
+`topping: ["bacon","cheese"]`, `comments` - with `delivery` left empty because
+no confirmed fact covered it.
+
+The run earned its keep by finding three real defects, all fixed:
+(1) form scouting read markdown, where input `name` attributes do not exist, so
+the model invented names (`customer_name` for a real `name="custname"`) and
+produced selectors that failed with "Element not found" - scouting now parses
+the returned DOM deterministically and keeps the model extraction only as a
+fallback; (2) the extractor inferred `required` from labels, which wrongly
+blocked approval on a form that marks nothing required - `required` now comes
+from the actual HTML attribute; (3) `runs.forMission`, `runs.events`, and
+`runs.steps` returned raw documents against narrower view validators and so
+raised `ReturnsValidationError` on every production call, meaning the Activity
+run panel had been silently showing "no run" - the views now map their fields
+explicitly and `tests/runs.test.ts` locks the contract (128 tests passing).
+Also added: radio/checkbox-group filling by attribute
+(`input[name="size"][value="medium"]`), a scouted submit selector so bare
+`<button>` controls work, and a submission cap that only counts real
+submissions rather than blocked attempts.
 
 ### 2026-09-16 - working tree
 Phase 4: form intelligence and approval-bound submissions. Radar can now take

@@ -1,0 +1,290 @@
+{
+  "capturedAt": "2026-09-16T12:46:41.352Z",
+  "convexUrl": "https://wry-walrus-528.convex.cloud",
+  "workspace": "demo-workspace",
+  "formUrl": "https://httpbin.org/forms/post",
+  "mission": {
+    "_id": "kd7a560yh0w2q4zk32d201j4z58ehzy1",
+    "completionPredicate": "A screenshot-evidenced public form submission exists.",
+    "constraints": [],
+    "createdAt": 1789562751796,
+    "mode": "opportunity",
+    "rawGoal": "Submit the public test form at https://httpbin.org/forms/post with my details so I can prove the approval-bound form flow end to end.",
+    "sourceScope": "public-web",
+    "status": "running",
+    "title": "Submit the httpbin test order form",
+    "updatedAt": 1789562785981
+  },
+  "facts": [
+    {
+      "category": "full_name",
+      "value": "Prospect Radar Proof Run",
+      "factId": "jn73r8qgtmj81dmbv4b82sv0zh8egnqd",
+      "reused": true
+    },
+    {
+      "category": "email",
+      "value": "proof@prospect-radar.example",
+      "factId": "jn792c4efb72fq556k1zkg5mj58egkye",
+      "reused": true
+    },
+    {
+      "category": "phone",
+      "value": "+15550100",
+      "factId": "jn79gf6dmmgp4p2v4yc8yf6d298eg040",
+      "reused": true
+    },
+    {
+      "category": "delivery_instructions",
+      "value": "Automated end-to-end proof for the Convex All Gas Hackathon. No human is waiting on this order.",
+      "factId": "jn735aq2vm3vasykgtknxhx82d8ehe8r",
+      "reused": true
+    },
+    {
+      "category": "pizza_size",
+      "value": "medium",
+      "factId": "jn78068yx6pbq98kegv40pw7398ehg11",
+      "reused": true
+    },
+    {
+      "category": "pizza_toppings",
+      "value": "bacon, cheese",
+      "factId": "jn7a6b66pqn541t2mhw4m7m5598eg7av",
+      "reused": true
+    }
+  ],
+  "source": {
+    "_id": "m97ddafbx2g6xte8j9fq74xfr98eh88v",
+    "content": "Customer name: Telephone: E-mail address: Pizza Size Small Medium Large Pizza Toppings Bacon Extra Cheese Onion Mushroom Preferred delivery time: Delivery instructions: Submit order",
+    "createdAt": 1789562785981,
+    "errorSummary": null,
+    "excerpt": "Customer name: Telephone: E-mail address: Pizza Size. Small. Medium. Large. Pizza Toppings. Bacon. Extra Cheese. Onion. Mushroom. Preferred delivery time:.",
+    "fetchedAt": 1789562785981,
+    "firecrawlPageId": null,
+    "firecrawlRequestId": "probe-1",
+    "freshness": "cached",
+    "jobId": "kx70ge77gxdmr6r7cdc3chxq458ehb34",
+    "missionId": "kd7a560yh0w2q4zk32d201j4z58ehzy1",
+    "processingStatus": "scraped",
+    "sourceType": "search_result",
+    "title": "forms/post - HTTPBin",
+    "updatedAt": 1789562785981,
+    "url": "https://httpbin.org/forms/post"
+  },
+  "template": {
+    "_id": "nd74v3z0km1dkxsved2f7rmd6d8ehrx7",
+    "blockedDetail": "",
+    "blockedReason": null,
+    "confidence": 0.95,
+    "fields": [
+      {
+        "label": "Customer name:",
+        "name": "custname",
+        "options": [],
+        "placeholder": "",
+        "required": false,
+        "selector": "input[name=\"custname\"]",
+        "type": "text"
+      },
+      {
+        "label": "Telephone:",
+        "name": "custtel",
+        "options": [],
+        "placeholder": "",
+        "required": false,
+        "selector": "input[name=\"custtel\"]",
+        "type": "tel"
+      },
+      {
+        "label": "E-mail address:",
+        "name": "custemail",
+        "options": [],
+        "placeholder": "",
+        "required": false,
+        "selector": "input[name=\"custemail\"]",
+        "type": "email"
+      },
+      {
+        "label": "Small",
+        "name": "size",
+        "options": [
+          "small",
+          "medium",
+          "large"
+        ],
+        "placeholder": "",
+        "required": false,
+        "selector": "input[name=\"size\"]",
+        "type": "radio"
+      },
+      {
+        "label": "Bacon",
+        "name": "topping",
+        "options": [
+          "bacon",
+          "cheese",
+          "onion",
+          "mushroom"
+        ],
+        "placeholder": "",
+        "required": false,
+        "selector": "input[name=\"topping\"]",
+        "type": "checkbox"
+      },
+      {
+        "label": "Preferred delivery time:",
+        "name": "delivery",
+        "options": [],
+        "placeholder": "",
+        "required": false,
+        "selector": "input[name=\"delivery\"]",
+        "type": "text"
+      },
+      {
+        "label": "Delivery instructions:",
+        "name": "comments",
+        "options": [],
+        "placeholder": "",
+        "required": false,
+        "selector": "textarea[name=\"comments\"]",
+        "type": "textarea"
+      }
+    ],
+    "formTitle": "forms/post - HTTPBin",
+    "missionId": "kd7a560yh0w2q4zk32d201j4z58ehzy1",
+    "scoutedAt": 1789562808662,
+    "sourceId": "m97ddafbx2g6xte8j9fq74xfr98eh88v",
+    "submitLabel": "Submit order",
+    "submitSelector": "form button",
+    "updatedAt": 1789562808662,
+    "url": "https://httpbin.org/forms/post"
+  },
+  "proposal": {
+    "_id": "n57d4wbs9yf7k15p2r9tw432nh8eh026",
+    "approvalExpiresAt": null,
+    "approvalStatus": null,
+    "createdAt": 1789562815767,
+    "errorSummary": null,
+    "fieldValues": [
+      {
+        "factCategory": "full_name",
+        "factId": "jn73r8qgtmj81dmbv4b82sv0zh8egnqd",
+        "label": "Customer name:",
+        "name": "custname",
+        "value": "Prospect Radar Proof Run"
+      },
+      {
+        "factCategory": "phone",
+        "factId": "jn79gf6dmmgp4p2v4yc8yf6d298eg040",
+        "label": "Telephone:",
+        "name": "custtel",
+        "value": "+15550100"
+      },
+      {
+        "factCategory": "email",
+        "factId": "jn792c4efb72fq556k1zkg5mj58egkye",
+        "label": "E-mail address:",
+        "name": "custemail",
+        "value": "proof@prospect-radar.example"
+      },
+      {
+        "factCategory": "pizza_size",
+        "factId": "jn78068yx6pbq98kegv40pw7398ehg11",
+        "label": "Small",
+        "name": "size",
+        "value": "medium"
+      },
+      {
+        "factCategory": "pizza_toppings",
+        "factId": "jn7a6b66pqn541t2mhw4m7m5598eg7av",
+        "label": "Bacon",
+        "name": "topping",
+        "value": "bacon, cheese"
+      },
+      {
+        "factCategory": null,
+        "factId": null,
+        "label": "Preferred delivery time:",
+        "name": "delivery",
+        "value": ""
+      },
+      {
+        "factCategory": "delivery_instructions",
+        "factId": "jn735aq2vm3vasykgtknxhx82d8ehe8r",
+        "label": "Delivery instructions:",
+        "name": "comments",
+        "value": "Automated end-to-end proof for the Convex All Gas Hackathon. No human is waiting on this order."
+      }
+    ],
+    "formTitle": "forms/post - HTTPBin",
+    "missionId": "kd7a560yh0w2q4zk32d201j4z58ehzy1",
+    "payloadHash": "20721e96d3929de5848fca31acec386300bf7c1172ba46ddc32b0d67c94b0dfc",
+    "sourceId": "m97ddafbx2g6xte8j9fq74xfr98eh88v",
+    "status": "draft",
+    "templateId": "nd74v3z0km1dkxsved2f7rmd6d8ehrx7",
+    "unmatchedRequired": [],
+    "updatedAt": 1789562815767,
+    "url": "https://httpbin.org/forms/post"
+  },
+  "submission": {
+    "_id": "n97ct2bhcf0v258ckktw9m190s8ehg8c",
+    "createdAt": 1789562832259,
+    "errorCode": null,
+    "errorSummary": null,
+    "fieldCount": 6,
+    "formTitle": "forms/post - HTTPBin",
+    "missionId": "kd7a560yh0w2q4zk32d201j4z58ehzy1",
+    "postSubmitExcerpt": "```json { \"args\": {}, \"data\": \"\", \"files\": {}, \"form\": { \"comments\": \"Automated end-to-end proof for the Convex All Gas Hackathon. No human is waiting on this order.\", \"custemail\": \"proof@prospect-radar.example\", \"custname\": \"Prospect Radar Proof Run\", \"custtel\": \"+15550100\", \"delivery\": \"\", \"size\": \"medium\", \"topping\": [ \"bacon\", \"cheese\" ] }, \"headers\": { \"Accept\": \"text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7\", \"Accept-Encoding\": \"gzip, deflate, br, zstd\", \"Accept-Language\": \"en-US,en;q=0.9\", \"Cache-Control\": \"max-age=0\", \"Content-Length\": \"250\", \"Content-Type\": \"application/x-www-form-urlencoded\", \"Host\": \"httpbin.org\", \"Origin\": \"https://httpbin.org\", \"Priority\": \"u=0, i\", \"Referer\": \"https://ht",
+    "proposalId": "n57d4wbs9yf7k15p2r9tw432nh8eh026",
+    "status": "submitted",
+    "submittedAt": 1789562832259,
+    "url": "https://httpbin.org/forms/post",
+    "evidenceStored": true,
+    "screenshotArtifact": "proof/form-flow-screenshot.png"
+  },
+  "idempotency": {
+    "secondStatus": "already_submitted",
+    "submissionCount": 1
+  },
+  "transcript": [
+    {
+      "label": "form.scouted",
+      "tool": "firecrawl.scout",
+      "errorCode": null,
+      "summary": "Scouted 7 field(s) on https://httpbin.org/forms/post (parsed from the DOM).",
+      "stage": "discover"
+    },
+    {
+      "label": "form.proposed",
+      "tool": "llm.form_fill",
+      "errorCode": null,
+      "summary": "Proposed 6 field value(s) for https://httpbin.org/forms/post from confirmed facts.",
+      "stage": "evaluate"
+    },
+    {
+      "label": "form.approved",
+      "tool": "approval",
+      "errorCode": null,
+      "summary": "User approved 6 field value(s) for https://httpbin.org/forms/post. One approval, one submission.",
+      "stage": "approval"
+    },
+    {
+      "label": "form.executing",
+      "tool": "firecrawl.form",
+      "errorCode": null,
+      "summary": "Submitting the approved payload to https://httpbin.org/forms/post. Screenshot evidence will be captured.",
+      "stage": "execute"
+    },
+    {
+      "label": "form.executed",
+      "tool": "firecrawl.form",
+      "errorCode": null,
+      "summary": "Submission captured for https://httpbin.org/forms/post. Evidence and post-submit text stored.",
+      "stage": "execute"
+    }
+  ],
+  "cap": {
+    "cap": 5,
+    "used": 3
+  }
+}

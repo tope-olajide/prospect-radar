@@ -59,7 +59,7 @@ const sequenceStepStatus = v.union(v.literal("pending"), v.literal("draft_ready"
 // ---- Form intelligence (Phase 4) ----
 const formFieldType = v.union(
   v.literal("text"), v.literal("email"), v.literal("tel"), v.literal("url"),
-  v.literal("textarea"), v.literal("select"), v.literal("checkbox"),
+  v.literal("textarea"), v.literal("select"), v.literal("checkbox"), v.literal("radio"),
   v.literal("file"), v.literal("unknown"),
 );
 const formBlockReason = v.union(
@@ -295,7 +295,7 @@ export default defineSchema({
   // marks a boundary Radar detects and refuses to cross.
   formTemplates: defineTable({
     workspaceId: v.string(), missionId: v.id("missions"), sourceId: v.id("sourceRecords"),
-    url: v.string(), formTitle: v.string(), submitLabel: v.string(),
+    url: v.string(), formTitle: v.string(), submitLabel: v.string(), submitSelector: v.string(),
     fields: v.array(formField),
     blockedReason: v.union(formBlockReason, v.null()), blockedDetail: v.string(),
     confidence: v.number(), scoutedAt: v.number(), createdAt: v.number(), updatedAt: v.number(),
