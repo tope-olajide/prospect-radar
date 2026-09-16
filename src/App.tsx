@@ -140,6 +140,8 @@ export default function App({ backendConnected }: { backendConnected: boolean })
   const [briefEditing, setBriefEditing] = useState(false);
   const [briefNotice, setBriefNotice] = useState("");
   const [briefDraft, setBriefDraft] = useState({ normalizedGoal: "", mustHave: "", niceToHave: "", exclusions: "", recommendedSources: "", completionPredicate: "" });
+  const [budgetLimitDraft, setBudgetLimitDraft] = useState("");
+  const [budgetNotice, setBudgetNotice] = useState("");
 
   const selectedMission = missions?.find((mission) => mission._id === selectedMissionId) ?? missions?.[0];
   const missionId = selectedMission?._id ?? null;
@@ -174,6 +176,7 @@ export default function App({ backendConnected }: { backendConnected: boolean })
   const crawlProgress = useQuery(api.researchStore.latestCrawlProgress, backendConnected && missionId ? { missionId } : "skip");
   const contextFacts = useQuery(api.context.list, backendConnected ? { workspaceId, missionId: null } : "skip");
   const overview = useQuery(api.commandCenter.overview, backendConnected ? { workspaceId } : "skip");
+  const budgetStatus = useQuery(api.budget.status, backendConnected ? { workspaceId, missionId } : "skip");
   const searchResults = useQuery(
     api.commandCenter.search,
     backendConnected && commandTerm.trim().length >= 2 ? { workspaceId, query: commandTerm.trim() } : "skip",
@@ -185,6 +188,7 @@ export default function App({ backendConnected }: { backendConnected: boolean })
   const deleteFact = useMutation(api.context.deleteFact);
   const setThreadLabel = useMutation(api.inbox.setLabel);
   const updateBrief = useMutation(api.plans.updateBrief);
+  const setBudgetLimit = useMutation(api.budget.setLimit);
 
   const latestJob = jobs?.[0];
   const pendingDrafts = (drafts ?? []).filter((draft) => ["draft", "awaiting_approval", "approved", "executing"].includes(draft.status));
@@ -367,6 +371,21 @@ Clarification: ${clarifyAnswer.trim()}` });
       setBriefNotice("Brief saved — the run's completion gate now uses your predicate.");
     } catch (error) {
       setBriefNotice(error instanceof Error ? error.message : "Could not save the brief.");
+    }
+  }
+
+  async function onSaveBudgetLimit() {
+    const value = Number(budgetLimitDraft);
+    if (!Number.isFinite(value) || budgetLimitDraft.trim() === "") {
+      setBudgetNotice("Enter a whole number of credits.");
+      return;
+    }
+    try {
+      const result = await setBudgetLimit({ workspaceId, creditLimit: Math.floor(value) });
+      setBudgetNotice(`Credit cap set to ${result.creditLimit}. Resume the stage when you are ready.`);
+      setBudgetLimitDraft("");
+    } catch (error) {
+      setBudgetNotice(error instanceof Error ? error.message : "Could not set the credit cap.");
     }
   }
 
@@ -655,6 +674,8 @@ Clarification: ${clarifyAnswer.trim()}` });
 
   const confirmedFactsForForms = (contextFacts ?? []).filter((fact) => ["user_confirmed", "user_corrected"].includes(fact.verificationStatus));
   const runWorking = run && ["queued", "active"].includes(run.status);
+  // A budget block is a spend decision, not a failure: the run keeps its stage.
+  const budgetBlocked = run?.activeInterruption === "budget_blocked";
   const linkedMatchSource = linkedMatchId ? sources?.find((source) => source._id === matches?.find((match) => match._id === linkedMatchId)?.sourceId) : undefined;
   const meetingsForOutcome = (outcomeId: Id<"outcomes">) => (meetings ?? []).filter((meeting) => meeting.outcomeId === outcomeId);
 
@@ -859,13 +880,55 @@ Clarification: ${clarifyAnswer.trim()}` });
                           </div>
                         </div>
                       )}
+                      {budgetStatus && (
+                        <div className={`budget-strip ${budgetBlocked ? "budget-blocked" : budgetStatus.allowed ? "" : "budget-tight"}`} aria-live="polite">
+                          <div className="panel-head">
+                            <p className="eyebrow">PROVIDER BUDGET</p>
+                            <span className="muted">{budgetStatus.used} / {budgetStatus.creditLimit} credits used</span>
+                          </div>
+                          <div className="budget-figures">
+                            <span><em>Remaining</em><strong>{budgetStatus.remaining}</strong></span>
+                            <span><em>Pending work ≈</em><strong>{budgetStatus.pendingEstimate}</strong></span>
+                            <span><em>Search</em><strong>{budgetStatus.breakdown.search}</strong></span>
+                            <span><em>Crawl</em><strong>{budgetStatus.breakdown.crawl}</strong></span>
+                            <span><em>Extract</em><strong>{budgetStatus.breakdown.extract}</strong></span>
+                          </div>
+                          {budgetBlocked ? (
+                            <p className="budget-note">Paused for budget, not broken — the run kept its stage. Raise the cap below or add provider credits, then resume.</p>
+                          ) : !budgetStatus.allowed ? (
+                            <p className="budget-note">The remaining budget is below this mission's estimated cost, so the next provider call will pause the run instead of spending past the cap.</p>
+                          ) : null}
+                          <div className="budget-control">
+                            <input
+                              inputMode="numeric"
+                              placeholder={`Credit cap (now ${budgetStatus.creditLimit})`}
+                              value={budgetLimitDraft}
+                              onChange={(event) => setBudgetLimitDraft(event.target.value)}
+                              aria-label="Workspace credit cap"
+                            />
+                            <button type="button" className="btn ghost" onClick={onSaveBudgetLimit} disabled={!budgetLimitDraft.trim()}>Set cap</button>
+                          </div>
+                          {budgetNotice && <p className="stage-note" role="status">{budgetNotice}</p>}
+                        </div>
+                      )}
                       {run && ![
                         "cancelled", "complete", "failed",
                       ].includes(run.status) && (
                         <div className="inline-actions run-controls">
                           <button type="button" className="btn" onClick={onStopRun}>■ Stop</button>
-                          {run.status === "blocked" && <button type="button" className="btn ghost" onClick={onRetryStage}>↻ Retry stage</button>}
+                          {run.status === "blocked" && (
+                            <button type="button" className="btn ghost" onClick={onRetryStage}>
+                              {budgetBlocked ? "↻ Resume after raising the cap" : "↻ Retry stage"}
+                            </button>
+                          )}
                           {run.status === "waiting" && run.currentStage === "interpret" && <span className="stage-note">Radar understood the goal and will continue automatically…</span>}
+                          {run.status === "blocked" && (
+                            <span className="stage-note">
+                              {budgetBlocked
+                                ? "Budget block: nothing failed — the estimate no longer fits the cap."
+                                : `Paused after a ${run.activeInterruption ?? "provider"} failure. Retry once provider conditions change.`}
+                            </span>
+                          )}
                         </div>
                       )}
                       {run && ["cancelled", "complete"].includes(run.status) && (

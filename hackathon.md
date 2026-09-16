@@ -12,9 +12,53 @@
 - **Auth:** none (demo workspace scope)
 - **AI models:** any OpenAI-compatible model via OPENAI_BASE_URL / OPENAI_MODEL (gpt-5-mini default; provider recorded on plans and classifications)
 - **Started:** 2026-09-13T00:00:00Z
-- **Last updated:** 2026-09-16T14:20:00Z
+- **Last updated:** 2026-09-16T14:55:00Z
 
 ## Log
+
+### 2026-09-16 - working tree
+Phase 6: hardening and operations. "Run Radar end-to-end" spends real Firecrawl
+credits, so the cost is now estimated before it starts and enforced while it
+runs.
+
+- **Provider credit budget** (`convex/budget.ts`): one cap per workspace
+  (`workspaceBudgets`) plus an append-only ledger (`creditCharges`). A documented
+  cost model estimates search (per result), crawl (per page), scrape, and
+  structured extraction; the mission console shows used / cap / remaining, the
+  pending-work estimate, and the spend split by operation *before* the run
+  button. Every provider call charges the ledger with a reference derived from
+  the *logical work* (the query, the source, the crawl), so a retried attempt
+  never double-charges.
+- **Running out of credits is a budget block, not an error.** The orchestrator
+  pre-flights each provider call; if the estimate no longer fits, the run parks
+  in `blocked` with `activeInterruption: "budget_blocked"`, keeps its stage, and
+  records a `budget.blocked` receipt (tool `budget`, code
+  `FIRECRAWL_CREDITS_EXHAUSTED`) that states the numbers and what to do. Raising
+  the cap and using the ordinary retry control resumes exactly where it stopped —
+  no special path.
+- **Retry policy centralized** (`convex/retryPolicy.ts`): the retry budget, the
+  retryability decision, and the backoff now live in one module, so a new
+  provider failure is classified once and every stage inherits the behaviour.
+  Backoff is exponential with a per-code base (rate limits cool off longer) and a
+  hard ceiling; non-retryable codes (exhausted credits, policy refusals, invalid
+  webhooks) never loop.
+- **Idempotency sweep**: the four external writes are idempotent by provider
+  reference — crawl page ingest (job-complete short-circuit plus per-URL
+  replace), AgentMail send (content hash + client request id), form submission
+  (single transactional claim per approval), and inbound webhook (event id).
+  Crawl ingest was the one without a test; it now has one, including a partial
+  re-delivery.
+- **Untrusted-content bounding re-audited** across the new LLM and provider
+  paths: provider text never reaches a user-facing message, and hostile page
+  content is clamped before it becomes evidence.
+- **Load sanity**: a 20-query mission drains with exactly one provider call per
+  query and no fan-out; stale invocations on a non-advanceable run make no
+  provider call and schedule nothing.
+
+`tests/hardening.test.ts` adds 16 tests (**154 total**) covering the cost model,
+cap bounds, ledger idempotency, the budget-block lifecycle and its resume, the
+retry taxonomy and backoff, crawl-ingest idempotency, output bounding, and the
+20-query drain.
 
 ### 2026-09-16 - working tree
 Phase 5: the Radar command center. Home is now a real product surface rather

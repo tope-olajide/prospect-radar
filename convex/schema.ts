@@ -343,6 +343,20 @@ export default defineSchema({
     .index("by_sourceId", ["sourceId"])
     .index("by_workspaceId", ["workspaceId"]),
 
+  // Provider-credit accounting. `workspaceBudgets` holds the hard cap;
+  // `creditCharges` is the ledger. Charges are idempotent by provider
+  // reference, so a retried provider call never double-charges.
+  workspaceBudgets: defineTable({
+    workspaceId: v.string(), creditLimit: v.number(), updatedAt: v.number(),
+  }).index("by_workspaceId", ["workspaceId"]),
+  creditCharges: defineTable({
+    workspaceId: v.string(), missionId: v.id("missions"),
+    kind: v.union(v.literal("search"), v.literal("crawl"), v.literal("scrape"), v.literal("extract")),
+    amount: v.number(), reference: v.string(), createdAt: v.number(),
+  }).index("by_workspaceId", ["workspaceId"])
+    .index("by_workspaceId_and_reference", ["workspaceId", "reference"])
+    .index("by_missionId", ["missionId"]),
+
   // The immutable record of what actually happened: one approval = one row.
   formSubmissions: defineTable({
     workspaceId: v.string(), missionId: v.id("missions"), proposalId: v.id("formProposals"),

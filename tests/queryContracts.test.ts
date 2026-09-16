@@ -226,6 +226,14 @@ describe("public query contracts — every query the app calls", () => {
     const cap = await t.query(api.formStore.capStatus, { workspaceId: WORKSPACE });
     expect(cap.used).toBe(1);
 
+    // Provider budget (Phase 6): read before every end-to-end run.
+    const budget = await t.query(api.budget.status, { workspaceId: WORKSPACE, missionId: missionId as never });
+    expect(budget.creditLimit).toBeGreaterThan(0);
+    expect(budget.used).toBe(0);
+    expect(budget.remaining).toBe(budget.creditLimit);
+    expect(budget.breakdown).toEqual({ search: 0, crawl: 0, scrape: 0, extract: 0 });
+    expect(await t.query(api.budget.chargesForMission, { workspaceId: WORKSPACE, missionId: missionId as never })).toEqual([]);
+
     // Command center + system.
     const overview = await t.query(api.commandCenter.overview, { workspaceId: WORKSPACE });
     expect(overview.counts.missions).toBe(1);

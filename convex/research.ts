@@ -10,6 +10,33 @@ import { classifyProviderError } from "./providerErrors";
 
 const firecrawl = new FirecrawlClient(components.firecrawl);
 
+/**
+ * Records real provider spend against the workspace credit budget.
+ *
+ * Best-effort by design: credit accounting must never fail the provider call it
+ * describes. The charge is idempotent by reference, and the reference is derived
+ * from the *logical work* (the query, the source, the crawl) rather than the
+ * call, so a retried attempt on the same work cannot double-charge.
+ */
+async function chargeCredits(
+  ctx: ActionCtx,
+  args: { missionId: Id<"missions">; kind: "search" | "crawl" | "scrape" | "extract"; amount: number; reference: string },
+) {
+  try {
+    const mission = await ctx.runQuery(internal.missionsInternal.get, { missionId: args.missionId });
+    if (!mission) return;
+    await ctx.runMutation(internal.budget.charge, {
+      workspaceId: mission.workspaceId,
+      missionId: args.missionId,
+      kind: args.kind,
+      amount: args.amount,
+      reference: args.reference,
+    });
+  } catch {
+    // Advisory: never fail a provider operation over accounting.
+  }
+}
+
 const researchJobStatus = v.union(v.literal("running"), v.literal("complete"), v.literal("failed"));
 type ResearchJobStatus = "running" | "complete" | "failed";
 
@@ -43,6 +70,12 @@ export const search = action({
         jobId: started.jobId,
         providerRequestId: normalized.providerRequestId,
         sources: normalized.results,
+      });
+      await chargeCredits(ctx, {
+        missionId: args.missionId,
+        kind: "search",
+        amount: limit,
+        reference: `search:${args.missionId}:${args.query.trim().toLowerCase()}:${limit}`,
       });
       return { jobId: finished.jobId, resultCount: finished.resultCount, status: "complete" as const };
     } catch (error) {
@@ -94,6 +127,12 @@ export const scrape = action({
         jobId: started.jobId,
         providerRequestId: normalized.firecrawlRequestId,
         sources: [normalized],
+      });
+      await chargeCredits(ctx, {
+        missionId: args.missionId,
+        kind: "scrape",
+        amount: 1,
+        reference: `scrape:${args.sourceId}`,
       });
       return { jobId: finished.jobId, sourceId: args.sourceId, status: "complete" as const };
     } catch (error) {
@@ -214,6 +253,14 @@ export const startCrawl = action({
         jobId: started.jobId,
         crawlId,
         firecrawlJobId,
+      });
+      // Crawls bill per page; charge the requested page budget up front so the
+      // cap cannot be overrun while the crawl runs asynchronously.
+      await chargeCredits(ctx, {
+        missionId: args.missionId,
+        kind: "crawl",
+        amount: Math.max(1, Math.min(30, Math.floor(args.limit))),
+        reference: `crawl:${crawlId}`,
       });
       return { jobId: started.jobId, crawlId, status: "running" as const };
     } catch (error) {
@@ -396,6 +443,9 @@ async function extractOne(
     const message = error instanceof Error ? error.message : "Firecrawl extraction failed.";
     failureCode = classifyProviderError(message).code;
   }
+
+  // One credit per structured extraction attempt, charged once per source.
+  await chargeCredits(ctx, { missionId, kind: "extract", amount: 1, reference: `extract:${sourceId}` });
 
   const status = extraction ? "extracted" as const : "snippet_only" as const;
   const payload = extraction ?? snippetExtraction(source);

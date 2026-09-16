@@ -367,6 +367,23 @@ label { display: grid; gap: 6px; color: var(--muted); font-size: 10px; font-weig
 .brief-card .panel-head { margin-bottom: 0; }
 .brief-card .field-label { margin-top: 2px; }
 
+/* ---- Provider credit budget (Phase 6) ---- */
+.budget-strip { display: grid; gap: 8px; margin: 10px 0; padding: 12px; border: 1px solid var(--line); border-radius: 11px; background: rgba(255,255,255,.02); }
+.budget-strip .panel-head { margin-bottom: 0; }
+.budget-strip.budget-tight { border-color: rgba(242,185,105,.3); background: rgba(242,185,105,.05); }
+.budget-strip.budget-blocked { border-color: rgba(242,185,105,.45); background: rgba(242,185,105,.08); }
+.budget-figures { display: flex; flex-wrap: wrap; gap: 8px; }
+.budget-figures span { display: flex; align-items: baseline; gap: 6px; padding: 5px 9px; border: 1px solid var(--line); border-radius: 8px; background: rgba(255,255,255,.02); }
+.budget-figures em { color: #93a2b5; font-size: 9px; font-style: normal; letter-spacing: .06em; text-transform: uppercase; }
+.budget-figures strong { color: var(--white); font-size: 12px; font-weight: 800; }
+.budget-note { color: var(--amber); font-size: 10px; line-height: 1.5; }
+.budget-control { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.budget-control input { flex: 1; min-width: 150px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; background: rgba(255,255,255,.02); color: var(--white); font-size: 11px; }
+
+@media (max-width: 760px) {
+  .budget-control input { min-width: 100%; }
+}
+
 @media (max-width: 900px) {
   .command-bar { max-width: none; }
 }
