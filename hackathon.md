@@ -12,9 +12,39 @@
 - **Auth:** none (demo workspace scope)
 - **AI models:** any OpenAI-compatible model via OPENAI_BASE_URL / OPENAI_MODEL (gpt-5-mini default; provider recorded on plans and classifications)
 - **Started:** 2026-09-13T00:00:00Z
-- **Last updated:** 2026-09-15T22:05:00Z
+- **Last updated:** 2026-09-16T13:30:00Z
 
 ## Log
+
+### 2026-09-16 - working tree
+Phase 4: form intelligence and approval-bound submissions. Radar can now take
+a public application or contact form from discovery to a screenshot-evidenced
+submission. `formFlows.scoutForm` reads a page with Firecrawl's structured
+json extraction over the full document (fields, labels, types, required flags,
+options, CSS selectors) and persists a `formTemplates` row, including detected
+boundaries: a login wall becomes `login_required`, a CAPTCHA or bot check
+becomes `human_check_required`, and neither is ever attempted.
+`formFlows.proposeFill` maps only **confirmed** context facts onto the fields
+by numbered fact index, so an ungrounded value is dropped rather than trusted,
+file inputs are never filled, and unmatched required fields block approval.
+Approval reuses the shared approvals primitive with the `submit_form`
+capability, bound to a SHA-256 of the exact target URL plus ordered field
+values under a `payloadHash`; revising a payload revokes its approval.
+`formFlows.executeFormSubmission` runs one approved payload through Firecrawl
+`actions` (wait/click/write/press, submit, settle, full-page screenshot,
+post-submit scrape), stores the screenshot in Convex file storage as
+`evidenceFileId`, and records an immutable `formSubmissions` row. Execution is
+idempotent per proposal (one approval = one submission, proven by a test that
+counts Firecrawl calls), a transactional gate enforces a per-workspace daily
+submission cap, a detected human check or auth wall is recorded as
+`blocked_human_check` / `blocked_login` rather than a fake success, and every
+step lands in the agent transcript (`firecrawl.scout`, `firecrawl.form`,
+`llm.form_fill`, `approval`). New Forms view: scout a source, review the
+field list, propose a fill, correct each value from confirmed facts, approve
+and submit, then read the submission history with its screenshot.
+(`convex/formFlows.ts`, `convex/formStore.ts`, `convex/schema.ts`,
+`src/App.tsx`, `src/index.css`, `tests/forms.test.ts` - 21 new tests, 114
+total passing; deployed to production, live bundle verified)
 
 ### 2026-09-15 - working tree
 Shipped the relationship pipeline: outcomes now carry a stage (contacted,
