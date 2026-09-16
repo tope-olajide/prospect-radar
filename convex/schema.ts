@@ -56,6 +56,33 @@ const sequenceTrigger = v.union(
 );
 const sequenceStepStatus = v.union(v.literal("pending"), v.literal("draft_ready"), v.literal("sent"), v.literal("skipped"));
 
+// ---- Form intelligence (Phase 4) ----
+const formFieldType = v.union(
+  v.literal("text"), v.literal("email"), v.literal("tel"), v.literal("url"),
+  v.literal("textarea"), v.literal("select"), v.literal("checkbox"),
+  v.literal("file"), v.literal("unknown"),
+);
+const formBlockReason = v.union(
+  v.literal("login_required"), v.literal("human_check_required"), v.literal("no_form"),
+);
+const formProposalStatus = v.union(
+  v.literal("draft"), v.literal("awaiting_approval"), v.literal("approved"),
+  v.literal("executing"), v.literal("submitted"), v.literal("blocked"), v.literal("failed"),
+);
+const formSubmissionStatus = v.union(
+  v.literal("submitted"), v.literal("blocked_login"),
+  v.literal("blocked_human_check"), v.literal("failed"),
+);
+const formField = v.object({
+  name: v.string(), label: v.string(), type: formFieldType, required: v.boolean(),
+  options: v.array(v.string()), selector: v.string(), placeholder: v.string(),
+});
+const formFieldValue = v.object({
+  name: v.string(), label: v.string(), value: v.string(),
+  factId: v.union(v.id("contextFacts"), v.null()),
+  factCategory: v.union(v.string(), v.null()),
+});
+
 export default defineSchema({
   missions: defineTable({
     workspaceId: v.string(), title: v.string(), rawGoal: v.string(), mode: missionMode,
@@ -182,10 +209,16 @@ export default defineSchema({
     .index("by_providerMessageId", ["providerMessageId"])
     .index("by_threadId", ["threadId"]),
   approvals: defineTable({
-    actionId: v.id("actionDrafts"), capability: v.literal("send_email"), recipient: v.string(),
+    // One approval primitive for every side-effecting capability. Exactly one
+    // of actionId (email send) or proposalId (form submission) is set, and the
+    // approval is always bound to the capability plus a SHA-256 content hash.
+    actionId: v.optional(v.id("actionDrafts")),
+    proposalId: v.optional(v.id("formProposals")),
+    capability: v.union(v.literal("send_email"), v.literal("submit_form")),
+    recipient: v.string(),
     contentHash: v.string(), approvedBy: v.string(), status: approvalStatus, expiresAt: v.number(),
     createdAt: v.number(), resolvedAt: v.union(v.number(), v.null()),
-  }).index("by_actionId", ["actionId"]),
+  }).index("by_actionId", ["actionId"]).index("by_proposalId", ["proposalId"]),
   inboxThreads: defineTable({
     workspaceId: v.string(), agentmailInboxId: v.string(), missionId: v.union(v.id("missions"), v.null()),
     matchId: v.union(v.id("matches"), v.null()), threadId: v.string(), labels: v.array(v.string()),
@@ -257,4 +290,47 @@ export default defineSchema({
   }).index("by_missionId", ["missionId"])
     .index("by_matchId", ["matchId"])
     .index("by_missionId_and_status", ["missionId", "status"]),
+
+  // Scouted public forms: structure only, never credentials. A blockedReason
+  // marks a boundary Radar detects and refuses to cross.
+  formTemplates: defineTable({
+    workspaceId: v.string(), missionId: v.id("missions"), sourceId: v.id("sourceRecords"),
+    url: v.string(), formTitle: v.string(), submitLabel: v.string(),
+    fields: v.array(formField),
+    blockedReason: v.union(formBlockReason, v.null()), blockedDetail: v.string(),
+    confidence: v.number(), scoutedAt: v.number(), createdAt: v.number(), updatedAt: v.number(),
+  }).index("by_missionId", ["missionId"])
+    .index("by_sourceId", ["sourceId"])
+    .index("by_missionId_and_url", ["missionId", "url"])
+    .index("by_workspaceId", ["workspaceId"]),
+
+  // A proposed mapping of confirmed facts onto the scouted fields. The payload
+  // hash binds an approval to the exact values shown to the user.
+  formProposals: defineTable({
+    workspaceId: v.string(), missionId: v.id("missions"), templateId: v.id("formTemplates"),
+    sourceId: v.id("sourceRecords"), url: v.string(), formTitle: v.string(),
+    fieldValues: v.array(formFieldValue),
+    unmatchedRequired: v.array(v.string()),
+    payloadHash: v.string(), status: formProposalStatus,
+    errorSummary: v.union(v.string(), v.null()),
+    createdAt: v.number(), updatedAt: v.number(),
+  }).index("by_missionId", ["missionId"])
+    .index("by_templateId", ["templateId"])
+    .index("by_sourceId", ["sourceId"])
+    .index("by_workspaceId", ["workspaceId"]),
+
+  // The immutable record of what actually happened: one approval = one row.
+  formSubmissions: defineTable({
+    workspaceId: v.string(), missionId: v.id("missions"), proposalId: v.id("formProposals"),
+    templateId: v.id("formTemplates"), url: v.string(), formTitle: v.string(),
+    fieldCount: v.number(),
+    status: formSubmissionStatus,
+    errorCode: v.union(v.string(), v.null()), errorSummary: v.union(v.string(), v.null()),
+    evidenceFileId: v.union(v.id("_storage"), v.null()),
+    postSubmitExcerpt: v.string(),
+    submittedAt: v.union(v.number(), v.null()),
+    createdAt: v.number(), updatedAt: v.number(),
+  }).index("by_missionId", ["missionId"])
+    .index("by_proposalId", ["proposalId"])
+    .index("by_workspaceId", ["workspaceId"]),
 });

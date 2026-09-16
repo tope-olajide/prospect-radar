@@ -303,3 +303,26 @@ label { display: grid; gap: 6px; color: var(--muted); font-size: 10px; font-weig
   .mobile-drawer .nav-item { padding: 11px 12px; }
   .mobile-drawer .nav-label em { display: none; }
 }
+
+/* ---- Form intelligence (approval-bound submissions) ---- */
+.control-row select { flex: 1; min-width: 200px; }
+.form-card { display: grid; gap: 8px; }
+.form-card .panel-head { margin-bottom: 0; }
+.field-list { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 6px; }
+.field-list li { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; background: rgba(255,255,255,.02); }
+.field-list li strong { color: var(--white); font-size: 11px; font-weight: 700; }
+.field-list li em { font-size: 10px; font-style: normal; }
+.proposal-fields { display: grid; gap: 10px; margin-top: 8px; }
+.proposal-field { display: grid; gap: 5px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: rgba(255,255,255,.02); }
+.proposal-field > span { color: var(--white); font-size: 11px; font-weight: 700; letter-spacing: 0; text-transform: none; }
+.proposal-field small { font-size: 9px; font-weight: 500; letter-spacing: 0; text-transform: none; }
+.proposal-field select { font-size: 11px; }
+.proposal-field em { font-size: 11px; font-style: normal; }
+.status-pill.status-submitted, .status-pill.status-used { color: var(--lime); border-color: rgba(201,243,106,.28); background: rgba(201,243,106,.07); }
+.status-pill.status-awaiting_approval, .status-pill.status-approved { color: var(--amber); border-color: rgba(242,185,105,.28); background: rgba(242,185,105,.07); }
+.status-pill.status-blocked_login, .status-pill.status-blocked_human_check, .status-pill.status-login_required, .status-pill.status-human_check_required, .status-pill.status-no_form { color: var(--red); border-color: rgba(238,138,149,.25); background: rgba(238,138,149,.06); }
+.status-pill.status-skipped { color: #9fe2ea; }
+@media (max-width: 760px) {
+  .control-row select { min-width: 100%; }
+  .proposal-field { padding: 8px; }
+}

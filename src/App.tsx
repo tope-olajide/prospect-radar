@@ -4,7 +4,7 @@ import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
 
 type MissionMode = "opportunity" | "person" | "customer" | "solution" | "collaborator";
-type View = "home" | "discover" | "outreach" | "inbox" | "outcomes" | "context" | "activity";
+type View = "home" | "discover" | "outreach" | "inbox" | "outcomes" | "forms" | "context" | "activity";
 type PipelineStageName = "contacted" | "replied" | "engaged" | "meeting" | "proposal" | "won" | "lost" | "dormant";
 
 const PIPELINE_STAGES: PipelineStageName[] = ["contacted", "replied", "engaged", "meeting", "proposal", "won", "lost", "dormant"];
@@ -26,6 +26,7 @@ const navItems: { id: View; label: string; hint: string }[] = [
   { id: "outreach", label: "Outreach", hint: "Draft, approve, send" },
   { id: "inbox", label: "Inbox", hint: "Live replies and threads" },
   { id: "outcomes", label: "Pipeline", hint: "Relationship stages" },
+  { id: "forms", label: "Forms", hint: "Approval-bound submissions" },
   { id: "context", label: "Context", hint: "Your profile facts Radar may use" },
   { id: "activity", label: "Activity", hint: "The run's truthful trail" },
 ];
@@ -36,6 +37,7 @@ const viewTitles: Record<View, { eyebrow: string; title: string; description: st
   outreach: { eyebrow: "Approval boundary", title: "Nothing sends without you.", description: "Approve the exact recipient, subject, and body — then Radar sends." },
   inbox: { eyebrow: "Agent-owned inbox", title: "Replies arrive live.", description: "Inbound mail is untrusted data: classified, never auto-sent." },
   outcomes: { eyebrow: "Relationship pipeline", title: "Keep the momentum.", description: "Every relationship keeps its stage, evidence, next step, and history — and Radar never closes a loop without you." },
+  forms: { eyebrow: "Approval boundary", title: "Paperwork, handled honestly.", description: "Radar reads a public form, fills it from confirmed facts only, and submits one approved payload at a time — with a screenshot as evidence." },
   context: { eyebrow: "Verified profile", title: "You stay the source of truth.", description: "Confirm, correct, or reject every fact before Radar ever uses it in plans, matches, or drafts." },
   activity: { eyebrow: "Durable run", title: "Watch Radar work.", description: "Persisted stages and events — never simulated progress." },
 };
@@ -51,6 +53,14 @@ const STAGES = ["intake", "interpret", "plan", "discover", "evaluate", "approval
 
 function shortDate(value: number) {
   return new Date(value).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
+function hostLabel(url: string) {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return url.replace(/^https?:\/\//, "").split("/")[0];
+  }
 }
 
 export default function App({ backendConnected }: { backendConnected: boolean }) {
@@ -120,6 +130,12 @@ export default function App({ backendConnected }: { backendConnected: boolean })
   const [meetingAt, setMeetingAt] = useState("");
   const [meetingNotes, setMeetingNotes] = useState("");
   const [pipelineNotice, setPipelineNotice] = useState("");
+  const [formSourceId, setFormSourceId] = useState("");
+  const [formNotice, setFormNotice] = useState("");
+  const [scouting, setScouting] = useState(false);
+  const [proposing, setProposing] = useState(false);
+  const [submittingProposalId, setSubmittingProposalId] = useState<Id<"formProposals"> | null>(null);
+  const [proposalEdits, setProposalEdits] = useState<Record<string, Record<string, string>>>({});
 
   const selectedMission = missions?.find((mission) => mission._id === selectedMissionId) ?? missions?.[0];
   const missionId = selectedMission?._id ?? null;
@@ -142,6 +158,15 @@ export default function App({ backendConnected }: { backendConnected: boolean })
   const followUps = useQuery(api.relationships.followUpsForMission, backendConnected && missionId ? { workspaceId, missionId } : "skip");
   const meetings = useQuery(api.relationships.meetingsForMission, backendConnected && missionId ? { workspaceId, missionId } : "skip");
   const sequences = useQuery(api.relationships.sequencesForMission, backendConnected && missionId ? { workspaceId, missionId } : "skip");
+  const formTemplates = useQuery(api.formStore.listTemplates, backendConnected && missionId ? { workspaceId, missionId } : "skip");
+  const formProposals = useQuery(api.formStore.listProposals, backendConnected && missionId ? { workspaceId, missionId } : "skip");
+  const formSubmissions = useQuery(api.formStore.listSubmissions, backendConnected && missionId ? { workspaceId, missionId } : "skip");
+  const formCap = useQuery(api.formStore.capStatus, backendConnected ? { workspaceId } : "skip");
+  const scoutForm = useAction(api.formFlows.scoutForm);
+  const proposeFill = useAction(api.formFlows.proposeFill);
+  const approveProposal = useMutation(api.formStore.approveProposal);
+  const reviseProposalValues = useMutation(api.formStore.reviseProposalValues);
+  const executeFormSubmission = useAction(api.formFlows.executeFormSubmission);
   const crawlProgress = useQuery(api.researchStore.latestCrawlProgress, backendConnected && missionId ? { missionId } : "skip");
   const contextFacts = useQuery(api.context.list, backendConnected ? { workspaceId, missionId: null } : "skip");
   const addFact = useMutation(api.context.add);
@@ -164,6 +189,7 @@ export default function App({ backendConnected }: { backendConnected: boolean })
     outreach: actionableDrafts.length || null,
     inbox: threads?.length || null,
     outcomes: openOutcomes.length || null,
+    forms: (formProposals ?? []).filter((proposal) => proposal.status === "draft" || proposal.status === "approved" || proposal.status === "blocked" || proposal.status === "failed").length || null,
     context: null,
     activity: null,
   };
@@ -506,6 +532,77 @@ Clarification: ${clarifyAnswer.trim()}` });
     } catch (error) { setPipelineNotice(error instanceof Error ? error.message : "Could not record the meeting."); }
   }
 
+  async function onScoutForm() {
+    if (!missionId || !formSourceId) { setFormNotice("Choose a discovered source to scout first."); return; }
+    setScouting(true); setFormNotice("");
+    try {
+      const result = await scoutForm({ workspaceId, missionId, sourceId: formSourceId as Id<"sourceRecords"> });
+      setFormNotice(result.blockedReason
+        ? `Radar stopped at this form: ${result.blockedDetail}`
+        : `Scouted ${result.fieldCount} field${result.fieldCount === 1 ? "" : "s"} on ${hostLabel(result.url)}.`);
+      setFormSourceId("");
+    } catch (error) {
+      setFormNotice(error instanceof Error ? error.message : "Form scout failed.");
+    } finally { setScouting(false); }
+  }
+
+  async function onProposeFill(templateId: Id<"formTemplates">) {
+    if (!missionId) return;
+    setProposing(true); setFormNotice("");
+    try {
+      const result = await proposeFill({ workspaceId, missionId, templateId });
+      setFormNotice(result.unmatchedRequired.length > 0
+        ? `Proposed ${result.filled} value(s). ${result.unmatchedRequired.length} required field(s) still need a confirmed fact: ${result.unmatchedRequired.join(", ")}.`
+        : `Proposed ${result.filled} value(s) from your confirmed facts. Review the payload, then approve.`);
+    } catch (error) {
+      setFormNotice(error instanceof Error ? error.message : "Fill proposal failed.");
+    } finally { setProposing(false); }
+  }
+
+  async function onSaveProposalValues(proposal: { _id: Id<"formProposals">; fieldValues: Array<{ name: string; factId: Id<"contextFacts"> | null }> }) {
+    const edits = proposalEdits[proposal._id] ?? {};
+    const confirmed = (contextFacts ?? []).filter((fact) => ["user_confirmed", "user_corrected"].includes(fact.verificationStatus));
+    const fieldValues = proposal.fieldValues.map((field) => {
+      const edited = edits[field.name];
+      const factId = edited !== undefined ? (edited || null) : field.factId;
+      const fact = confirmed.find((candidate) => candidate._id === factId);
+      return { name: field.name, value: fact?.value ?? "", factId: fact?._id ?? null };
+    });
+    return await reviseProposalValues({ workspaceId, proposalId: proposal._id, fieldValues });
+  }
+
+  async function onSaveProposal(proposal: { _id: Id<"formProposals">; fieldValues: Array<{ name: string; factId: Id<"contextFacts"> | null }> }) {
+    setFormNotice("");
+    try {
+      const result = await onSaveProposalValues(proposal);
+      setProposalEdits((prev) => ({ ...prev, [proposal._id]: {} }));
+      setFormNotice(result.unmatchedRequired.length > 0
+        ? `Saved. Still unmatched: ${result.unmatchedRequired.join(", ")}.`
+        : "Saved. The payload hash changed, so any earlier approval was revoked — approve again to submit.");
+    } catch (error) {
+      setFormNotice(error instanceof Error ? error.message : "Could not save the payload.");
+    }
+  }
+
+  async function onApproveAndSubmit(proposal: { _id: Id<"formProposals">; fieldValues: Array<{ name: string; factId: Id<"contextFacts"> | null }> }) {
+    setSubmittingProposalId(proposal._id); setFormNotice("");
+    try {
+      // Persist any edits first so the approval binds to exactly what is shown.
+      await onSaveProposalValues(proposal);
+      setProposalEdits((prev) => ({ ...prev, [proposal._id]: {} }));
+      await approveProposal({ workspaceId, proposalId: proposal._id });
+      const result = await executeFormSubmission({ workspaceId, proposalId: proposal._id });
+      setFormNotice(result.status === "submitted"
+        ? `Submitted once with screenshot evidence${result.evidenceCaptured ? "" : " (the target returned no screenshot)"}.`
+        : result.status === "already_submitted"
+          ? "Radar already submitted this approval; it did not submit twice."
+          : result.detail);
+    } catch (error) {
+      setFormNotice(error instanceof Error ? error.message : "Submission failed.");
+    } finally { setSubmittingProposalId(null); }
+  }
+
+  const confirmedFactsForForms = (contextFacts ?? []).filter((fact) => ["user_confirmed", "user_corrected"].includes(fact.verificationStatus));
   const runWorking = run && ["queued", "active"].includes(run.status);
   const linkedMatchSource = linkedMatchId ? sources?.find((source) => source._id === matches?.find((match) => match._id === linkedMatchId)?.sourceId) : undefined;
   const meetingsForOutcome = (outcomeId: Id<"outcomes">) => (meetings ?? []).filter((meeting) => meeting.outcomeId === outcomeId);
@@ -1108,6 +1205,163 @@ Clarification: ${clarifyAnswer.trim()}` });
                 )}
                 {pipelineNotice && <p className="stage-note">{pipelineNotice}</p>}
               </section>
+            </div>
+          )}
+
+          {activeView === "forms" && (
+            <div className="view-stack">
+              {!selectedMission ? <p className="empty-state">Select or start a mission first.</p> : (
+                <>
+                  <section className="panel" aria-label="Form scout">
+                    <div className="panel-head">
+                      <p className="eyebrow">FIRECRAWL FORM SCOUT</p>
+                      {formCap && <span className="muted">{formCap.used}/{formCap.cap} submissions today</span>}
+                    </div>
+                    <p className="stage-note">Radar reads a public form, proposes a fill from your confirmed facts only, and submits one approved payload at a time with a screenshot as evidence. Login walls and CAPTCHAs are detected and never bypassed.</p>
+                    <div className="control-row">
+                      <select aria-label="Source to scout" value={formSourceId} onChange={(event) => setFormSourceId(event.target.value)}>
+                        <option value="">Choose a discovered source…</option>
+                        {(sources ?? []).map((source) => (
+                          <option key={source._id} value={source._id}>{source.title.slice(0, 60)} — {hostLabel(source.url)}</option>
+                        ))}
+                      </select>
+                      <button type="button" className="btn" disabled={!backendConnected || !formSourceId || scouting} onClick={onScoutForm}>{scouting ? "Scouting…" : "Scout form"}</button>
+                    </div>
+                    {formNotice && <p className="stage-note">{formNotice}</p>}
+                  </section>
+
+                  <section aria-label="Scouted forms">
+                    {formTemplates === undefined ? <p className="empty-state">Loading scouted forms…</p> : formTemplates.length === 0 ? (
+                      <div className="panel"><p className="empty-state">No forms scouted yet. Pick a discovered source above and Radar will extract its structure — fields, labels, and whether it is gated.</p></div>
+                    ) : (
+                      <div className="view-stack">
+                        {formTemplates.map((template) => (
+                          <article className="panel form-card" key={template._id}>
+                            <div className="panel-head">
+                              <strong>{template.formTitle}</strong>
+                              <span className="muted">{hostLabel(template.url)} · scouted {shortDate(template.scoutedAt)}</span>
+                            </div>
+                            {template.blockedReason ? (
+                              <>
+                                <span className="status-pill status-blocked">{template.blockedReason.replace(/_/g, " ")}</span>
+                                <p className="stage-note error">{template.blockedDetail}</p>
+                              </>
+                            ) : (
+                              <>
+                                <p className="stage-note">{template.fields.length} field{template.fields.length === 1 ? "" : "s"} · confidence {Math.round(template.confidence * 100)}%{template.submitLabel ? ` · submit: “${template.submitLabel}”` : ""}</p>
+                                <ul className="field-list">
+                                  {template.fields.map((field) => (
+                                    <li key={field.name}>
+                                      <span className="mono-tag">{field.type}</span>
+                                      <strong>{field.label}</strong>
+                                      {field.required && <span className="status-pill status-awaiting_approval">required</span>}
+                                      {field.options.length > 0 && <em className="muted">options: {field.options.join(" | ")}</em>}
+                                    </li>
+                                  ))}
+                                </ul>
+                                <div className="inline-actions">
+                                  <button type="button" className="btn" disabled={!backendConnected || proposing} onClick={() => onProposeFill(template._id)}>{proposing ? "Proposing…" : "Propose fill"}</button>
+                                  <a className="source-link" href={template.url} target="_blank" rel="noreferrer">Open the form</a>
+                                </div>
+                              </>
+                            )}
+                          </article>
+                        ))}
+                      </div>
+                    )}
+                  </section>
+
+                  <section aria-label="Fill proposals">
+                    <div className="panel-head"><p className="eyebrow">FILL PROPOSALS · APPROVE THE EXACT PAYLOAD</p></div>
+                    {(formProposals ?? []).length === 0 ? (
+                      <div className="panel"><p className="empty-state">No proposals yet. Propose a fill and Radar maps your confirmed facts onto the fields — anything it cannot ground stays empty.</p></div>
+                    ) : (
+                      <div className="view-stack">
+                        {(formProposals ?? []).map((proposal) => {
+                          const editable = !["submitted", "executing"].includes(proposal.status);
+                          const template = (formTemplates ?? []).find((item) => item._id === proposal.templateId);
+                          const requiredNames = new Set((template?.fields ?? []).filter((field) => field.required).map((field) => field.name));
+                          return (
+                            <article className="panel form-card" key={proposal._id}>
+                              <div className="panel-head">
+                                <strong>{proposal.formTitle}</strong>
+                                <span className={`status-pill status-${proposal.status}`}>{proposal.status}</span>
+                              </div>
+                              <p className="stage-note">{hostLabel(proposal.url)} · payload {proposal.payloadHash.slice(0, 12)}…{proposal.approvalStatus ? ` · approval ${proposal.approvalStatus}` : ""}</p>
+                              <div className="proposal-fields">
+                                {proposal.fieldValues.map((field) => {
+                                  const edited = proposalEdits[proposal._id]?.[field.name];
+                                  const current = edited !== undefined ? edited : (field.factId ?? "");
+                                  return (
+                                    <label className="proposal-field" key={field.name}>
+                                      <span>{field.label}{requiredNames.has(field.name) ? " *" : ""}</span>
+                                      {editable ? (
+                                        <select
+                                          aria-label={`Value for ${field.label}`}
+                                          value={current}
+                                          onChange={(event) => setProposalEdits((prev) => ({
+                                            ...prev,
+                                            [proposal._id]: { ...(prev[proposal._id] ?? {}), [field.name]: event.target.value },
+                                          }))}
+                                        >
+                                          <option value="">Leave empty</option>
+                                          {confirmedFactsForForms.map((fact) => (
+                                            <option key={fact._id} value={fact._id}>{fact.category}: {fact.value.slice(0, 50)}</option>
+                                          ))}
+                                        </select>
+                                      ) : (
+                                        <em className="muted">{field.value || "—"}</em>
+                                      )}
+                                      {field.factCategory && <small className="muted">grounded in your confirmed fact: {field.factCategory}</small>}
+                                    </label>
+                                  );
+                                })}
+                              </div>
+                              {proposal.unmatchedRequired.length > 0 && (
+                                <p className="stage-note warn"><b>Needs you</b>{proposal.unmatchedRequired.join(", ")} — confirm a fact in Context, then choose it here.</p>
+                              )}
+                              {proposal.errorSummary && <p className="stage-note error">{proposal.errorSummary}</p>}
+                              {editable && (
+                                <div className="inline-actions">
+                                  <button type="button" className="btn ghost" disabled={!backendConnected} onClick={() => onSaveProposal(proposal)}>Save changes</button>
+                                  <button type="button" className="btn" disabled={!backendConnected || proposal.unmatchedRequired.length > 0 || submittingProposalId === proposal._id} onClick={() => onApproveAndSubmit(proposal)}>
+                                    {submittingProposalId === proposal._id ? "Submitting…" : "Approve & submit"}
+                                  </button>
+                                  <button type="button" className="btn ghost" onClick={() => selectView("context")}>Add a fact</button>
+                                </div>
+                              )}
+                            </article>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </section>
+
+                  <section className="panel" aria-label="Submission history">
+                    <div className="panel-head"><p className="eyebrow">SUBMISSION HISTORY</p><span className="muted">{(formSubmissions ?? []).length} recorded</span></div>
+                    {(formSubmissions ?? []).length === 0 ? (
+                      <p className="empty-state">No submissions yet. Every approved submission lands here with its status, time, and screenshot evidence.</p>
+                    ) : (
+                      <div className="row-list">
+                        {(formSubmissions ?? []).map((submission) => (
+                          <article className="row-item static" key={submission._id}>
+                            <div>
+                              <strong>{submission.formTitle}</strong>
+                              <em>{hostLabel(submission.url)} · {submission.fieldCount} field{submission.fieldCount === 1 ? "" : "s"} · {submission.submittedAt ? shortDate(submission.submittedAt) : shortDate(submission.createdAt)}</em>
+                              {submission.postSubmitExcerpt && <span className="muted">{submission.postSubmitExcerpt.slice(0, 140)}{submission.postSubmitExcerpt.length > 140 ? "…" : ""}</span>}
+                              {submission.errorSummary && <span className="muted">{submission.errorSummary}</span>}
+                            </div>
+                            <div className="inline-actions">
+                              <span className={`status-pill status-${submission.status}`}>{submission.status.replace(/_/g, " ")}</span>
+                              {submission.evidenceUrl && <a className="source-link" href={submission.evidenceUrl} target="_blank" rel="noreferrer">Evidence screenshot</a>}
+                            </div>
+                          </article>
+                        ))}
+                      </div>
+                    )}
+                  </section>
+                </>
+              )}
             </div>
           )}
 

@@ -12,6 +12,8 @@ import type * as ai from "../ai.js";
 import type * as context from "../context.js";
 import type * as crons from "../crons.js";
 import type * as entityStore from "../entityStore.js";
+import type * as formFlows from "../formFlows.js";
+import type * as formStore from "../formStore.js";
 import type * as hash from "../hash.js";
 import type * as http from "../http.js";
 import type * as inbox from "../inbox.js";
@@ -44,6 +46,8 @@ declare const fullApi: ApiFromModules<{
   context: typeof context;
   crons: typeof crons;
   entityStore: typeof entityStore;
+  formFlows: typeof formFlows;
+  formStore: typeof formStore;
   hash: typeof hash;
   http: typeof http;
   inbox: typeof inbox;
