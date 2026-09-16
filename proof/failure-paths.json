@@ -1,0 +1,159 @@
+{
+  "generatedAt": "2026-09-16T14:04:30.455Z",
+  "environment": "prod wry-walrus-528",
+  "cloud": "https://wry-walrus-528.convex.cloud",
+  "site": "https://wry-walrus-528.convex.site",
+  "workspace": "demo-workspace",
+  "summary": {
+    "total": 13,
+    "proven": 13,
+    "failed": 0,
+    "real": 3,
+    "testVerified": 10
+  },
+  "entries": [
+    {
+      "at": "2026-09-16T14:04:13.994Z",
+      "environment": "prod wry-walrus-528",
+      "id": "F1",
+      "step": "Unsigned webhook is rejected",
+      "convexFunction": "http.ts → /agentmail/webhook (svix verification)",
+      "sponsorOperation": "AgentMail webhook transport",
+      "externalIds": "POST /agentmail/webhook (no signature) → HTTP 401",
+      "status": "✅ real",
+      "verdict": true
+    },
+    {
+      "at": "2026-09-16T14:04:14.848Z",
+      "environment": "prod wry-walrus-528",
+      "id": "F2",
+      "step": "A forged svix signature is rejected",
+      "convexFunction": "http.ts → /agentmail/webhook (svix verification)",
+      "sponsorOperation": "AgentMail webhook transport",
+      "externalIds": "POST /agentmail/webhook (forged svix-signature) → HTTP 401",
+      "status": "✅ real",
+      "verdict": true
+    },
+    {
+      "at": "2026-09-16T14:04:27.271Z",
+      "environment": "prod wry-walrus-528",
+      "id": "F3",
+      "step": "Live login wall stops the form flow",
+      "convexFunction": "formFlows.scoutForm",
+      "sponsorOperation": "Firecrawl structured extraction (json format)",
+      "externalIds": "source m97cc1trmdec16xx8vjnz8qrm98egapt = https://github.com/login → blockedReason: login_required; 3 fields scouted and refused",
+      "status": "✅ real",
+      "verdict": true
+    },
+    {
+      "at": "2026-09-16T14:04:30.455Z",
+      "environment": "prod wry-walrus-528",
+      "id": "F4",
+      "step": "Replayed webhook event is ignored by event id",
+      "convexFunction": "inbox.ingestEvent",
+      "sponsorOperation": "AgentMail webhook ingest",
+      "externalIds": "tests/trust.test.ts → \"accepts an event once and ignores replays by event_id\"",
+      "status": "✅ test-verified",
+      "verdict": true
+    },
+    {
+      "at": "2026-09-16T14:04:30.455Z",
+      "environment": "prod wry-walrus-528",
+      "id": "F5",
+      "step": "Expired approval cannot send",
+      "convexFunction": "outreach.send → outreachStore.claimSend",
+      "sponsorOperation": "AgentMail send (approval-bound)",
+      "externalIds": "tests/trust.test.ts → \"blocks a send with an expired approval\"",
+      "status": "✅ test-verified",
+      "verdict": true
+    },
+    {
+      "at": "2026-09-16T14:04:30.455Z",
+      "environment": "prod wry-walrus-528",
+      "id": "F6",
+      "step": "Tampered payload cannot send",
+      "convexFunction": "outreach.send → contentHash recheck",
+      "sponsorOperation": "AgentMail send (approval-bound)",
+      "externalIds": "tests/trust.test.ts → \"blocks a send when draft content is mutated after approval (hash mismatch)\"",
+      "status": "✅ test-verified",
+      "verdict": true
+    },
+    {
+      "at": "2026-09-16T14:04:30.455Z",
+      "environment": "prod wry-walrus-528",
+      "id": "F7",
+      "step": "Approval bypass is refused",
+      "convexFunction": "outreach.send",
+      "sponsorOperation": "AgentMail send (approval-bound)",
+      "externalIds": "tests/trust.test.ts → \"refuses to send without any approval and records no side effects\"",
+      "status": "✅ test-verified",
+      "verdict": true
+    },
+    {
+      "at": "2026-09-16T14:04:30.455Z",
+      "environment": "prod wry-walrus-528",
+      "id": "F8",
+      "step": "Cross-workspace send is refused",
+      "convexFunction": "outreach.send",
+      "sponsorOperation": "AgentMail send (workspace scope)",
+      "externalIds": "tests/trust.test.ts → \"rejects a send from another workspace even with an active approval\"",
+      "status": "✅ test-verified",
+      "verdict": true
+    },
+    {
+      "at": "2026-09-16T14:04:30.455Z",
+      "environment": "prod wry-walrus-528",
+      "id": "F9",
+      "step": "Tampered form payload cannot submit",
+      "convexFunction": "formStore.claimExecution",
+      "sponsorOperation": "Firecrawl form submission (approval-bound)",
+      "externalIds": "tests/forms.test.ts → \"binds the approval to the payload hash and refuses a mutated payload\"",
+      "status": "✅ test-verified",
+      "verdict": true
+    },
+    {
+      "at": "2026-09-16T14:04:30.455Z",
+      "environment": "prod wry-walrus-528",
+      "id": "F10",
+      "step": "Login wall blocks at scouting",
+      "convexFunction": "formFlows.scoutForm",
+      "sponsorOperation": "Firecrawl structured extraction",
+      "externalIds": "tests/forms.test.ts → \"flags a login wall as login_required and never proposes to fill it\"",
+      "status": "✅ test-verified",
+      "verdict": true
+    },
+    {
+      "at": "2026-09-16T14:04:30.455Z",
+      "environment": "prod wry-walrus-528",
+      "id": "F11",
+      "step": "Human check records blocked, never fabricated as submitted",
+      "convexFunction": "formFlows.executeFormSubmission",
+      "sponsorOperation": "Firecrawl form submission",
+      "externalIds": "tests/forms.test.ts → \"records a detected human check as blocked, never as failed or submitted\"",
+      "status": "✅ test-verified",
+      "verdict": true
+    },
+    {
+      "at": "2026-09-16T14:04:30.455Z",
+      "environment": "prod wry-walrus-528",
+      "id": "F12",
+      "step": "Auth wall records blocked_login at execution",
+      "convexFunction": "formFlows.executeFormSubmission",
+      "sponsorOperation": "Firecrawl form submission",
+      "externalIds": "tests/forms.test.ts → \"records an authentication wall as blocked_login\"",
+      "status": "✅ test-verified",
+      "verdict": true
+    },
+    {
+      "at": "2026-09-16T14:04:30.455Z",
+      "environment": "prod wry-walrus-528",
+      "id": "F13",
+      "step": "Form submission without approval is refused",
+      "convexFunction": "formFlows.executeFormSubmission",
+      "sponsorOperation": "Firecrawl form submission (approval-bound)",
+      "externalIds": "tests/forms.test.ts → \"refuses to run without an approval\"",
+      "status": "✅ test-verified",
+      "verdict": true
+    }
+  ]
+}

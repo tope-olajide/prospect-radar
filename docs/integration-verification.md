@@ -8,10 +8,11 @@ This document records verification evidence against production deployment
 - **Frontend:** https://wry-walrus-528.convex.site (Convex Static Hosting)
 - **Backend:** https://wry-walrus-528.convex.cloud
 - **Evidence date:** 2026-09-16
-- **Test suites:** 128 automated tests passing across 9 files (`npm test`),
+- **Test suites:** 158 automated tests passing across 12 files (`npm test`),
   including convex-test suites that invoke the real functions (trust,
-  orchestrator, entities, relationships, intent, forms) and a public-query
-  return-contract suite (`tests/runs.test.ts`).
+  orchestrator, entities, relationships, intent, forms, hardening) and
+  return-contract suites that call every public query the app calls
+  (`tests/runs.test.ts`, `tests/queryContracts.test.ts`).
 - **Environment:** production deployment with live sponsor keys; local dev
   deployment remains in use for development.
 
@@ -37,6 +38,7 @@ UI. Rows marked ⏳ await the interactive end-to-end proof run (§8).
 | Action persists through mutation | Every action path (`research.*`, `ai.*`, `outreach.*`) persists via internal mutations (asserted in tests) | ✅ |
 | Scheduled wake changes run without browser | Inbound webhook schedules `classifyInboundMessage`; `saveClassification` → `wakeRunOnReply` transitions run `wait → evaluate` (unit-tested) | ✅ |
 | HTTP webhook accepted and deduplicated | Live prod proof 2026-09-15: signed event accepted, replay `duplicate_ignored` | ✅ |
+| Scheduled work runs without a browser | Two crons on prod: the follow-up sweep (15 min) and the stale-run reaper (10 min). Live proof 2026-09-16 (§7 E12): a reaper sweep parked 5 abandoned `active` runs on its own, with no client connected | ✅ |
 | Unauthorized workspace access rejected | Trust tests: cross-workspace send, label set, and fact mutations all `FORBIDDEN_SCOPE` | ✅ |
 | Public convex.site serves the app | `GET https://wry-walrus-528.convex.site` → 200; served bundle points at prod backend, 0 localhost references (bundle check 2026-09-15) | ✅ |
 
@@ -97,6 +99,10 @@ keys, cookies, private message bodies, or unnecessary personal data.
 | E6 | 2026-09-16 | prod `wry-walrus-528` | Fill proposal (confirmed facts only) | `formFlows.proposeFill` → `formStore.saveProposal` | OpenAI-compatible `dashscope:qwen-max` | 6 values grounded, each citing a confirmed fact; `size: "medium"`, `topping: "bacon, cheese"`; `delivery` left empty (no fact); payload hash `20721e96d3929de5848fca31acec386300bf7c1172ba46ddc32b0d67c94b0dfc` | ✅ real |
 | E7 | 2026-09-16 | prod `wry-walrus-528` | Approval bind + execute | `formStore.approveProposal` → `formFlows.executeFormSubmission` | `firecrawl.scrape` w/ `actions` (click/write/wait/screenshot/scrape) | approval bound to the payload hash → marked `used`; submission `n97ct2bhcf0v258ckktw9m190s8ehg8c` = `submitted` with stored screenshot (1920×1080 PNG); post-submit echo contains the exact submitted body incl. `"size":"medium"` and `"topping":["bacon","cheese"]` | ✅ real |
 | E8 | 2026-09-16 | prod `wry-walrus-528` | Idempotency + cap + transcript | `formStore.claimExecution`, `formStore.capStatus`, `runs.steps` | — | second execution → `already_submitted`, submissions for the mission = **1** (Firecrawl call count unchanged); `capStatus` → `used 3 / cap 5`; transcript holds `form.scouted`, `form.proposed`, `form.approved`, `form.executing`, `form.executed` | ✅ real |
+| E9 | 2026-09-16 | prod `wry-walrus-528` | Unsigned webhook rejected | `http` → `/agentmail/webhook` | AgentMail svix verification | `POST /agentmail/webhook` with no signature → **HTTP 401** | ✅ real |
+| E10 | 2026-09-16 | prod `wry-walrus-528` | Forged signature rejected | `http` → `/agentmail/webhook` | AgentMail svix verification | `POST` with well-formed `svix-id`/`svix-timestamp` and a bogus `svix-signature` → **HTTP 401** | ✅ real |
+| E11 | 2026-09-16 | prod `wry-walrus-528` | Live login wall stops the form flow | `research.search` → `formFlows.scoutForm` | Firecrawl structured extraction | source `m97cc1trmdec16xx8vjnz8qrm98egapt` = `https://github.com/login` → `blockedReason: login_required`; 3 fields scouted and **refused**, no proposal created | ✅ real |
+| E12 | 2026-09-16 | prod `wry-walrus-528` | Stale-run reaper sweep (scheduled) | `runReaper.reap` (cron, every 10 min) | — | one sweep parked **5** abandoned `active` runs, all at `updatedAt 1789567597405` with `activeInterruption: "stale_run"`; overview `runsActive` fell from 5 to the runs genuinely in flight | ✅ real |
 
 *(Remaining §8 rows — plan, matches, AgentMail draft/approve/send/delivery,
 inbound reply, classification, outcome — are appended by the outreach proof run.)*
@@ -153,6 +159,40 @@ table-only keys) against narrower view validators, so every call raised
 > `ReturnsValidationError` in production and the Activity run panel silently
 > showed "no run" instead of an error. The views now map their fields
 > explicitly and `tests/runs.test.ts` locks the contract.
+
+### 8.2 Failure-path proofs (2026-09-16, 13/13)
+
+Driven by `scripts/failurePathsProof.mjs`; evidence in
+`proof/failure-paths.json`. The harness separates two kinds of proof and labels
+each entry honestly:
+
+- **REAL** — probed against the live production deployment during the run.
+- **TEST-VERIFIED** — the scenario cannot be forced through the public API (an
+  approval cannot be aged out, approved content cannot be edited through any
+  public function), so it is proven by a *named* test executed by the harness,
+  with the test name and result recorded in the artifact.
+
+| # | Failure path | Proof | Result |
+| --- | --- | --- | --- |
+| F1 | Unsigned webhook | REAL | `POST /agentmail/webhook` (no signature) → HTTP **401** |
+| F2 | Forged webhook signature | REAL | well-formed `svix-*` headers + bogus signature → HTTP **401** |
+| F3 | Login wall | REAL | `https://github.com/login` → `blockedReason: login_required`, 3 fields scouted and refused (E11) |
+| F4 | Replayed webhook event | TEST-VERIFIED | `tests/trust.test.ts` → "accepts an event once and ignores replays by event_id" |
+| F5 | Expired approval | TEST-VERIFIED | `tests/trust.test.ts` → "blocks a send with an expired approval" |
+| F6 | Tampered draft after approval | TEST-VERIFIED | `tests/trust.test.ts` → "blocks a send when draft content is mutated after approval (hash mismatch)" |
+| F7 | Approval bypass | TEST-VERIFIED | `tests/trust.test.ts` → "refuses to send without any approval and records no side effects" |
+| F8 | Cross-workspace send | TEST-VERIFIED | `tests/trust.test.ts` → "rejects a send from another workspace even with an active approval" |
+| F9 | Tampered form payload | TEST-VERIFIED | `tests/forms.test.ts` → "binds the approval to the payload hash and refuses a mutated payload" |
+| F10 | Login wall at scout time | TEST-VERIFIED | `tests/forms.test.ts` → "flags a login wall as login_required and never proposes to fill it" |
+| F11 | Human check | TEST-VERIFIED | `tests/forms.test.ts` → "records a detected human check as blocked, never as failed or submitted" |
+| F12 | Auth wall at execution | TEST-VERIFIED | `tests/forms.test.ts` → "records an authentication wall as blocked_login" |
+| F13 | Form submission without approval | TEST-VERIFIED | `tests/forms.test.ts` → "refuses to run without an approval" |
+
+The consistent property across all thirteen: the dangerous path fails **closed**
+and records *why* — never a fabricated success. A blocked form is recorded
+`blocked_login`/`blocked_human_check` and never `submitted`; a refused send
+leaves the draft unsent with its approval untouched; a reaped run is parked and
+resumable rather than quietly reported as working.
 
 ## 9. Public-delivery checks
 

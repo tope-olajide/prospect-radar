@@ -17,4 +17,16 @@ crons.interval(
   {},
 );
 
+// A run only advances because a stage scheduled its successor or is waiting on
+// an external callback. A stage that dies without transitioning would otherwise
+// stay `active` forever and be reported as work in progress, so the reaper parks
+// abandoned runs (resumable) instead of leaving the command center lying about
+// its own state.
+crons.interval(
+  "stale run reaper",
+  { minutes: 10 },
+  internal.runReaper.reap,
+  {},
+);
+
 export default crons;

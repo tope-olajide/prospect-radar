@@ -430,6 +430,109 @@ describe("untrusted-content bounding", () => {
   });
 });
 
+describe("stale run reaper", () => {
+  it("parks an abandoned active run so it stops counting as work in progress", async () => {
+    const t = convexTest(schema, convexModules);
+    const missionId = await seedMissionWithBacklog(t, 2);
+    await forceStage(t, missionId, "evaluate", "active");
+    // Backdate the run past the staleness window, as an abandoned run would be.
+    await t.run(async (ctx) => {
+      const run = await ctx.db.query("agentRuns").withIndex("by_missionId", (q) => q.eq("missionId", missionId as never)).first();
+      await ctx.db.patch(run!._id, { updatedAt: Date.now() - 60 * 60 * 1000 });
+    });
+
+    const before = await t.query(api.commandCenter.overview, { workspaceId: WORKSPACE });
+    expect(before.counts.runsActive).toBe(1);
+
+    const result = await t.run((ctx) => ctx.runMutation(internal.runReaper.reap, {}));
+    expect(result.reaped).toBe(1);
+
+    const run = await getRun(t, missionId);
+    expect(run?.status).toBe("blocked");
+    // The stage is kept, so the retry control resumes exactly there.
+    expect(run?.currentStage).toBe("evaluate");
+    expect(run?.interruption).toBe("stale_run");
+
+    const after = await t.query(api.commandCenter.overview, { workspaceId: WORKSPACE });
+    expect(after.counts.runsActive).toBe(0);
+    expect(after.counts.runsBlocked).toBe(1);
+
+    const steps = await stepsFor(t, missionId);
+    const reaped = steps.find((step) => step.label === "run.reaped");
+    expect(reaped).toBeTruthy();
+    expect(reaped!.tool).toBe("reaper");
+    expect(reaped!.errorCode).toBe("STALE_RUN");
+  });
+
+  it("leaves fresh, deliberately parked, and terminal runs alone", async () => {
+    const t = convexTest(schema, convexModules);
+    const fresh = await seedMissionWithBacklog(t, 1);
+    await forceStage(t, fresh, "discover", "active");
+    const crawling = await seedMissionWithBacklog(t, 1);
+    await forceStage(t, crawling, "wait", "waiting");
+    const blocked = await seedMissionWithBacklog(t, 1);
+    await forceStage(t, blocked, "discover", "blocked");
+    const done = await seedMissionWithBacklog(t, 1);
+    await forceStage(t, done, "complete", "complete");
+    const queued = await seedMissionWithBacklog(t, 1);
+    // `queued` is a mission waiting for the user to start it, not abandoned work.
+    await t.run(async (ctx) => {
+      const run = await ctx.db.query("agentRuns").withIndex("by_missionId", (q) => q.eq("missionId", queued as never)).first();
+      await ctx.db.patch(run!._id, { status: "queued" as never, currentStage: "intake" as never, updatedAt: Date.now() - 60 * 60 * 1000 });
+    });
+    // Backdate everything except fresh, so only freshness/us can be the reason.
+    await t.run(async (ctx) => {
+      for (const id of [crawling, blocked, done]) {
+        const run = await ctx.db.query("agentRuns").withIndex("by_missionId", (q) => q.eq("missionId", id as never)).first();
+        await ctx.db.patch(run!._id, { updatedAt: Date.now() - 60 * 60 * 1000 });
+      }
+    });
+
+    const result = await t.run((ctx) => ctx.runMutation(internal.runReaper.reap, {}));
+    expect(result.reaped).toBe(0);
+    expect((await getRun(t, fresh))?.status).toBe("active");
+    expect((await getRun(t, crawling))?.status).toBe("waiting");
+    expect((await getRun(t, blocked))?.status).toBe("blocked");
+    expect((await getRun(t, done))?.status).toBe("complete");
+    expect((await getRun(t, queued))?.status).toBe("queued");
+  });
+
+  it("is idempotent — a parked run is never reaped twice", async () => {
+    const t = convexTest(schema, convexModules);
+    const missionId = await seedMissionWithBacklog(t, 1);
+    await forceStage(t, missionId, "evaluate", "active");
+    await t.run(async (ctx) => {
+      const run = await ctx.db.query("agentRuns").withIndex("by_missionId", (q) => q.eq("missionId", missionId as never)).first();
+      await ctx.db.patch(run!._id, { updatedAt: Date.now() - 60 * 60 * 1000 });
+    });
+
+    expect((await t.run((ctx) => ctx.runMutation(internal.runReaper.reap, {}))).reaped).toBe(1);
+    expect((await t.run((ctx) => ctx.runMutation(internal.runReaper.reap, {}))).reaped).toBe(0);
+
+    const steps = (await stepsFor(t, missionId)).filter((step) => step.label === "run.reaped");
+    expect(steps).toHaveLength(1);
+  });
+
+  it("a reaped run resumes through the ordinary retry control", async () => {
+    searchImpl = async () => oneResult();
+    const t = convexTest(schema, convexModules);
+    const missionId = await seedMissionWithBacklog(t, 1);
+    await forceStage(t, missionId, "discover", "active");
+    await t.run(async (ctx) => {
+      const run = await ctx.db.query("agentRuns").withIndex("by_missionId", (q) => q.eq("missionId", missionId as never)).first();
+      await ctx.db.patch(run!._id, { updatedAt: Date.now() - 60 * 60 * 1000 });
+    });
+    await t.run((ctx) => ctx.runMutation(internal.runReaper.reap, {}));
+    expect((await getRun(t, missionId))?.status).toBe("blocked");
+
+    await t.run((ctx) => ctx.runMutation(api.orchestratorStore.retryStage, { workspaceId: WORKSPACE, missionId: missionId as never }));
+    expect((await getRun(t, missionId))?.interruption).toBeNull();
+
+    await drive(t, missionId, 4);
+    expect(await doneQueries(t, missionId)).toBe(1);
+  });
+});
+
 describe("load sanity", () => {
   it("drains a 20-query backlog one query per invocation without scheduler pileup", async () => {
     searchImpl = async () => oneResult();

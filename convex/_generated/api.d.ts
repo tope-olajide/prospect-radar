@@ -33,6 +33,7 @@ import type * as relationships from "../relationships.js";
 import type * as research from "../research.js";
 import type * as researchStore from "../researchStore.js";
 import type * as retryPolicy from "../retryPolicy.js";
+import type * as runReaper from "../runReaper.js";
 import type * as runState from "../runState.js";
 import type * as runs from "../runs.js";
 import type * as sequenceRunner from "../sequenceRunner.js";
@@ -70,6 +71,7 @@ declare const fullApi: ApiFromModules<{
   research: typeof research;
   researchStore: typeof researchStore;
   retryPolicy: typeof retryPolicy;
+  runReaper: typeof runReaper;
   runState: typeof runState;
   runs: typeof runs;
   sequenceRunner: typeof sequenceRunner;

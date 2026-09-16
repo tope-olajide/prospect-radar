@@ -15,7 +15,10 @@ const pipelineStages = ["contacted", "replied", "engaged", "meeting", "proposal"
 
 const overviewCounts = v.object({
   missions: v.number(),
+  /** Runs with a stage actively executing right now. */
   runsActive: v.number(),
+  /** Runs created but not started — they wait for the user, not for us. */
+  runsReady: v.number(),
   runsWaiting: v.number(),
   runsBlocked: v.number(),
   entities: v.number(),
@@ -56,7 +59,10 @@ export const overview = query({
 
     const counts = {
       missions: missions.length,
-      runsActive: runs.filter((run) => run.status === "active" || run.status === "queued").length,
+      // "Working" must mean a stage is executing. A queued run is idle waiting
+      // for the user to start it, so counting it here overstated progress.
+      runsActive: runs.filter((run) => run.status === "active").length,
+      runsReady: runs.filter((run) => run.status === "queued").length,
       runsWaiting: runs.filter((run) => run.status === "waiting").length,
       runsBlocked: runs.filter((run) => run.status === "blocked").length,
       entities: entities.length,
