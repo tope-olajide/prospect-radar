@@ -95,17 +95,26 @@ export default defineSchema({
   missionPlans: defineTable({
     missionId: v.id("missions"), normalizedGoal: v.string(), mode: missionMode,
     strategyNotes: v.optional(v.string()),
+    // Set when the user edits the agent's plan, so the UI can show which parts
+    // of the brief are the agent's proposal and which are the user's decision.
+    userEditedAt: v.optional(v.number()),
     mustHave: v.array(v.string()), niceToHave: v.array(v.string()), exclusions: v.array(v.string()),
     missingFacts: v.array(v.string()), recommendedSources: v.array(v.string()), proposedSteps: v.array(v.string()),
     completionPredicate: v.string(), provider: planProvider, model: v.string(), createdAt: v.number(),
   }).index("by_missionId", ["missionId"]),
   agentRuns: defineTable({
     missionId: v.id("missions"), status: runStatus, currentStage: runStage,
+    // Denormalized so the command center can count active runs in one indexed
+    // query instead of joining every mission. Optional: rows created before
+    // this field exist stay valid and are backfilled by an internal mutation.
+    workspaceId: v.optional(v.string()),
     checkpointVersion: v.number(), activeInterruption: v.union(v.string(), v.null()),
     nextWakeAt: v.union(v.number(), v.null()), retryCount: v.number(),
     startedAt: v.union(v.number(), v.null()), finishedAt: v.union(v.number(), v.null()),
     createdAt: v.number(), updatedAt: v.number(),
-  }).index("by_missionId", ["missionId"]),
+  }).index("by_missionId", ["missionId"])
+    .index("by_workspaceId", ["workspaceId"])
+    .index("by_workspaceId_and_status", ["workspaceId", "status"]),
   runEvents: defineTable({
     missionId: v.id("missions"), runId: v.id("agentRuns"), type: v.string(),
     stage: runStage, safeSummary: v.string(), createdAt: v.number(),
@@ -169,6 +178,10 @@ export default defineSchema({
   entities: defineTable({
     workspaceId: v.string(), missionId: v.id("missions"), sourceId: v.id("sourceRecords"),
     kind: entityKind, name: v.string(), nameLower: v.string(), canonicalUrl: v.string(),
+    // Denormalized searchable text (name, need, offer, summary). Convex search
+    // indexes cover a single field, so the fields are combined here instead of
+    // running three searches.
+    searchText: v.optional(v.string()),
     attributes: v.array(v.object({ key: v.string(), value: v.string() })),
     summary: v.string(), expressedNeed: v.optional(v.string()), skillsOrOffer: v.array(v.string()),
     contactRoute: v.optional(contactRoute),
@@ -178,13 +191,15 @@ export default defineSchema({
     .index("by_missionId_and_canonicalUrl", ["missionId", "canonicalUrl"])
     .index("by_missionId_and_nameLower", ["missionId", "nameLower"])
     .index("by_sourceId", ["sourceId"])
-    .index("by_workspaceId", ["workspaceId"]),
+    .index("by_workspaceId", ["workspaceId"])
+    .searchIndex("search_text", { searchField: "searchText", filterFields: ["workspaceId"] }),
   entitySignals: defineTable({
     workspaceId: v.string(), missionId: v.id("missions"), entityId: v.id("entities"),
     type: signalType, statement: v.string(), evidenceUrl: v.string(),
     observedAt: v.union(v.number(), v.null()), confidence: v.number(), createdAt: v.number(),
   }).index("by_entityId", ["entityId"])
     .index("by_missionId", ["missionId"])
+    .index("by_workspaceId", ["workspaceId"])
     .index("by_entityId_and_evidenceUrl", ["entityId", "evidenceUrl"]),
 
   agentInboxes: defineTable({
@@ -203,6 +218,7 @@ export default defineSchema({
     errorSummary: v.union(v.string(), v.null()),
     createdAt: v.number(), updatedAt: v.number(),
   }).index("by_missionId", ["missionId"])
+    .index("by_workspaceId", ["workspaceId"])
     .index("by_clientRequestId", ["clientRequestId"])
     .index("by_missionId_and_contentHash", ["missionId", "contentHash"])
     .index("by_providerDraftId", ["providerDraftId"])
@@ -230,10 +246,14 @@ export default defineSchema({
   inboxMessages: defineTable({
     workspaceId: v.string(), agentmailInboxId: v.string(), missionId: v.union(v.id("missions"), v.null()),
     threadId: v.string(), messageId: v.string(), eventId: v.string(), direction: v.union(v.literal("received"), v.literal("sent")),
-    sender: v.string(), recipients: v.array(v.string()), subject: v.string(), preview: v.string(), createdAt: v.number(),
+    sender: v.string(), recipients: v.array(v.string()), subject: v.string(), preview: v.string(),
+    searchText: v.optional(v.string()),
+    createdAt: v.number(),
   }).index("by_eventId", ["eventId"])
     .index("by_messageId", ["messageId"])
-    .index("by_threadId", ["threadId"]),
+    .index("by_workspaceId", ["workspaceId"])
+    .index("by_threadId", ["threadId"])
+    .searchIndex("search_text", { searchField: "searchText", filterFields: ["workspaceId"] }),
   providerEvents: defineTable({
     provider: v.literal("agentmail"), eventId: v.string(), eventType: v.string(), createdAt: v.number(),
   }).index("by_provider_and_eventId", ["provider", "eventId"]),
@@ -247,7 +267,9 @@ export default defineSchema({
   outcomes: defineTable({
     workspaceId: v.string(),
     missionId: v.id("missions"), matchId: v.union(v.id("matches"), v.null()),
-    actionId: v.union(v.id("actionDrafts"), v.null()), counterpart: v.string(), status: outcomeStatus,
+    actionId: v.union(v.id("actionDrafts"), v.null()), counterpart: v.string(),
+    searchText: v.optional(v.string()),
+    status: outcomeStatus,
     // Relationship pipeline stage. Optional so pre-pipeline rows keep loading;
     // readers resolve a stage from status when it is absent.
     stage: v.optional(pipelineStage),
@@ -259,7 +281,9 @@ export default defineSchema({
     .index("by_actionId", ["actionId"])
     .index("by_matchId", ["matchId"])
     .index("by_linkedThreadId", ["linkedThreadId"])
-    .index("by_workspaceId_and_stage", ["workspaceId", "stage"]),
+    .index("by_workspaceId", ["workspaceId"])
+    .index("by_workspaceId_and_stage", ["workspaceId", "stage"])
+    .searchIndex("search_text", { searchField: "searchText", filterFields: ["workspaceId"] }),
   followUps: defineTable({
     workspaceId: v.string(), missionId: v.id("missions"),
     outcomeId: v.union(v.id("outcomes"), v.null()), matchId: v.union(v.id("matches"), v.null()),

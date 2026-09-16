@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
 import { mutation, query } from "./_generated/server";
-import { boundedText } from "./hash";
+import { boundedText, searchableText } from "./hash";
 
 const outcomeStatus = v.union(v.literal("open"), v.literal("waiting"), v.literal("replied"), v.literal("positive"), v.literal("negative"), v.literal("closed"), v.literal("unknown"));
 const matchId = v.union(v.id("matches"), v.null());
@@ -96,10 +96,13 @@ export async function applyStage<Ctx extends MutationCtx>(
   const terminal = current === "won" || current === "lost";
   const nextStage: PipelineStage = terminal || regressive ? current : (args.stage ?? current);
   const now = Date.now();
+  const latestEvidence = args.latestEvidence ?? outcome.latestEvidence;
+  const nextAction = args.nextAction ? boundedText(args.nextAction, 400) : outcome.nextAction;
   await ctx.db.patch(outcome._id, {
     stage: nextStage,
-    latestEvidence: args.latestEvidence ?? outcome.latestEvidence,
-    nextAction: args.nextAction ? boundedText(args.nextAction, 400) : outcome.nextAction,
+    latestEvidence,
+    nextAction,
+    searchText: searchableText([outcome.counterpart, latestEvidence, nextAction]),
     nextStepAt: args.nextStepAt === undefined ? outcome.nextStepAt ?? null : args.nextStepAt,
     timeline: appendTimeline(outcome.timeline, { type: args.eventType, summary: boundedText(args.summary, 400), createdAt: now, reference: args.reference ?? null }),
     updatedAt: now,
@@ -138,13 +141,15 @@ export async function recordOutboundOutcome(
   const existing = byAction ?? (byMatch && byMatch.workspaceId === args.workspaceId ? byMatch : null);
   const predicate = await missionPredicate(ctx, args.missionId);
   const entry = { type: "action.sent", summary: args.summary, createdAt: now, reference: args.actionId };
+  const waitingNextAction = "Wait for a reply or review delivery activity.";
   if (existing) {
     await ctx.db.patch(existing._id, {
       linkedThreadId: args.threadId,
       latestEvidence: args.summary,
+      searchText: searchableText([existing.counterpart, args.summary, waitingNextAction]),
       status: existing.status === "open" ? "waiting" : existing.status,
       stage: pipelineStageOf(existing),
-      nextAction: "Wait for a reply or review delivery activity.",
+      nextAction: waitingNextAction,
       timeline: appendTimeline(existing.timeline, entry),
       updatedAt: now,
     });
@@ -156,11 +161,12 @@ export async function recordOutboundOutcome(
     matchId: args.matchId,
     actionId: args.actionId,
     counterpart: args.counterpart,
+    searchText: searchableText([args.counterpart, args.summary, waitingNextAction]),
     status: "waiting",
     stage: "contacted",
     latestEvidence: args.summary,
     linkedThreadId: args.threadId,
-    nextAction: "Wait for a reply or review delivery activity.",
+    nextAction: waitingNextAction,
     nextStepAt: null,
     completionPredicate: predicate,
     timeline: [entry],
@@ -187,15 +193,17 @@ export async function recordReplyOutcome(
   const summary = args.preview || "Inbound reply received; message body remains in AgentMail.";
   const entry = { type: "inbox.reply_received", summary, createdAt: now, reference: args.threadId };
   const predicate = await missionPredicate(ctx, args.missionId);
+  const replyNextAction = "Review the reply and approve a response if needed.";
   if (existing) {
     const current = pipelineStageOf(existing);
     await ctx.db.patch(existing._id, {
       latestEvidence: summary,
+      searchText: searchableText([existing.counterpart, summary, replyNextAction]),
       status: "replied",
       // Arriving mail advances a cold relationship to `replied`; it never drags
       // an already-engaged one backwards.
       stage: current === "contacted" ? "replied" : current,
-      nextAction: "Review the reply and approve a response if needed.",
+      nextAction: replyNextAction,
       timeline: appendTimeline(existing.timeline, entry),
       updatedAt: now,
     });
@@ -207,11 +215,12 @@ export async function recordReplyOutcome(
     matchId: args.matchId,
     actionId: null,
     counterpart: args.counterpart,
+    searchText: searchableText([args.counterpart, summary, replyNextAction]),
     status: "replied",
     stage: "replied",
     latestEvidence: summary,
     linkedThreadId: args.threadId,
-    nextAction: "Review the reply and approve a response if needed.",
+    nextAction: replyNextAction,
     nextStepAt: null,
     completionPredicate: predicate,
     timeline: [entry],
@@ -234,11 +243,13 @@ export async function recordDeliveryOutcome(
   if (!existing) return null;
   const now = Date.now();
   const entry = { type: `action.${args.status}`, summary: args.summary, createdAt: now };
+  const deliveryNextAction = args.status === "delivered" ? "Wait for a reply or review the delivered thread." : "Review the delivery issue before retrying.";
   await ctx.db.patch(existing._id, {
     status: args.status === "delivered" ? "waiting" : "unknown",
     latestEvidence: args.summary,
+    searchText: searchableText([existing.counterpart, args.summary, deliveryNextAction]),
     stage: pipelineStageOf(existing),
-    nextAction: args.status === "delivered" ? "Wait for a reply or review the delivered thread." : "Review the delivery issue before retrying.",
+    nextAction: deliveryNextAction,
     timeline: appendTimeline(existing.timeline, entry),
     updatedAt: now,
   });
@@ -319,10 +330,12 @@ export const updateStatus = mutation({
     const stage = args.status === "positive" ? "won" as const
       : args.status === "negative" || args.status === "closed" ? "lost" as const
       : pipelineStageOf(outcome);
+    const nextAction = args.nextAction.trim();
     await ctx.db.patch(outcome._id, {
       status: args.status,
       stage,
-      nextAction: args.nextAction.trim(),
+      nextAction,
+      searchText: searchableText([outcome.counterpart, outcome.latestEvidence, nextAction]),
       timeline: appendTimeline(outcome.timeline, { type: "outcome.updated", summary: `Outcome marked ${args.status}.`, createdAt: now }),
       updatedAt: now,
     });

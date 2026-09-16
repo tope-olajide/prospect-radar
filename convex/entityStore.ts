@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { internalMutation, internalQuery, query } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
+import { searchableText } from "./hash";
 
 /**
  * Entity + signal store.
@@ -143,14 +144,18 @@ export const upsertFromExtraction = internalMutation({
       // Merge: keep the strongest contact route, refresh summary, never
       // duplicate. A snippet-only entity can be upgraded by a real extraction.
       const upgrade = byName.extractionStatus === "snippet_only" && args.extractionStatus === "extracted";
+      const mergedOffer = args.extraction.skillsOrOffer.slice(0, 8).map((item) => bounded(item, 120));
+      const mergedSummary = bounded(args.extraction.summary, 600) || byName.summary;
+      const mergedNeed = args.extraction.expressedNeed ? bounded(args.extraction.expressedNeed, 300) : byName.expressedNeed;
       await ctx.db.patch(byName._id, {
         name,
         nameLower,
         kind: args.extraction.entityType,
         attributes,
-        summary: bounded(args.extraction.summary, 600) || byName.summary,
-        expressedNeed: args.extraction.expressedNeed ? bounded(args.extraction.expressedNeed, 300) : byName.expressedNeed,
-        skillsOrOffer: args.extraction.skillsOrOffer.slice(0, 8).map((item) => bounded(item, 120)),
+        summary: mergedSummary,
+        expressedNeed: mergedNeed,
+        skillsOrOffer: mergedOffer,
+        searchText: searchableText([name, mergedSummary, mergedNeed, mergedOffer.join(" ")]),
         contactRoute: contactRouteValue ?? byName.contactRoute,
         extractionStatus: upgrade ? "extracted" : byName.extractionStatus,
         confidence: upgrade ? confidence : Math.max(byName.confidence, confidence),
@@ -158,6 +163,9 @@ export const upsertFromExtraction = internalMutation({
       });
       entityId = byName._id;
     } else {
+      const newSummary = bounded(args.extraction.summary, 600);
+      const newNeed = args.extraction.expressedNeed ? bounded(args.extraction.expressedNeed, 300) : undefined;
+      const newOffer = args.extraction.skillsOrOffer.slice(0, 8).map((item) => bounded(item, 120));
       entityId = await ctx.db.insert("entities", {
         workspaceId: args.workspaceId,
         missionId: args.missionId,
@@ -167,9 +175,10 @@ export const upsertFromExtraction = internalMutation({
         nameLower,
         canonicalUrl,
         attributes,
-        summary: bounded(args.extraction.summary, 600),
-        expressedNeed: args.extraction.expressedNeed ? bounded(args.extraction.expressedNeed, 300) : undefined,
-        skillsOrOffer: args.extraction.skillsOrOffer.slice(0, 8).map((item) => bounded(item, 120)),
+        summary: newSummary,
+        expressedNeed: newNeed,
+        skillsOrOffer: newOffer,
+        searchText: searchableText([name, newSummary, newNeed, newOffer.join(" ")]),
         contactRoute: contactRouteValue,
         extractionStatus: args.extractionStatus,
         confidence,

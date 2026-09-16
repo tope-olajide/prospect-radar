@@ -136,6 +136,10 @@ export default function App({ backendConnected }: { backendConnected: boolean })
   const [proposing, setProposing] = useState(false);
   const [submittingProposalId, setSubmittingProposalId] = useState<Id<"formProposals"> | null>(null);
   const [proposalEdits, setProposalEdits] = useState<Record<string, Record<string, string>>>({});
+  const [commandTerm, setCommandTerm] = useState("");
+  const [briefEditing, setBriefEditing] = useState(false);
+  const [briefNotice, setBriefNotice] = useState("");
+  const [briefDraft, setBriefDraft] = useState({ normalizedGoal: "", mustHave: "", niceToHave: "", exclusions: "", recommendedSources: "", completionPredicate: "" });
 
   const selectedMission = missions?.find((mission) => mission._id === selectedMissionId) ?? missions?.[0];
   const missionId = selectedMission?._id ?? null;
@@ -169,12 +173,18 @@ export default function App({ backendConnected }: { backendConnected: boolean })
   const executeFormSubmission = useAction(api.formFlows.executeFormSubmission);
   const crawlProgress = useQuery(api.researchStore.latestCrawlProgress, backendConnected && missionId ? { missionId } : "skip");
   const contextFacts = useQuery(api.context.list, backendConnected ? { workspaceId, missionId: null } : "skip");
+  const overview = useQuery(api.commandCenter.overview, backendConnected ? { workspaceId } : "skip");
+  const searchResults = useQuery(
+    api.commandCenter.search,
+    backendConnected && commandTerm.trim().length >= 2 ? { workspaceId, query: commandTerm.trim() } : "skip",
+  );
   const addFact = useMutation(api.context.add);
   const confirmFact = useMutation(api.context.confirm);
   const correctFact = useMutation(api.context.correct);
   const rejectFact = useMutation(api.context.reject);
   const deleteFact = useMutation(api.context.deleteFact);
   const setThreadLabel = useMutation(api.inbox.setLabel);
+  const updateBrief = useMutation(api.plans.updateBrief);
 
   const latestJob = jobs?.[0];
   const pendingDrafts = (drafts ?? []).filter((draft) => ["draft", "awaiting_approval", "approved", "executing"].includes(draft.status));
@@ -323,6 +333,47 @@ Clarification: ${clarifyAnswer.trim()}` });
     setEditingUnderstanding(false);
     await classifyIntent({ missionId });
     setPlanNotice("Understanding revised — classification updated.");
+  }
+
+  function startBriefEdit() {
+    if (!plan) return;
+    setBriefDraft({
+      normalizedGoal: plan.normalizedGoal,
+      mustHave: plan.mustHave.join(", "),
+      niceToHave: plan.niceToHave.join(", "),
+      exclusions: plan.exclusions.join(", "),
+      recommendedSources: plan.recommendedSources.join(", "),
+      completionPredicate: plan.completionPredicate,
+    });
+    setBriefEditing(true);
+    setBriefNotice("");
+  }
+
+  async function onSaveBrief() {
+    if (!missionId) return;
+    const split = (value: string) => value.split(",").map((item) => item.trim()).filter(Boolean);
+    try {
+      await updateBrief({
+        workspaceId,
+        missionId,
+        normalizedGoal: briefDraft.normalizedGoal,
+        mustHave: split(briefDraft.mustHave),
+        niceToHave: split(briefDraft.niceToHave),
+        exclusions: split(briefDraft.exclusions),
+        recommendedSources: split(briefDraft.recommendedSources),
+        completionPredicate: briefDraft.completionPredicate,
+      });
+      setBriefEditing(false);
+      setBriefNotice("Brief saved — the run's completion gate now uses your predicate.");
+    } catch (error) {
+      setBriefNotice(error instanceof Error ? error.message : "Could not save the brief.");
+    }
+  }
+
+  function openSearchResult(result: { missionId: string | null; view: View }) {
+    if (result.missionId) setSelectedMissionId(result.missionId);
+    selectView(result.view);
+    setCommandTerm("");
   }
 
   async function onSearch() {
@@ -637,6 +688,7 @@ Clarification: ${clarifyAnswer.trim()}` });
 
   return (
     <div className="app-shell">
+      <a className="skip-link" href="#main-content">Skip to main content</a>
       {sidebar}
 
       <div className="main-area">
@@ -646,13 +698,41 @@ Clarification: ${clarifyAnswer.trim()}` });
             <strong>{viewTitles[activeView].title}</strong>
             <span>{viewTitles[activeView].eyebrow}</span>
           </div>
+          <div className="command-bar" role="search">
+            <span className="command-icon" aria-hidden="true">⌕</span>
+            <input
+              type="search"
+              value={commandTerm}
+              onChange={(event) => setCommandTerm(event.target.value)}
+              onKeyDown={(event) => { if (event.key === "Escape") setCommandTerm(""); }}
+              placeholder="Search entities, relationships, messages…"
+              aria-label="Search everything across this workspace"
+            />
+            {commandTerm.trim().length >= 2 && (
+              <div className="command-results" role="listbox" aria-label="Search results">
+                {searchResults === undefined ? (
+                  <p className="empty-state">Searching…</p>
+                ) : searchResults.length === 0 ? (
+                  <p className="empty-state">Nothing matched “{commandTerm.trim()}” yet.</p>
+                ) : (
+                  searchResults.map((result) => (
+                    <button key={`${result.kind}-${result.id}`} type="button" className="command-result" onClick={() => openSearchResult(result)}>
+                      <span className={`command-kind kind-${result.kind}`}>{result.kind}</span>
+                      <span className="command-copy"><strong>{result.title}</strong><em>{result.detail}</em></span>
+                      <span className="muted">{shortDate(result.at)}</span>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
           <div className="topbar-actions">
             <span className="live-status"><span className="pulse-dot" />{backendConnected ? "LIVE" : "OFFLINE"}</span>
             {attentionItems.length > 0 && <button type="button" className="attention-chip" onClick={() => selectView(attentionItems[0].view)}>{attentionItems.length} need{attentionItems.length === 1 ? "" : "s"} attention</button>}
           </div>
         </header>
 
-        <main className="content-wrap" id="top">
+        <main className="content-wrap" id="main-content" tabIndex={-1}>
           <div className="page-heading">
             <div>
               <p className="eyebrow">{viewTitles[activeView].eyebrow}</p>
@@ -682,6 +762,48 @@ Clarification: ${clarifyAnswer.trim()}` });
                   </div>
                 </form>
               </section>
+
+              {overview && (
+                <section className="panel" aria-label="Network overview">
+                  <div className="panel-head"><p className="eyebrow">NETWORK OVERVIEW</p><span className="muted">live from Convex</span></div>
+                  <div className="metric-grid">
+                    {[
+                      { label: "Entities", value: overview.counts.entities, view: "discover" as View },
+                      { label: "Signals · 7d", value: overview.counts.signalsThisWeek, view: "discover" as View },
+                      { label: "Replies", value: overview.counts.replies, view: "inbox" as View },
+                      { label: "Follow-ups due", value: overview.counts.followUpsDue, view: "outcomes" as View },
+                      { label: "Drafts pending", value: overview.counts.draftsPending, view: "outreach" as View },
+                      { label: "Submissions", value: overview.counts.submissions, view: "forms" as View },
+                    ].map((metric) => (
+                      <button key={metric.label} type="button" className="metric-tile" onClick={() => selectView(metric.view)}>
+                        <span className="metric-value">{metric.value}</span>
+                        <span className="metric-label">{metric.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="run-strip" aria-label="Run states">
+                    <span><em>Working</em><strong>{overview.counts.runsActive}</strong></span>
+                    <span><em>Awaiting you</em><strong>{overview.counts.runsWaiting}</strong></span>
+                    <span><em>Blocked</em><strong>{overview.counts.runsBlocked}</strong></span>
+                    <span><em>Approved sends</em><strong>{overview.counts.draftsApproved}</strong></span>
+                    <span><em>Blocked forms</em><strong>{overview.counts.blockedSubmissions}</strong></span>
+                  </div>
+                  {overview.pipeline.some((row) => row.count > 0) && (
+                    <div className="pipeline-mini" aria-label="Pipeline distribution">
+                      {overview.pipeline.filter((row) => row.count > 0).map((row) => {
+                        const max = Math.max(...overview.pipeline.map((item) => item.count), 1);
+                        return (
+                          <div key={row.stage} className="pipeline-mini-row">
+                            <span>{PIPELINE_LABELS[row.stage as PipelineStageName] ?? row.stage}</span>
+                            <span className="pipeline-bar" aria-hidden="true"><span style={{ width: `${Math.round((row.count / max) * 100)}%` }} /></span>
+                            <strong>{row.count}</strong>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </section>
+              )}
 
               {attentionItems.length > 0 && (
                 <section className="attention-grid" aria-label="Needs attention">
@@ -750,11 +872,45 @@ Clarification: ${clarifyAnswer.trim()}` });
                         <p className="stage-note">This run is {run.status}. Create a new mission to run Radar again.</p>
                       )}
                       {plan ? (
-                        <>
-                          <p className="plan-goal">{plan.normalizedGoal}</p>
-                          {plan.mustHave.length > 0 && <p className="stage-note">Must have: {plan.mustHave.join(" · ")}</p>}
-                          <p className="stage-note">Completion: {plan.completionPredicate}</p>
-                        </>
+                        <div className="brief-card">
+                          <div className="panel-head">
+                            <p className="eyebrow">MISSION BRIEF</p>
+                            <span className="muted">{plan.userEditedAt ? `edited ${shortDate(plan.userEditedAt)}` : "AI-planned"}</span>
+                          </div>
+                          {briefEditing ? (
+                            <div className="view-stack">
+                              <label className="field-label" htmlFor="brief-goal">Goal</label>
+                              <textarea id="brief-goal" className="composer-input" rows={2} value={briefDraft.normalizedGoal} onChange={(event) => setBriefDraft({ ...briefDraft, normalizedGoal: event.target.value })} />
+                              <label className="field-label" htmlFor="brief-must">Must have (comma-separated)</label>
+                              <input id="brief-must" className="composer-input" value={briefDraft.mustHave} onChange={(event) => setBriefDraft({ ...briefDraft, mustHave: event.target.value })} />
+                              <label className="field-label" htmlFor="brief-nice">Nice to have</label>
+                              <input id="brief-nice" className="composer-input" value={briefDraft.niceToHave} onChange={(event) => setBriefDraft({ ...briefDraft, niceToHave: event.target.value })} />
+                              <label className="field-label" htmlFor="brief-excl">Exclusions</label>
+                              <input id="brief-excl" className="composer-input" value={briefDraft.exclusions} onChange={(event) => setBriefDraft({ ...briefDraft, exclusions: event.target.value })} />
+                              <label className="field-label" htmlFor="brief-sources">Preferred sources</label>
+                              <input id="brief-sources" className="composer-input" value={briefDraft.recommendedSources} onChange={(event) => setBriefDraft({ ...briefDraft, recommendedSources: event.target.value })} />
+                              <label className="field-label" htmlFor="brief-predicate">Completion predicate</label>
+                              <input id="brief-predicate" className="composer-input" value={briefDraft.completionPredicate} onChange={(event) => setBriefDraft({ ...briefDraft, completionPredicate: event.target.value })} />
+                              <div className="inline-actions">
+                                <button type="button" className="btn" onClick={onSaveBrief}>Save brief</button>
+                                <button type="button" className="btn ghost" onClick={() => setBriefEditing(false)}>Cancel</button>
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              <p className="plan-goal">{plan.normalizedGoal}</p>
+                              {plan.mustHave.length > 0 && <p className="stage-note">Must have: {plan.mustHave.join(" · ")}</p>}
+                              {plan.niceToHave.length > 0 && <p className="stage-note">Nice to have: {plan.niceToHave.join(" · ")}</p>}
+                              {plan.exclusions.length > 0 && <p className="stage-note">Excluding: {plan.exclusions.join(" · ")}</p>}
+                              {plan.recommendedSources.length > 0 && <p className="stage-note">Preferred sources: {plan.recommendedSources.join(" · ")}</p>}
+                              <p className="stage-note">Completion: {plan.completionPredicate}</p>
+                              <div className="inline-actions">
+                                <button type="button" className="btn ghost" onClick={startBriefEdit}>Edit brief</button>
+                              </div>
+                            </>
+                          )}
+                          {briefNotice && <p className="stage-note" role="status">{briefNotice}</p>}
+                        </div>
                       ) : (
                         <div className="inline-actions">
                           <button type="button" className="btn" onClick={onInterpret} disabled={planning}>{planning ? "Interpreting…" : "Interpret with OpenAI"}</button>

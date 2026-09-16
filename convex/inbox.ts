@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { internalAction, internalMutation, internalQuery, mutation, query } from "./_generated/server";
 import { api, internal } from "./_generated/api";
-import { boundedText } from "./hash";
+import { boundedText, searchableText } from "./hash";
 import { recordDeliveryOutcome, recordReplyOutcome } from "./outcomes";
 
 const threadView = v.object({
@@ -199,6 +199,7 @@ export const recordInboundMessage = internalMutation({
       recipients: args.recipients,
       subject: boundedText(args.subject, 240),
       preview: boundedText(args.preview, 320),
+      searchText: searchableText([args.sender, args.subject, args.preview]),
       createdAt: args.occurredAt || now,
     });
 
@@ -334,7 +335,20 @@ export const listMessages = query({
       .withIndex("by_threadId", (q) => q.eq("threadId", args.threadId))
       .order("asc")
       .take(100);
-    return rows.filter((row) => row.workspaceId === args.workspaceId).map(({ _creationTime, ...row }) => row);
+    return rows
+      .filter((row) => row.workspaceId === args.workspaceId)
+      .map((row) => ({
+        _id: row._id,
+        threadId: row.threadId,
+        messageId: row.messageId,
+        eventId: row.eventId,
+        direction: row.direction,
+        sender: row.sender,
+        recipients: row.recipients,
+        subject: row.subject,
+        preview: row.preview,
+        createdAt: row.createdAt,
+      }));
   },
 });
 

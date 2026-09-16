@@ -48,7 +48,7 @@ export const create = mutation({
       createdAt: now,
       updatedAt: now,
     });
-    const runId = await ctx.db.insert("agentRuns", { missionId, status: "queued", currentStage: "intake", checkpointVersion: 1, activeInterruption: null, nextWakeAt: null, retryCount: 0, startedAt: null, finishedAt: null, createdAt: now, updatedAt: now });
+    const runId = await ctx.db.insert("agentRuns", { missionId, workspaceId: args.workspaceId, status: "queued", currentStage: "intake", checkpointVersion: 1, activeInterruption: null, nextWakeAt: null, retryCount: 0, startedAt: null, finishedAt: null, createdAt: now, updatedAt: now });
     await ctx.db.insert("runEvents", { missionId, runId, type: "mission.created", stage: "intake", safeSummary: "Mission created from natural language; awaiting AI intent classification.", createdAt: now });
     return { missionId, runId };
   },

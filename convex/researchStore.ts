@@ -616,6 +616,7 @@ const jobView = v.object({
   resultCount: v.number(),
   crawlId: v.union(v.string(), v.null()),
   crawlStatus: v.union(crawlStatus, v.null()),
+  errorCode: v.union(v.string(), v.null()),
   errorSummary: v.union(v.string(), v.null()),
   createdAt: v.number(),
   startedAt: v.number(),
