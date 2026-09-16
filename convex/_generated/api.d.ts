@@ -9,6 +9,7 @@
  */
 
 import type * as ai from "../ai.js";
+import type * as commandCenter from "../commandCenter.js";
 import type * as context from "../context.js";
 import type * as crons from "../crons.js";
 import type * as entityStore from "../entityStore.js";
@@ -43,6 +44,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   ai: typeof ai;
+  commandCenter: typeof commandCenter;
   context: typeof context;
   crons: typeof crons;
   entityStore: typeof entityStore;

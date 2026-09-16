@@ -12,9 +12,42 @@
 - **Auth:** none (demo workspace scope)
 - **AI models:** any OpenAI-compatible model via OPENAI_BASE_URL / OPENAI_MODEL (gpt-5-mini default; provider recorded on plans and classifications)
 - **Started:** 2026-09-13T00:00:00Z
-- **Last updated:** 2026-09-16T13:55:00Z
+- **Last updated:** 2026-09-16T14:20:00Z
 
 ## Log
+
+### 2026-09-16 - working tree
+Phase 5: the Radar command center. Home is now a real product surface rather
+than a form: a search-first command bar, a live network overview, and an
+editable mission brief.
+
+- **Command bar search** (`convex/commandCenter.ts`) searches entities,
+  relationships, and messages through three Convex search indexes. Convex
+  search indexes cover one field per index, so `searchText` is denormalized at
+  write time (`convex/hash.ts` `searchableText`, written on entity upsert,
+  outcome transition, and inbound message) and filtered by `workspaceId` at
+  read time. A bounded, idempotent `backfillSearch` internal mutation fills
+  legacy rows; it was run against production (6 runs adopted a `workspaceId`).
+- **Network overview** aggregates missions, runs by state, entities, signals
+  this week, threads, replies, follow-ups due, pending/approved drafts, and
+  submissions — each through a `by_workspaceId` index with a bounded `take`, so
+  the Home screen costs a fixed number of queries and never joins per row.
+- **Editable mission brief** (`plans.updateBrief`) lets the user correct the
+  goal, must-have/nice-to-have criteria, exclusions, preferred sources, and the
+  completion predicate. The predicate is mirrored onto the mission, because
+  that predicate is exactly what gates the run's own completion claim; every
+  edit records a `brief.edited` run step with `tool: user`.
+- **Accessibility**: a skip link, a labelled search landmark, labelled metrics,
+  and non-color-only status text.
+
+A new `tests/queryContracts.test.ts` calls **every public query the app
+actually calls** against a fully populated workspace. It immediately caught two
+more instances of the raw-document/view-validator bug that the form proof run
+found in `runs.*`: `inbox.listMessages` leaked `agentmailInboxId`, `workspaceId`,
+`missionId`, and `searchText`, and `researchStore.listJobs` leaked `errorCode`
+because its view never declared it. Both are now mapped explicitly, so this class of
+production-only `ReturnsValidationError` is closed by contract tests rather than
+discovered by users (138 tests passing).
 
 ### 2026-09-16 - working tree
 Live end-to-end form-flow proof run against the production deployment

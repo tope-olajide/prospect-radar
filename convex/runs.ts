@@ -17,7 +17,7 @@ export const forMission = query({
   handler: async (ctx, args) => {
     const row = await ctx.db.query("agentRuns").withIndex("by_missionId", (q) => q.eq("missionId", args.missionId)).first();
     if (!row) return null;
-    const { _creationTime, missionId, ...view } = row;
+    const { _creationTime, missionId, workspaceId, ...view } = row;
     return view;
   },
 });
