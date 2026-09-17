@@ -230,11 +230,16 @@ label { display: grid; gap: 6px; color: var(--muted); font-size: 10px; font-weig
 .attention-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
 
 /* ---------- Home workspace: conversation threads ---------- */
-.workspace { display: grid; gap: 14px; max-width: 860px; margin: 0 auto; }
+.workspace { display: grid; gap: 14px; align-content: start; }
 .thread-card { padding: 0; overflow: hidden; }
 .thread-card.open { border-color: var(--accent-line); }
 .thread-card-head { display: flex; align-items: center; gap: 10px; width: 100%; padding: 13px 18px; border: none; background: none; cursor: pointer; text-align: left; font: inherit; }
 .thread-card-head:hover { background: var(--hover-wash); }
+.thread-card-head .head-step { min-width: 0; flex: 1; color: var(--text-faint); font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.thread-card-head .head-step em { font-style: normal; color: var(--accent); font-weight: 700; }
+.thread-card-head .head-step.live::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 7px; border-radius: 999px; background: var(--accent); animation: pulse-dot 1.4s ease-in-out infinite; }
+@keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+.thread-card.open .head-step { display: none; }
 .thread-goal { flex: 1; min-width: 0; color: var(--text); font-size: 12px; letter-spacing: -.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .thread-card-head .muted { flex-shrink: 0; }
 .thread-body { display: grid; gap: 12px; padding: 4px 18px 18px; border-top: 1px solid var(--line); }

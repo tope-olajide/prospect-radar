@@ -297,6 +297,17 @@ export default function App({ backendConnected }: { backendConnected: boolean })
     backendConnected && board && board.length > 0 ? { missionIds: board.slice(0, 3).map((row) => row.missionId) } : "skip",
   );
 
+  // Home is the agent conversation: the newest mission is what the user came
+  // to watch, so it starts expanded without any click. A user toggle pins
+  // their choice; otherwise the newest mission with a live run expands.
+  const autoExpandedId = useMemo(() => {
+    if (openThreadId !== null) return openThreadId;
+    if (!board || board.length === 0) return null;
+    const liveStatuses = ["queued", "active", "waiting", "blocked"];
+    const live = board.find((row) => liveStatuses.includes(row.runStatus));
+    return (live ?? board[0]).missionId;
+  }, [board, openThreadId]);
+
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!goal.trim() || !backendConnected) return;
@@ -917,15 +928,20 @@ Clarification: ${clarifyAnswer.trim()}` });
                 const threadMatches = thread.missionId === selectedMissionId ? matches : undefined;
                 const threadDrafts = thread.missionId === selectedMissionId ? drafts : undefined;
                 const threadApprovals = (threadDrafts ?? []).filter((draft) => ["awaiting_approval", "approved"].includes(draft.status));
-                const isOpen = openThreadId === null ? thread.missionId === selectedMissionId : openThreadId === thread.missionId;
+                const isOpen = autoExpandedId === thread.missionId;
                 const strongCount = (threadMatches ?? []).filter((match) => match.label === "stronger").length;
                 const rawRunState = threadRun ? { status: threadRun.runStatus, currentStage: threadRun.currentStage, activeInterruption: threadRun.activeInterruption } : null;
                 const runState = rawRunState && rawRunState.status !== "none" ? { status: rawRunState.status, currentStage: rawRunState.currentStage ?? "intake", activeInterruption: rawRunState.activeInterruption } : null;
+                const headStep = thread.steps.length > 0 ? thread.steps[thread.steps.length - 1] : null;
+                const runLive = runState ? ["queued", "active", "waiting", "blocked"].includes(runState.status) : false;
                 return (
                   <article className={`panel thread-card${isOpen ? " open" : ""}`} key={thread.missionId}>
-                    <button type="button" className="thread-card-head" onClick={() => setOpenThreadId(isOpen ? thread.missionId : null)} aria-expanded={isOpen}>
+                    <button type="button" className="thread-card-head" onClick={() => setOpenThreadId(isOpen ? null : thread.missionId)} aria-expanded={isOpen}>
                       <span className={`status-pill status-${runState?.status ?? mission.status}`}>{runState?.status ?? mission.status}</span>
                       <strong className="thread-goal">{mission.rawGoal}</strong>
+                      {!isOpen && (
+                        <span className={`head-step${runLive ? " live" : ""}`}>{headStep ? <><em>{headStep.label}</em> {headStep.summary}</> : runLive ? "Radar is working…" : ""}</span>
+                      )}
                       <span className="muted">{shortDate(mission.createdAt)}</span>
                     </button>
                     {isOpen && (
