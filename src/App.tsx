@@ -3,6 +3,7 @@ import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
 import { useTheme, type ThemeChoice } from "./useTheme";
+import { MissionLifecycle } from "./MissionLifecycle";
 
 type MissionMode = "opportunity" | "person" | "customer" | "solution" | "collaborator";
 type View = "home" | "discover" | "outreach" | "inbox" | "outcomes" | "forms" | "context" | "sources" | "activity";
@@ -57,8 +58,6 @@ const themeOptions: { value: ThemeChoice; label: string; glyph: string }[] = [
   { value: "light", label: "Light", glyph: "☀" },
   { value: "dark", label: "Dark", glyph: "☾" },
 ];
-
-const STAGES = ["intake", "interpret", "plan", "discover", "evaluate", "approval"] as const;
 
 function shortDate(value: number) {
   return new Date(value).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
@@ -203,6 +202,7 @@ export default function App({ backendConnected }: { backendConnected: boolean })
   const executeFormSubmission = useAction(api.formFlows.executeFormSubmission);
   const crawlProgress = useQuery(api.researchStore.latestCrawlProgress, backendConnected && missionId ? { missionId } : "skip");
   const contextFacts = useQuery(api.context.list, backendConnected ? { workspaceId, missionId: null } : "skip");
+  const board = useQuery(api.commandCenter.runsBoard, backendConnected ? { workspaceId } : "skip");
   const dataSources = useQuery(api.dataSources.list, backendConnected ? { workspaceId } : "skip");
   const dataProgress = useQuery(api.dataSources.progress, backendConnected ? { workspaceId } : "skip");
   const addSnippet = useMutation(api.dataSources.addSnippet);
@@ -970,7 +970,11 @@ Clarification: ${clarifyAnswer.trim()}` });
                   ) : (
                     <>
                       <h3>{selectedMission.title}</h3>
-                      {run && <p className="stage-note">Stage {run.currentStage} · status {run.status} · checkpoint {run.checkpointVersion}</p>}
+                      {run && <p className="stage-note">checkpoint {run.checkpointVersion} · started {run.startedAt ? shortDate(run.startedAt) : "—"}</p>}
+                      <MissionLifecycle
+                        run={run ? { status: run.status, currentStage: run.currentStage, activeInterruption: run.activeInterruption ?? null } : null}
+                        latestStep={runSteps && runSteps.length > 0 ? runSteps[runSteps.length - 1] : null}
+                      />
                       {selectedMission.intent && (
                         <div className="understanding-card">
                           <div className="panel-head"><p className="eyebrow">RADAR UNDERSTOOD</p><span className="muted">confidence {Math.round((selectedMission.intent.confidence ?? 0) * 100)}%</span></div>
@@ -1119,14 +1123,21 @@ Clarification: ${clarifyAnswer.trim()}` });
                   )}
                 </section>
 
-                <section className="panel" aria-label="Mission queue">
-                  <div className="panel-head"><p className="eyebrow">MISSION QUEUE</p><span className="muted">{missions?.length ?? 0}</span></div>
-                  {missions === undefined ? <p className="empty-state">Loading…</p> : missions.length === 0 ? <p className="empty-state">No missions yet.</p> : (
+                <section className="panel" aria-label="Agent runs">
+                  <div className="panel-head"><p className="eyebrow">AGENT RUNS</p><span className="muted">live run state per mission</span></div>
+                  {board === undefined ? <p className="empty-state">Loading…</p> : board.length === 0 ? <p className="empty-state">No missions yet. Start one above and watch it run.</p> : (
                     <div className="row-list">
-                      {missions.map((mission) => (
-                        <button key={mission._id} type="button" className={selectedMission?._id === mission._id ? "row-item selected" : "row-item"} onClick={() => setSelectedMissionId(mission._id)}>
-                          <div><strong>{mission.title}</strong><em>{mission.mode} · {shortDate(mission.createdAt)}</em></div>
-                          <span className={`status-pill status-${mission.status}`}>{mission.status}</span>
+                      {board.map((row) => (
+                        <button key={row.missionId} type="button" className={selectedMission?._id === row.missionId ? "row-item selected" : "row-item"} onClick={() => setSelectedMissionId(row.missionId)}>
+                          <div>
+                            <strong>{row.missionTitle}</strong>
+                            <em>{row.lastStep ? `${row.lastStep.label} — ${row.lastStep.summary}` : row.currentStage ? `Stage: ${row.currentStage}` : "No run yet"}</em>
+                            <span className="muted">{shortDate(row.updatedAt)}</span>
+                          </div>
+                          <div className="board-state">
+                            {row.awaitingApprovals > 0 && <span className="status-pill status-awaiting_approval">{row.awaitingApprovals} approval{row.awaitingApprovals === 1 ? "" : "s"}</span>}
+                            <span className={`status-pill status-${row.runStatus}`}>{row.runStatus === "none" ? "not started" : row.runStatus}</span>
+                          </div>
                         </button>
                       ))}
                     </div>
@@ -1871,19 +1882,10 @@ Clarification: ${clarifyAnswer.trim()}` });
                     {!["cancelled", "complete", "failed"].includes(run.status) && (
                       <div className="inline-actions"><button type="button" className="btn ghost" onClick={onStopRun}>■ Stop mission</button></div>
                     )}
-                    <ol className="stage-strip" aria-label="Pipeline stages">
-                      {STAGES.map((stage) => {
-                        const order = STAGES.indexOf(stage);
-                        const currentOrder = STAGES.indexOf(run.currentStage as typeof STAGES[number]);
-                        const done = order < currentOrder || run.currentStage === "complete";
-                        const active = run.currentStage === stage && !["complete"].includes(run.status);
-                        return (
-                          <li key={stage} className={done ? "done" : active ? "active" : ""} aria-current={active ? "step" : undefined}>
-                            <span className="stage-dot" />{stage}
-                          </li>
-                        );
-                      })}
-                    </ol>
+                    <MissionLifecycle
+                      run={{ status: run.status, currentStage: run.currentStage, activeInterruption: run.activeInterruption ?? null }}
+                      latestStep={runSteps && runSteps.length > 0 ? runSteps[runSteps.length - 1] : undefined}
+                    />
                   </section>
                   <section className="panel" aria-label="Agent transcript">
                     <div className="panel-head"><p className="eyebrow">AGENT TRANSCRIPT</p><span className="muted">{runSteps?.length ?? 0} steps</span></div>

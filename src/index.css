@@ -439,6 +439,29 @@ label { display: grid; gap: 6px; color: var(--muted); font-size: 10px; font-weig
 .drop-inner strong { color: var(--text-soft); font-size: 12px; font-weight: 700; }
 .drop-inner span { color: var(--muted); font-size: 10px; letter-spacing: .02em; }
 
+/* ---------- Agent lifecycle ---------- */
+.lifecycle { display: grid; gap: 0; margin: 12px 0 4px; padding: 0; list-style: none; }
+.lifecycle-node { position: relative; display: flex; gap: 12px; padding: 0 0 18px 0; }
+.lifecycle-node:last-child { padding-bottom: 2px; }
+.lifecycle-node::before { content: ""; position: absolute; left: 6px; top: 16px; bottom: -2px; width: 2px; background: var(--line); }
+.lifecycle-node:last-child::before { display: none; }
+.lifecycle-node.done::before { background: var(--accent-line); }
+.lifecycle-marker { position: relative; z-index: 1; width: 14px; height: 14px; flex: 0 0 14px; margin-top: 2px; border-radius: 50%; border: 2px solid var(--line-strong); background: var(--panel); transition: .2s ease; }
+.lifecycle-node.done .lifecycle-marker { border-color: var(--accent); background: var(--accent); }
+.lifecycle-node.active .lifecycle-marker { border-color: var(--cyan); background: var(--cyan); box-shadow: 0 0 0 4px var(--cyan-wash); }
+.lifecycle-node.active.waiting .lifecycle-marker { border-color: var(--amber); background: var(--amber); box-shadow: 0 0 0 4px var(--amber-wash); }
+.lifecycle-node.active.blocked .lifecycle-marker { border-color: var(--red); background: var(--red); box-shadow: 0 0 0 4px var(--red-wash); }
+.lifecycle-node.failed .lifecycle-marker { border-color: var(--red); background: var(--red); }
+.lifecycle-copy strong { display: block; color: var(--muted); font-size: 12px; font-weight: 600; line-height: 1.35; }
+.lifecycle-node.done .lifecycle-copy strong { color: var(--text-faint); }
+.lifecycle-node.done .lifecycle-copy strong::after { content: " ✓"; color: var(--accent); }
+.lifecycle-node.active .lifecycle-copy strong { color: var(--text); font-weight: 800; }
+.lifecycle-copy em { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; font-style: normal; line-height: 1.55; }
+.lifecycle-node.active.waiting .lifecycle-copy em { color: var(--amber); }
+.lifecycle-node.active.blocked .lifecycle-copy em { color: var(--red); }
+.lifecycle-error { color: var(--red) !important; }
+.board-state { display: grid; gap: 5px; justify-items: end; }
+
 /* ---------- Responsive ---------- */
 @media (max-width: 1100px) {
   .home-grid, .inbox-layout { grid-template-columns: 1fr; }
