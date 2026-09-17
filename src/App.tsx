@@ -2035,6 +2035,20 @@ Clarification: ${clarifyAnswer.trim()}` });
             </button>
           ))}
         </nav>
+        <div className="theme-switch mobile-theme" role="radiogroup" aria-label="Theme">
+          {themeOptions.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              role="radio"
+              aria-checked={themeChoice === option.value}
+              className={themeChoice === option.value ? "active" : ""}
+              onClick={() => setTheme(option.value)}
+            >
+              <span aria-hidden="true">{option.glyph}</span>{option.label}
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );
