@@ -785,6 +785,10 @@ Clarification: ${clarifyAnswer.trim()}` });
   // A reaped run was parked because it went quiet with no state change.
   const staleRun = run?.activeInterruption === "stale_run";
   const linkedMatchSource = linkedMatchId ? sources?.find((source) => source._id === matches?.find((match) => match._id === linkedMatchId)?.sourceId) : undefined;
+  const selectedThreadMission = (() => {
+    const thread = (threads ?? []).find((item) => item.threadId === selectedThreadId);
+    return thread?.missionId ? missions?.find((mission) => mission._id === thread.missionId) : undefined;
+  })();
   const meetingsForOutcome = (outcomeId: Id<"outcomes">) => (meetings ?? []).filter((meeting) => meeting.outcomeId === outcomeId);
 
   const sidebar = (
@@ -1168,7 +1172,10 @@ Clarification: ${clarifyAnswer.trim()}` });
               {!selectedMission ? <p className="empty-state">Select or start a mission first.</p> : (
                 <>
                   <section className="panel" aria-label="Research controls">
-                    <div className="panel-head"><p className="eyebrow">FIRECRAWL DISCOVERY</p>{runWorking && <span className="status-pill status-running">run active</span>}</div>
+                    <div className="panel-head"><p className="eyebrow">RESEARCH</p>
+                      <span className="muted">Radar investigated these because of your mission — every card states why it looked, why it matches, and what it checked against your context.</span>
+                      {runWorking && <span className="status-pill status-running">run active</span>}
+                    </div>
                     <div className="control-row">
                       <input aria-label="Research query" placeholder={plan?.normalizedGoal || selectedMission.rawGoal} value={researchQuery} onChange={(event) => setResearchQuery(event.target.value)} />
                       <button type="button" className="btn" onClick={onSearch} disabled={!backendConnected || researching}>{researching ? "Researching…" : "Search"}</button>
@@ -1235,10 +1242,12 @@ Clarification: ${clarifyAnswer.trim()}` });
                       <div className="match-grid">
                         {matches.map((match) => {
                           const source = sources?.find((item) => item._id === match.sourceId);
+                          const sourceTypeLabel = match.sourceType === "crawled_page" ? "crawled" : match.sourceType === "scraped_page" ? "scraped" : match.sourceType === "mapped_site" ? "site map" : "search";
                           return (
                             <article className="panel match-card" key={match._id}>
                               <div className="panel-head">
                                 <span className={`status-pill status-${match.label}`}>{match.label}</span>
+                                {match.freshness && <span className="mono-tag">{match.freshness}</span>}
                                 {match.explanationModel && <span className="mono-tag">{match.explanationModel}</span>}
                               </div>
                               <h3>{match.entity?.name ?? match.subject}</h3>
@@ -1248,14 +1257,30 @@ Clarification: ${clarifyAnswer.trim()}` });
                                   {match.entity.expressedNeed && <span className="muted">needs: {match.entity.expressedNeed.slice(0, 90)}{match.entity.expressedNeed.length > 90 ? "…" : ""}</span>}
                                   {match.entity.contactRoute
                                     ? <span className="muted">· {match.entity.contactRoute.kind} via <a className="source-link" href={match.entity.contactRoute.publicSource} target="_blank" rel="noreferrer">public source</a></span>
-                                    : <span className="muted">· no public contact route</span>}
+                                    : <span className="muted">· no public contact route — Radar will find another way before proposing outreach</span>}
                                 </div>
                               )}
+
+                              <div className="why-chain">
+                                <p className="why-row"><b>Why Radar looked</b>{match.sourceQuery
+                                  ? <>Its plan searched the public web for “{match.sourceQuery}” — this {sourceTypeLabel} page matched.</>
+                                  : <>Found while {sourceTypeLabel === "crawled" ? "crawling" : "researching"} a source from this mission.</>}</p>
+                                {match.explanationSummary && <p className="why-row"><b>Why it matches</b>{match.explanationSummary}</p>}
+                                {match.positiveEvidence.length > 0 && (
+                                  <p className="why-row"><b>Evidence</b>
+                                    <ul className="evidence-list">
+                                      {match.positiveEvidence.slice(0, 3).map((item, index) => <li key={index}>{item}</li>)}
+                                    </ul>
+                                  </p>
+                                )}
+                                {match.unknowns.length > 0 && <p className="why-row"><b>Unknowns</b>{match.unknowns.join(" · ")}</p>}
+                                {match.risks.length > 0 && <p className="why-row why-risk"><b>Risks</b>{match.risks.join(" · ")}</p>}
+                                <p className="why-row"><b>From your context</b>{match.userSourceTitles.length > 0
+                                  ? <>Checked against your sources: {match.userSourceTitles.slice(0, 3).join(", ")}{match.userSourceTitles.length > 3 ? ` +${match.userSourceTitles.length - 3} more` : ""}.</>
+                                  : "Judged against your mission brief and confirmed facts."}</p>
+                              </div>
+
                               <a className="source-link" href={match.sourceUrl} target="_blank" rel="noreferrer">View source: {new URL(match.sourceUrl).hostname}{source ? ` · fetched ${shortDate(source.fetchedAt)}` : ""}</a>
-                              <p className="match-signal">{match.explanationSummary || match.signal}</p>
-                              {match.positiveEvidence.length > 0 && <p className="stage-note">Evidence: {match.positiveEvidence[0]}</p>}
-                              {match.unknowns.length > 0 && <p className="stage-note warn">Unknowns: {match.unknowns.join(" · ")}</p>}
-                              {match.risks.length > 0 && <p className="stage-note error">Risks: {match.risks.join(" · ")}</p>}
                               {match.recommendedAction && <p className="next-action"><b>Next</b>{match.recommendedAction}</p>}
                               <div className="inline-actions">
                                 {source && !source.content && <button type="button" className="btn ghost" onClick={() => onScrape(match.sourceId)}>Scrape full page</button>}
@@ -1383,33 +1408,45 @@ Clarification: ${clarifyAnswer.trim()}` });
           {activeView === "inbox" && (
             <div className="view-stack">
               <div className="inbox-layout">
-                <section className="panel" aria-label="Threads">
-                  <div className="panel-head"><p className="eyebrow">THREADS</p><span className="muted">{threads?.length ?? 0}</span></div>
-                  {threads === undefined ? <p className="empty-state">Loading…</p> : threads.length === 0 ? <p className="empty-state">No conversations yet. Inbound AgentMail events appear here automatically.</p> : (
+                <section className="panel" aria-label="Conversations">
+                  <div className="panel-head"><p className="eyebrow">CONVERSATIONS</p><span className="muted">{threads?.length ?? 0}</span></div>
+                  {threads === undefined ? <p className="empty-state">Loading…</p> : threads.length === 0 ? <p className="empty-state">No conversations yet. They appear here when Radar reaches out and when a reply lands.</p> : (
                     <div className="row-list">
-                      {threads.map((thread) => (
-                      <article className={selectedThreadId === thread.threadId ? "row-item static selected" : "row-item static"} key={thread._id}>
-                        <button type="button" className="thread-select" onClick={() => setSelectedThreadId(thread.threadId)}>
-                          <strong>{thread.subject || "(no subject)"}</strong>
-                          <em>{thread.senderSummary} · {thread.preview}</em>
-                          <span className="thread-meta">{thread.labels.map((label) => `#${label}`).join(" ")}</span>
-                        </button>
-                        {selectedThreadId === thread.threadId && (
-                          <div className="inline-actions">
-                            {(["new", "waiting", "reply", "closed"] as const).map((label) => (
-                              <button key={label} type="button" className={thread.labels.includes(label) ? "btn" : "btn ghost"} onClick={() => setThreadLabel({ workspaceId, threadId: thread._id, label, set: !thread.labels.includes(label) })}>{label}</button>
-                            ))}
-                          </div>
-                        )}
-                      </article>
-                      ))}
+                      {threads.map((thread) => {
+                        const threadMission = thread.missionId ? missions?.find((mission) => mission._id === thread.missionId) : undefined;
+                        const threadApprovals = (drafts ?? []).filter((draft) => draft.threadId === thread.threadId && ["awaiting_approval", "approved"].includes(draft.status));
+                        const latestClassification = classifications?.find((item) => item.threadId === thread.threadId);
+                        return (
+                          <article className={selectedThreadId === thread.threadId ? "row-item static selected" : "row-item static"} key={thread._id}>
+                            <button type="button" className="thread-select" onClick={() => setSelectedThreadId(thread.threadId)}>
+                              <strong>{thread.subject || "(no subject)"}</strong>
+                              <em>{thread.senderSummary} · {thread.preview}</em>
+                              <span className="thread-meta">
+                                {threadMission ? `mission: ${threadMission.title.slice(0, 32)}${threadMission.title.length > 32 ? "…" : ""} · ` : ""}
+                                {latestClassification ? `radar read: ${latestClassification.label.replace("_", " ")}` : thread.labels.map((label) => `#${label}`).join(" ")}
+                              </span>
+                            </button>
+                            <div className="board-state">
+                              {threadApprovals.length > 0 && <span className="status-pill status-awaiting_approval">{threadApprovals.length} draft{threadApprovals.length === 1 ? "" : "s"}</span>}
+                              {thread.labels.includes("waiting") && <span className="status-pill status-waiting">agent waiting</span>}
+                            </div>
+                            {selectedThreadId === thread.threadId && (
+                              <div className="inline-actions">
+                                {(["new", "waiting", "reply", "closed"] as const).map((label) => (
+                                  <button key={label} type="button" className={thread.labels.includes(label) ? "btn" : "btn ghost"} onClick={() => setThreadLabel({ workspaceId, threadId: thread._id, label, set: !thread.labels.includes(label) })}>{label}</button>
+                                ))}
+                              </div>
+                            )}
+                          </article>
+                        );
+                      })}
                     </div>
                   )}
                 </section>
 
-                <section className="panel" aria-label="Conversation">
-                  <div className="panel-head"><p className="eyebrow">CONVERSATION</p>{pendingDrafts.length > 0 && <span className="muted">{pendingDrafts.length} open draft{pendingDrafts.length === 1 ? "" : "s"}</span>}</div>
-                  {!selectedThreadId ? <p className="empty-state">Select a thread to read the conversation and classifications.</p> : threadMessages === undefined ? <p className="empty-state">Loading messages…</p> : threadMessages.length === 0 ? <p className="empty-state">No messages in this thread yet.</p> : (
+                <section className="panel" aria-label="Agent conversation">
+                  <div className="panel-head"><p className="eyebrow">AGENT CONVERSATION</p>{selectedThreadMission && <span className="mono-tag">{selectedThreadMission.title.slice(0, 36)}{selectedThreadMission.title.length > 36 ? "…" : ""}</span>}</div>
+                  {!selectedThreadId ? <p className="empty-state">Select a conversation. Radar shows what it understood, what it proposes next, and what it needs from you.</p> : threadMessages === undefined ? <p className="empty-state">Loading messages…</p> : threadMessages.length === 0 ? <p className="empty-state">No messages in this conversation yet.</p> : (
                     <div className="view-stack">
                       {threadMessages.map((message) => {
                         const classification = classifications?.find((item) => item.messageId === message._id);
@@ -1424,24 +1461,33 @@ Clarification: ${clarifyAnswer.trim()}` });
                             <p>{message.preview}</p>
                             {classification && (
                               <div className="classification-note">
-                                <p className="stage-note">{classification.summary} · confidence {Math.round(classification.confidence * 100)}% · {classification.model}</p>
-                                <p className="stage-note">Suggested next step: {classification.suggestedNextAction}</p>
-                                {suggestedDraft && (
+                                <p className="radar-understood"><b>Radar understood</b>{classification.summary} <span className="muted">({Math.round(classification.confidence * 100)}% · {classification.model})</span></p>
+                                <p className="radar-next"><b>Proposed next action</b>{classification.suggestedNextAction}</p>
+                                {suggestedDraft ? (
                                   <>
-                                    <p className="prewrap draft-suggestion">{suggestedDraft.body}</p>
+                                    <p className="radar-drafted"><b>Drafted reply</b></p>
+                                    <p className="prewrap draft-suggestion"><strong>{suggestedDraft.subject}</strong>\n{classification.suggestedDraftId && suggestedDraft.status === "sent" ? "" : ""}{suggestedDraft.body}</p>
                                     <div className="inline-actions">
-                                      <button type="button" className="btn" onClick={() => onApprove(suggestedDraft._id)}>
-                                        {suggestedDraft.approvalStatus === "active" ? "Re-approve reply" : "Approve suggested reply"}
-                                      </button>
-                                      {suggestedDraft.status === "approved" && (
-                                        <button type="button" className="btn" onClick={() => onSend(suggestedDraft._id)} disabled={sendingActionId === suggestedDraft._id}>
-                                          {sendingActionId === suggestedDraft._id ? "Sending…" : "Send reply"}
+                                      {!["sent", "delivered", "executing"].includes(suggestedDraft.status) && (
+                                        <button type="button" className="btn" onClick={() => onApprove(suggestedDraft._id)}>
+                                          {suggestedDraft.approvalStatus === "active" ? "Re-approve this exact reply" : "Approve this exact reply"}
                                         </button>
                                       )}
+                                      {suggestedDraft.status === "approved" && (
+                                        <button type="button" className="btn" onClick={() => onSend(suggestedDraft._id)} disabled={sendingActionId === suggestedDraft._id}>
+                                          {sendingActionId === suggestedDraft._id ? "Sending…" : "Send via AgentMail"}
+                                        </button>
+                                      )}
+                                      {suggestedDraft.status === "sent" && <span className="status-pill status-sent">sent</span>}
+                                      {suggestedDraft.status === "delivered" && <span className="status-pill status-delivered">delivered</span>}
+                                      {suggestedDraft.providerMessageId && suggestedDraft.status !== "draft" && suggestedDraft.status !== "awaiting_approval" && <span className="mono-tag">msg {suggestedDraft.providerMessageId.slice(0, 10)}…</span>}
                                     </div>
+                                    <p className="stage-note">Approval state: {suggestedDraft.approvalStatus ?? "not requested"}{suggestedDraft.approvalExpiresAt && suggestedDraft.approvalStatus === "active" ? ` · expires ${shortDate(suggestedDraft.approvalExpiresAt)}` : ""} · Radar sends only this exact content.</p>
                                   </>
+                                ) : (
+                                  <p className="stage-note">No draft yet — Radar proposes, you decide. Any reply it prepares lands here for approval first.</p>
                                 )}
-                                {classification.model === "pending" && <p className="stage-note">Classifying this reply…</p>}
+                                {classification.model === "pending" && <p className="stage-note">Radar is reading this reply…</p>}
                               </div>
                             )}
                           </article>

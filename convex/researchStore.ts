@@ -708,6 +708,9 @@ const matchView = v.object({
   signal: v.string(),
   sourceUrl: v.string(),
   sourceTitle: v.string(),
+  sourceType: v.union(v.literal("search_result"), v.literal("scraped_page"), v.literal("crawled_page"), v.literal("mapped_site")),
+  sourceQuery: v.union(v.string(), v.null()),
+  userSourceTitles: v.array(v.string()),
   entity: v.union(v.null(), v.object({
     _id: v.id("entities"),
     name: v.string(),
@@ -1017,9 +1020,29 @@ export const listMatches = query({
       .order("desc")
       .take(100);
     const result = [];
+    // One job lookup per distinct jobId (the "why investigated" chain), plus
+    // the workspace's own data-source titles once per query — not per row.
+    const jobCache = new Map<Id<"researchJobs">, { operation: string; query: string } | null>();
+    let userSourceTitles: string[] = [];
     for (const match of matches) {
       const [discovery, source] = await Promise.all([ctx.db.get(match.discoveryId), ctx.db.get(match.sourceId)]);
       if (!discovery || !source) continue;
+      if (userSourceTitles.length === 0) {
+        const firstMission = await ctx.db.get(match.missionId);
+        if (firstMission) {
+          userSourceTitles = (await ctx.db.query("dataSources")
+            .withIndex("by_workspaceId", (q) => q.eq("workspaceId", firstMission.workspaceId))
+            .take(50))
+            .filter((row) => row.status === "ready")
+            .map((row) => row.title);
+        }
+      }
+      let job = jobCache.get(source.jobId);
+      if (job === undefined) {
+        const row = await ctx.db.get(source.jobId);
+        job = row ? { operation: row.operation, query: row.query } : null;
+        jobCache.set(source.jobId, job);
+      }
       result.push({
         _id: match._id,
         missionId: match.missionId,
@@ -1037,6 +1060,9 @@ export const listMatches = query({
         signal: discovery.signal,
         sourceUrl: source.url,
         sourceTitle: source.title,
+        sourceType: source.sourceType,
+        sourceQuery: job?.query ?? null,
+        userSourceTitles,
         entity: await entityForSourceCard(ctx, source._id),
         createdAt: match.createdAt,
         updatedAt: match.updatedAt,

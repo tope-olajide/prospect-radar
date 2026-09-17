@@ -253,9 +253,18 @@ label { display: grid; gap: 6px; color: var(--muted); font-size: 10px; font-weig
 .thread-meta { color: var(--cyan); font-family: 'DM Mono', monospace; font-size: 9px; white-space: nowrap; }
 
 /* ---------- Matches ---------- */
-.match-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+.match-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 14px; }
 .match-card h3 { font-size: 14px; }
 .match-signal { margin-top: 8px; color: var(--text-faint); font-size: 11px; line-height: 1.65; }
+
+.why-chain { display: grid; gap: 8px; margin: 12px 0 4px; padding: 12px; border: 1px solid var(--line); border-radius: 11px; background: var(--panel-2); }
+.why-row { display: grid; gap: 3px; color: var(--text-soft); font-size: 11px; line-height: 1.6; }
+.why-row b { color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; }
+.why-row.why-risk { color: var(--red); }
+.why-row.why-risk b { color: var(--red); }
+.evidence-list { margin: 2px 0 0; padding-left: 16px; display: grid; gap: 3px; }
+.evidence-list li { color: var(--text-soft); font-size: 11px; line-height: 1.55; }
+
 .source-link { display: inline-block; margin-top: 4px; font-size: 10px; }
 .next-action { display: flex; gap: 8px; align-items: flex-start; margin-top: 10px; padding: 10px 12px; border: 1px solid var(--accent-line); border-radius: 9px; background: var(--accent-wash); color: var(--text-faint); font-size: 10px; line-height: 1.6; }
 .next-action b { color: var(--accent); font-size: 9px; letter-spacing: .08em; text-transform: uppercase; }
@@ -274,7 +283,13 @@ label { display: grid; gap: 6px; color: var(--muted); font-size: 10px; font-weig
 .message-card.sent { border-left: 2px solid var(--accent); }
 .message-card p { margin-top: 8px; color: var(--text-faint); font-size: 11px; line-height: 1.7; }
 .message-card .panel-head { margin-bottom: 0; }
-.classification-note { display: grid; gap: 2px; margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--line-strong); }
+.classification-note { display: grid; gap: 6px; margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--line-strong); }
+.classification-note b { color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; margin-right: 6px; }
+.radar-understood, .radar-next, .radar-drafted { margin-top: 0 !important; color: var(--text-soft); font-size: 11px; line-height: 1.6; }
+.radar-next { color: var(--accent); }
+.radar-drafted b { color: var(--text-soft); }
+.classification-note .draft-suggestion strong { display: block; margin-bottom: 4px; color: var(--text); font-size: 11px; }
+.thread-select .thread-meta { margin-top: 2px; }
 
 /* ---------- Journey / sponsors ---------- */
 .journey { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin: 0; padding: 0; list-style: none; }
