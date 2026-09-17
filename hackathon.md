@@ -18,6 +18,21 @@
 
 ## Log
 
+### 2026-09-17 - later ×6 — Home rebuilt as the agent conversation; Dashboard split out
+**Home** is now a single-column AI workspace, ChatGPT-style: every mission renders
+as a **conversation thread** — your goal as the user message, Radar's response
+beneath with its recorded understanding, the truthful lifecycle rail, the full
+step receipt trail (collapsible), progressive strong-match cards while the run
+works, and an approval card when Radar is waiting on you. The **composer stays
+at the bottom, always accessible** — new goals submit from the same surface. No
+scrolling away to discover that Radar started; the newest thread appears above
+the input. All state is real Convex subscriptions (new bounded
+`commandCenter:missionLiveThreads` query feeding the threads).
+The marketing panels (**THE JOURNEY** steps, sponsor capability chips) and the
+overview/attention metrics moved off Home into a separate **Dashboard** view —
+Home stays focused on ask → watch → decide. Verified: tsc clean, build passing,
+deployed to `wry-walrus-528.convex.site`.
+
 ### 2026-09-17 - later ×5 — Outcomes & Context redesigned; agent-first pass complete
 **Outcomes** now opens with a workspace-wide stage summary, surfaces ongoing
 sequences with their next-step state, attributes every follow-up to whoever

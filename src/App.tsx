@@ -6,7 +6,7 @@ import { useTheme, type ThemeChoice } from "./useTheme";
 import { MissionLifecycle } from "./MissionLifecycle";
 
 type MissionMode = "opportunity" | "person" | "customer" | "solution" | "collaborator";
-type View = "home" | "discover" | "outreach" | "inbox" | "outcomes" | "forms" | "context" | "sources" | "activity";
+type View = "home" | "dashboard" | "discover" | "outreach" | "inbox" | "outcomes" | "forms" | "context" | "sources" | "activity";
 type PipelineStageName = "contacted" | "replied" | "engaged" | "meeting" | "proposal" | "won" | "lost" | "dormant";
 
 const PIPELINE_STAGES: PipelineStageName[] = ["contacted", "replied", "engaged", "meeting", "proposal", "won", "lost", "dormant"];
@@ -23,7 +23,8 @@ const sponsorCapabilities: Array<[string, string]> = [
 ];
 
 const navItems: { id: View; label: string; hint: string }[] = [
-  { id: "home", label: "Radar brief", hint: "Mission, attention, momentum" },
+  { id: "home", label: "Home", hint: "Ask Radar. Watch it work." },
+  { id: "dashboard", label: "Dashboard", hint: "Workspace overview & how it works" },
   { id: "discover", label: "Discover", hint: "Sourced, explained matches" },
   { id: "outreach", label: "Outreach", hint: "Draft, approve, send" },
   { id: "inbox", label: "Inbox", hint: "Live replies and threads" },
@@ -35,7 +36,8 @@ const navItems: { id: View; label: string; hint: string }[] = [
 ];
 
 const viewTitles: Record<View, { eyebrow: string; title: string; description: string }> = {
-  home: { eyebrow: "Command center", title: "Your radar is active.", description: "Here is what deserves your attention now." },
+  home: { eyebrow: "Agent workspace", title: "Home", description: "Tell Radar what you want. It works right here, in front of you." },
+  dashboard: { eyebrow: "Overview", title: "The workspace at a glance", description: "Live counts, run states, and the pipeline — every number is a real Convex subscription." },
   discover: { eyebrow: "Signal intelligence", title: "Evidence before opinions.", description: "Every match carries its source, freshness, and unknowns." },
   outreach: { eyebrow: "Approval boundary", title: "Nothing sends without you.", description: "Approve the exact recipient, subject, and body — then Radar sends." },
   inbox: { eyebrow: "Agent-owned inbox", title: "Replies arrive live.", description: "Inbound mail is untrusted data: classified, never auto-sent." },
@@ -48,7 +50,7 @@ const viewTitles: Record<View, { eyebrow: string; title: string; description: st
 
 const quickPrompts: { label: string; goal: string }[] = [
   { label: "Find clients", goal: "Find growth-stage climate companies in Lagos that need a product-design partner." },
-  { label: "Find a person", goal: "Find a senior Rust engineer in open-source infrastructure who is open to contract work." },
+  { label: "Find talent", goal: "Find a senior Rust engineer in open-source infrastructure who is open to contract work." },
   { label: "Find a solution", goal: "Find vendors that migrate legacy Postgres clusters under 48-hour windows." },
   { label: "Find customers for my SaaS", goal: "Find potential customers for my SaaS." },
 ];
@@ -112,6 +114,7 @@ export default function App({ backendConnected }: { backendConnected: boolean })
   const [submitting, setSubmitting] = useState(false);
   const [notice, setNotice] = useState("");
   const [selectedMissionId, setSelectedMissionId] = useState<string | null>(null);
+  const [openThreadId, setOpenThreadId] = useState<string | null>(null);
   const [planning, setPlanning] = useState(false);
   const [planNotice, setPlanNotice] = useState("");
 
@@ -242,6 +245,7 @@ export default function App({ backendConnected }: { backendConnected: boolean })
     forms: (formProposals ?? []).filter((proposal) => proposal.status === "draft" || proposal.status === "approved" || proposal.status === "blocked" || proposal.status === "failed").length || null,
     context: null,
     sources: null,
+    dashboard: null,
     activity: null,
   };
 
@@ -279,6 +283,20 @@ export default function App({ backendConnected }: { backendConnected: boolean })
     setMobileNavOpen(false);
   }
 
+  // Conversation thread per mission: the run's real steps, oldest first, so a
+  // refresh reconstructs the same history the user saw live. Persisted in
+  // Convex — nothing here is frontend-only state.
+  const threadStepsByMission = useQuery(
+    api.commandCenter.threadSteps,
+    backendConnected && selectedMissionId ? { missionId: selectedMissionId as Id<"missions"> } : "skip",
+  );
+  // Step streams for the last three missions, so earlier threads stay live
+  // while the user talks about a newer goal.
+  const recentThreadSteps = useQuery(
+    api.commandCenter.threadStepsMany,
+    backendConnected && board && board.length > 0 ? { missionIds: board.slice(0, 3).map((row) => row.missionId) } : "skip",
+  );
+
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!goal.trim() || !backendConnected) return;
@@ -288,13 +306,14 @@ export default function App({ backendConnected }: { backendConnected: boolean })
       const result = await createMission({ workspaceId, title: goal.trim().slice(0, 80), rawGoal: goal.trim(), constraints: [], sourceScope: "public-web", completionPredicate: "A user-approved next action exists for at least one sourced match." });
       setSelectedMissionId(result.missionId);
       setClarifyAnswer("");
-      setNotice("Mission created. Radar will classify the intent, then plan the strategy.");
-      // Classify immediately so the user sees what Radar understood.
+      setGoal("");
+      // The agent's work must appear in front of the user immediately: start
+      // the durable run now instead of waiting for a second click.
       try {
-        await classifyIntent({ missionId: result.missionId });
-        setNotice("Radar understood your goal — review the understanding below.");
-      } catch (classifyError) {
-        setNotice(`Classification failed: ${classifyError instanceof Error ? classifyError.message : "unknown error"}. You can retry below.`);
+        await runPipeline({ workspaceId, missionId: result.missionId });
+      } catch {
+        // Surface nothing fatal — the run can be started from the thread if the
+        // immediate start lost a race with the scheduler.
       }
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Mission creation failed.");
@@ -890,19 +909,97 @@ Clarification: ${clarifyAnswer.trim()}` });
           </div>
 
           {activeView === "home" && (
-            <div className="view-stack">
-              <section className="panel composer-panel" aria-label="Start a mission">
-                <div className="composer-copy">
-                  <h2>What should Radar find for you?</h2>
-                  <p>Describe the outcome. Radar plans the work, researches public evidence, and comes back when your approval is the only thing missing.</p>
-                </div>
+            <div className="workspace">
+              {(recentThreadSteps ?? []).filter((thread) => thread.steps.length > 0).map((thread) => {
+                const mission = missions?.find((item) => item._id === thread.missionId);
+                if (!mission) return null;
+                const threadRun = board?.find((row) => row.missionId === thread.missionId);
+                const threadMatches = thread.missionId === selectedMissionId ? matches : undefined;
+                const threadDrafts = thread.missionId === selectedMissionId ? drafts : undefined;
+                const threadApprovals = (threadDrafts ?? []).filter((draft) => ["awaiting_approval", "approved"].includes(draft.status));
+                const isOpen = openThreadId === null ? thread.missionId === selectedMissionId : openThreadId === thread.missionId;
+                const strongCount = (threadMatches ?? []).filter((match) => match.label === "stronger").length;
+                const rawRunState = threadRun ? { status: threadRun.runStatus, currentStage: threadRun.currentStage, activeInterruption: threadRun.activeInterruption } : null;
+                const runState = rawRunState && rawRunState.status !== "none" ? { status: rawRunState.status, currentStage: rawRunState.currentStage ?? "intake", activeInterruption: rawRunState.activeInterruption } : null;
+                return (
+                  <article className={`panel thread-card${isOpen ? " open" : ""}`} key={thread.missionId}>
+                    <button type="button" className="thread-card-head" onClick={() => setOpenThreadId(isOpen ? thread.missionId : null)} aria-expanded={isOpen}>
+                      <span className={`status-pill status-${runState?.status ?? mission.status}`}>{runState?.status ?? mission.status}</span>
+                      <strong className="thread-goal">{mission.rawGoal}</strong>
+                      <span className="muted">{shortDate(mission.createdAt)}</span>
+                    </button>
+                    {isOpen && (
+                      <div className="thread-body">
+                        <div className="thread-msg you">
+                          <span className="thread-who">You</span>
+                          <p>{mission.rawGoal}</p>
+                        </div>
+                        <div className="thread-msg radar">
+                          <span className="thread-who">Radar</span>
+                          {mission.intent && (
+                            <p className="thread-understanding">{mission.intent.rationale}</p>
+                          )}
+                          {mission.clarification && (
+                            <div className="thread-ask">
+                              <p><b>Radar needs one detail</b>{mission.clarification}</p>
+                              <div className="control-row">
+                                <input value={clarifyAnswer} onChange={(e) => setClarifyAnswer(e.target.value)} placeholder="Answer in one line…" aria-label="Clarification answer" />
+                                <button type="button" className="btn" disabled={!clarifyAnswer.trim() || planning} onClick={onClarifySubmit}>Answer</button>
+                              </div>
+                            </div>
+                          )}
+                          <MissionLifecycle run={runState} latestStep={thread.steps.length > 0 ? thread.steps[thread.steps.length - 1] : null} />
+                          {thread.steps.length > 0 && (
+                            <details className="thread-steps">
+                              <summary>{thread.steps.length} step{thread.steps.length === 1 ? "" : "s"} — every receipt from the run</summary>
+                              <ol className="event-trail compact">
+                                {thread.steps.slice().reverse().map((step) => (
+                                  <li key={step._id}>
+                                    <span className="event-dot" />
+                                    <div><strong>{step.label}{step.tool ? <em className="tool-chip">{step.tool}</em> : null}</strong><em>{step.summary}</em><small>{shortDate(step.createdAt)} · {step.stage}{step.errorCode ? ` · ${step.errorCode}` : ""}</small></div>
+                                  </li>
+                                ))}
+                              </ol>
+                            </details>
+                          )}
+                          {thread.missionId === selectedMissionId && strongCount > 0 && (
+                            <div className="thread-results">
+                              <p className="thread-count"><strong>{strongCount}</strong> strong {strongCount === 1 ? "match" : "matches"} · {(threadMatches ?? []).length} evaluated</p>
+                              <div className="thread-cards">
+                                {(threadMatches ?? []).filter((match) => match.label === "stronger").slice(0, 2).map((match) => (
+                                  <div className="thread-result" key={match._id}>
+                                    <strong>{match.entity?.name ?? match.subject}</strong>
+                                    <span className="muted">{match.explanationSummary?.slice(0, 110)}{match.explanationSummary && match.explanationSummary.length > 110 ? "…" : ""}</span>
+                                  </div>
+                                ))}
+                              </div>
+                              <button type="button" className="btn ghost" onClick={() => selectView("discover")}>View all matches →</button>
+                            </div>
+                          )}
+                          {threadApprovals.length > 0 && (
+                            <div className="thread-approval">
+                              <p><b>Waiting for you</b>{threadApprovals.length} draft{threadApprovals.length === 1 ? "" : "s"} cannot send until you approve the exact content.</p>
+                              <button type="button" className="btn" onClick={() => selectView("outreach")}>Review & approve</button>
+                            </div>
+                          )}
+                          {runState && ["cancelled", "complete", "failed"].includes(runState.status) && runState.status !== "complete" && (
+                            <p className="stage-note">Run {runState.status}{runState.status === "failed" ? " — the transcript in Activity has the reason" : " — you stopped this mission"}.</p>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </article>
+                );
+              })}
+
+              <section className="panel composer-panel" aria-label="Ask Radar">
                 <form onSubmit={onSubmit}>
-                  <label className="field-label" htmlFor="mission-goal">What can Radar help you find?</label>
+                  <label className="field-label" htmlFor="mission-goal">What should Radar find for you?</label>
                   <textarea id="mission-goal" className="composer-input" rows={2} value={goal} onChange={(event) => setGoal(event.target.value)} aria-label="Tell Radar what you are looking for, in your own words" placeholder="Tell Radar what you're looking for… e.g. Find businesses that need React development, or I need someone to design a logo for my startup" />
                   <div className="composer-controls">
-                    <button type="submit" className="btn" disabled={!backendConnected || submitting || !goal.trim()}>{submitting ? "Queuing…" : "Run Radar →"}</button>
+                    <button type="submit" className="btn" disabled={!backendConnected || submitting || !goal.trim()}>{submitting ? "Starting…" : "Run Radar →"}</button>
+                    {notice && <span className="stage-note">{notice}</span>}
                   </div>
-                  {notice && <p className="stage-note">{notice}</p>}
                   <div className="quick-prompts" aria-label="Starting points">
                     {quickPrompts.map((prompt) => (
                       <button key={prompt.label} type="button" onClick={() => setGoal(prompt.goal)}>{prompt.label}</button>
@@ -910,7 +1007,11 @@ Clarification: ${clarifyAnswer.trim()}` });
                   </div>
                 </form>
               </section>
+            </div>
+          )}
 
+          {activeView === "dashboard" && (
+            <div className="view-stack">
               {overview && (
                 <section className="panel" aria-label="Network overview">
                   <div className="panel-head"><p className="eyebrow">NETWORK OVERVIEW</p><span className="muted">live from Convex</span></div>
@@ -967,18 +1068,13 @@ Clarification: ${clarifyAnswer.trim()}` });
               )}
 
               <div className="home-grid">
-                <section className="panel" aria-label="Active mission">
-                  <div className="panel-head"><p className="eyebrow">ACTIVE MISSION</p>{selectedMission && <span className={`status-pill status-${selectedMission.status}`}>{selectedMission.status}</span>}</div>
+                <section className="panel" aria-label="Mission controls">
+                  <div className="panel-head"><p className="eyebrow">MISSION CONTROLS</p>{selectedMission && <span className={`status-pill status-${selectedMission.status}`}>{selectedMission.status}</span>}</div>
                   {!selectedMission ? (
-                    <p className="empty-state">No mission yet. Start with a goal above and Radar creates a durable run.</p>
+                    <p className="empty-state">No mission selected. Start one from Home.</p>
                   ) : (
                     <>
                       <h3>{selectedMission.title}</h3>
-                      {run && <p className="stage-note">checkpoint {run.checkpointVersion} · started {run.startedAt ? shortDate(run.startedAt) : "—"}</p>}
-                      <MissionLifecycle
-                        run={run ? { status: run.status, currentStage: run.currentStage, activeInterruption: run.activeInterruption ?? null } : null}
-                        latestStep={runSteps && runSteps.length > 0 ? runSteps[runSteps.length - 1] : null}
-                      />
                       {selectedMission.intent && (
                         <div className="understanding-card">
                           <div className="panel-head"><p className="eyebrow">RADAR UNDERSTOOD</p><span className="muted">confidence {Math.round((selectedMission.intent.confidence ?? 0) * 100)}%</span></div>
@@ -1001,15 +1097,6 @@ Clarification: ${clarifyAnswer.trim()}` });
                               </div>
                             </>
                           )}
-                        </div>
-                      )}
-                      {selectedMission.clarification && (
-                        <div className="understanding-card clarify">
-                          <p><strong>Radar needs one detail:</strong> {selectedMission.clarification}</p>
-                          <div className="control-row">
-                            <input className="composer-input" value={clarifyAnswer} onChange={(e) => setClarifyAnswer(e.target.value)} placeholder="Answer in one line…" aria-label="Clarification answer" />
-                            <button type="button" className="btn" disabled={!clarifyAnswer.trim() || planning} onClick={onClarifySubmit}>Answer → re-classify</button>
-                          </div>
                         </div>
                       )}
                       {budgetStatus && (
@@ -1043,9 +1130,7 @@ Clarification: ${clarifyAnswer.trim()}` });
                           {budgetNotice && <p className="stage-note" role="status">{budgetNotice}</p>}
                         </div>
                       )}
-                      {run && ![
-                        "cancelled", "complete", "failed",
-                      ].includes(run.status) && (
+                      {run && !["cancelled", "complete", "failed"].includes(run.status) && (
                         <div className="inline-actions run-controls">
                           <button type="button" className="btn" onClick={onStopRun}>■ Stop</button>
                           {run.status === "blocked" && (
@@ -1053,7 +1138,6 @@ Clarification: ${clarifyAnswer.trim()}` });
                               {budgetBlocked ? "↻ Resume after raising the cap" : staleRun ? "↻ Resume stage" : "↻ Retry stage"}
                             </button>
                           )}
-                          {run.status === "waiting" && run.currentStage === "interpret" && <span className="stage-note">Radar understood the goal and will continue automatically…</span>}
                           {run.status === "blocked" && (
                             <span className="stage-note">
                               {budgetBlocked
@@ -1064,9 +1148,6 @@ Clarification: ${clarifyAnswer.trim()}` });
                             </span>
                           )}
                         </div>
-                      )}
-                      {run && ["cancelled", "complete"].includes(run.status) && (
-                        <p className="stage-note">This run is {run.status}. Create a new mission to run Radar again.</p>
                       )}
                       {plan ? (
                         <div className="brief-card">
@@ -1110,7 +1191,7 @@ Clarification: ${clarifyAnswer.trim()}` });
                         </div>
                       ) : (
                         <div className="inline-actions">
-                          <button type="button" className="btn" onClick={onInterpret} disabled={planning}>{planning ? "Interpreting…" : "Interpret with OpenAI"}</button>
+                          <button type="button" className="btn" onClick={onInterpret} disabled={planning}>{planning ? "Interpreting…" : "Interpret goal"}</button>
                           <span className="stage-note">{planNotice}</span>
                         </div>
                       )}
@@ -1127,43 +1208,22 @@ Clarification: ${clarifyAnswer.trim()}` });
                   )}
                 </section>
 
-                <section className="panel" aria-label="Agent runs">
-                  <div className="panel-head"><p className="eyebrow">AGENT RUNS</p><span className="muted">live run state per mission</span></div>
-                  {board === undefined ? <p className="empty-state">Loading…</p> : board.length === 0 ? <p className="empty-state">No missions yet. Start one above and watch it run.</p> : (
-                    <div className="row-list">
-                      {board.map((row) => (
-                        <button key={row.missionId} type="button" className={selectedMission?._id === row.missionId ? "row-item selected" : "row-item"} onClick={() => setSelectedMissionId(row.missionId)}>
-                          <div>
-                            <strong>{row.missionTitle}</strong>
-                            <em>{row.lastStep ? `${row.lastStep.label} — ${row.lastStep.summary}` : row.currentStage ? `Stage: ${row.currentStage}` : "No run yet"}</em>
-                            <span className="muted">{shortDate(row.updatedAt)}</span>
-                          </div>
-                          <div className="board-state">
-                            {row.awaitingApprovals > 0 && <span className="status-pill status-awaiting_approval">{row.awaitingApprovals} approval{row.awaitingApprovals === 1 ? "" : "s"}</span>}
-                            <span className={`status-pill status-${row.runStatus}`}>{row.runStatus === "none" ? "not started" : row.runStatus}</span>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                <section className="panel" aria-label="How Radar works">
+                  <div className="panel-head"><p className="eyebrow">HOW RADAR WORKS</p></div>
+                  <ol className="journey">
+                    <li><span>01</span><strong>Tell Radar</strong><p>A goal becomes a strict, editable plan.</p></li>
+                    <li><span>02</span><strong>Radar researches</strong><p>Firecrawl gathers sourced public evidence.</p></li>
+                    <li><span>03</span><strong>You decide</strong><p>Explanations show fit, unknowns, and risks.</p></li>
+                    <li><span>04</span><strong>Approved send</strong><p>AgentMail delivers only approved content.</p></li>
+                    <li><span>05</span><strong>Memory keeps</strong><p>Replies and outcomes stay attached to the mission.</p></li>
+                  </ol>
+                  <div className="sponsor-strip">
+                    {sponsorCapabilities.map(([sponsor, capability]) => (
+                      <div key={sponsor} className="sponsor-chip"><strong>{sponsor}</strong><span>{capability}</span></div>
+                    ))}
+                  </div>
                 </section>
               </div>
-
-              <section className="panel" aria-label="How Radar works">
-                <div className="panel-head"><p className="eyebrow">THE JOURNEY</p></div>
-                <ol className="journey">
-                  <li><span>01</span><strong>Tell Radar</strong><p>A goal becomes a strict, editable plan.</p></li>
-                  <li><span>02</span><strong>Radar researches</strong><p>Firecrawl gathers sourced public evidence.</p></li>
-                  <li><span>03</span><strong>You decide</strong><p>Explanations show fit, unknowns, and risks.</p></li>
-                  <li><span>04</span><strong>Approved send</strong><p>AgentMail delivers only approved content.</p></li>
-                  <li><span>05</span><strong>Memory keeps</strong><p>Replies and outcomes stay attached to the mission.</p></li>
-                </ol>
-                <div className="sponsor-strip">
-                  {sponsorCapabilities.map(([sponsor, capability]) => (
-                    <div key={sponsor} className="sponsor-chip"><strong>{sponsor}</strong><span>{capability}</span></div>
-                  ))}
-                </div>
-              </section>
             </div>
           )}
 
