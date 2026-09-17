@@ -1,10 +1,11 @@
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useMemo, useRef, useState } from "react";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
+import { useTheme, type ThemeChoice } from "./useTheme";
 
 type MissionMode = "opportunity" | "person" | "customer" | "solution" | "collaborator";
-type View = "home" | "discover" | "outreach" | "inbox" | "outcomes" | "forms" | "context" | "activity";
+type View = "home" | "discover" | "outreach" | "inbox" | "outcomes" | "forms" | "context" | "sources" | "activity";
 type PipelineStageName = "contacted" | "replied" | "engaged" | "meeting" | "proposal" | "won" | "lost" | "dormant";
 
 const PIPELINE_STAGES: PipelineStageName[] = ["contacted", "replied", "engaged", "meeting", "proposal", "won", "lost", "dormant"];
@@ -27,6 +28,7 @@ const navItems: { id: View; label: string; hint: string }[] = [
   { id: "inbox", label: "Inbox", hint: "Live replies and threads" },
   { id: "outcomes", label: "Pipeline", hint: "Relationship stages" },
   { id: "forms", label: "Forms", hint: "Approval-bound submissions" },
+  { id: "sources", label: "Data sources", hint: "Files, sites, and snippets Radar reads" },
   { id: "context", label: "Context", hint: "Your profile facts Radar may use" },
   { id: "activity", label: "Activity", hint: "The run's truthful trail" },
 ];
@@ -38,6 +40,7 @@ const viewTitles: Record<View, { eyebrow: string; title: string; description: st
   inbox: { eyebrow: "Agent-owned inbox", title: "Replies arrive live.", description: "Inbound mail is untrusted data: classified, never auto-sent." },
   outcomes: { eyebrow: "Relationship pipeline", title: "Keep the momentum.", description: "Every relationship keeps its stage, evidence, next step, and history — and Radar never closes a loop without you." },
   forms: { eyebrow: "Approval boundary", title: "Paperwork, handled honestly.", description: "Radar reads a public form, fills it from confirmed facts only, and submits one approved payload at a time — with a screenshot as evidence." },
+  sources: { eyebrow: "Your side of the ledger", title: "Give Radar what it cannot find on the web.", description: "Documents, sites, and snippets you add here are chunked, searchable, and pulled into the missions they're relevant to — nothing more." },
   context: { eyebrow: "Verified profile", title: "You stay the source of truth.", description: "Confirm, correct, or reject every fact before Radar ever uses it in plans, matches, or drafts." },
   activity: { eyebrow: "Durable run", title: "Watch Radar work.", description: "Persisted stages and events — never simulated progress." },
 };
@@ -47,6 +50,12 @@ const quickPrompts: { label: string; goal: string }[] = [
   { label: "Find a person", goal: "Find a senior Rust engineer in open-source infrastructure who is open to contract work." },
   { label: "Find a solution", goal: "Find vendors that migrate legacy Postgres clusters under 48-hour windows." },
   { label: "Find customers for my SaaS", goal: "Find potential customers for my SaaS." },
+];
+
+const themeOptions: { value: ThemeChoice; label: string; glyph: string }[] = [
+  { value: "system", label: "System", glyph: "◐" },
+  { value: "light", label: "Light", glyph: "☀" },
+  { value: "dark", label: "Dark", glyph: "☾" },
 ];
 
 const STAGES = ["intake", "interpret", "plan", "discover", "evaluate", "approval"] as const;
@@ -95,6 +104,7 @@ export default function App({ backendConnected }: { backendConnected: boolean })
 
   const [activeView, setActiveView] = useState<View>("home");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const { choice: themeChoice, setTheme } = useTheme();
 
   const [goal, setGoal] = useState("Find growth-stage climate companies in Lagos that need a product-design partner.");
   const [clarifyAnswer, setClarifyAnswer] = useState("");
@@ -143,6 +153,24 @@ export default function App({ backendConnected }: { backendConnected: boolean })
   const [budgetLimitDraft, setBudgetLimitDraft] = useState("");
   const [budgetNotice, setBudgetNotice] = useState("");
 
+  const [sourceTab, setSourceTab] = useState<"file" | "website" | "snippet">("file");
+  const [fileDrag, setFileDrag] = useState(false);
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const [addingWebsite, setAddingWebsite] = useState(false);
+  const [websiteUrl, setWebsiteUrl] = useState("");
+  const [websiteTitle, setWebsiteTitle] = useState("");
+  const [websiteMode, setWebsiteMode] = useState<"single" | "crawl" | "sitemap">("single");
+  const [websitePageLimit, setWebsitePageLimit] = useState(5);
+  const [websiteInclude, setWebsiteInclude] = useState("");
+  const [websiteExclude, setWebsiteExclude] = useState("");
+  const [websiteNotice, setWebsiteNotice] = useState("");
+  const [addingSnippet, setAddingSnippet] = useState(false);
+  const [snippetTitle, setSnippetTitle] = useState("");
+  const [snippetText, setSnippetText] = useState("");
+  const [snippetNotice, setSnippetNotice] = useState("");
+  const [resyncingId, setResyncingId] = useState<Id<"dataSources"> | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const selectedMission = missions?.find((mission) => mission._id === selectedMissionId) ?? missions?.[0];
   const missionId = selectedMission?._id ?? null;
 
@@ -175,12 +203,20 @@ export default function App({ backendConnected }: { backendConnected: boolean })
   const executeFormSubmission = useAction(api.formFlows.executeFormSubmission);
   const crawlProgress = useQuery(api.researchStore.latestCrawlProgress, backendConnected && missionId ? { missionId } : "skip");
   const contextFacts = useQuery(api.context.list, backendConnected ? { workspaceId, missionId: null } : "skip");
+  const dataSources = useQuery(api.dataSources.list, backendConnected ? { workspaceId } : "skip");
+  const dataProgress = useQuery(api.dataSources.progress, backendConnected ? { workspaceId } : "skip");
+  const addSnippet = useMutation(api.dataSources.addSnippet);
+  const removeSource = useMutation(api.dataSources.deleteSource);
+  const resyncSource = useAction(api.dataFlows.resyncSource);
   const overview = useQuery(api.commandCenter.overview, backendConnected ? { workspaceId } : "skip");
   const budgetStatus = useQuery(api.budget.status, backendConnected ? { workspaceId, missionId } : "skip");
   const searchResults = useQuery(
     api.commandCenter.search,
     backendConnected && commandTerm.trim().length >= 2 ? { workspaceId, query: commandTerm.trim() } : "skip",
   );
+  const addFileSource = useMutation(api.dataSources.addFile);
+  const fileReady = useMutation(api.dataSources.fileReady);
+  const addWebsiteSource = useMutation(api.dataSources.addWebsite);
   const addFact = useMutation(api.context.add);
   const confirmFact = useMutation(api.context.confirm);
   const correctFact = useMutation(api.context.correct);
@@ -205,6 +241,7 @@ export default function App({ backendConnected }: { backendConnected: boolean })
     outcomes: openOutcomes.length || null,
     forms: (formProposals ?? []).filter((proposal) => proposal.status === "draft" || proposal.status === "approved" || proposal.status === "blocked" || proposal.status === "failed").length || null,
     context: null,
+    sources: null,
     activity: null,
   };
 
@@ -393,6 +430,75 @@ Clarification: ${clarifyAnswer.trim()}` });
     if (result.missionId) setSelectedMissionId(result.missionId);
     selectView(result.view);
     setCommandTerm("");
+  }
+
+  async function onAddSnippet() {
+    if (!snippetTitle.trim() || snippetText.trim().length < 10) {
+      setSnippetNotice("Give the snippet a title and at least 10 characters of text.");
+      return;
+    }
+    setAddingSnippet(true); setSnippetNotice("");
+    try {
+      await addSnippet({ workspaceId, title: snippetTitle.trim(), text: snippetText });
+      setSnippetTitle(""); setSnippetText("");
+      setSnippetNotice("Snippet saved — it is searchable now and will surface in relevant missions.");
+    } catch (error) {
+      setSnippetNotice(error instanceof Error ? error.message : "Could not save the snippet.");
+    } finally { setAddingSnippet(false); }
+  }
+
+  async function onUploadFile(files: FileList | null) {
+    const file = files?.[0];
+    if (!file || !backendConnected) return;
+    setUploadingFile(true); setSnippetNotice("");
+    try {
+      const { sourceId, uploadUrl } = await addFileSource({ workspaceId, title: file.name, sizeBytes: file.size });
+      const response = await fetch(uploadUrl, { method: "POST", body: file, headers: { "Content-Type": file.type || "application/octet-stream" } });
+      if (!response.ok) throw new Error(`Upload failed (${response.status}).`);
+      const { storageId } = (await response.json()) as { storageId: string };
+      const { chunkCount } = await fileReady({ workspaceId, sourceId, storageId: storageId as Id<"_storage"> });
+      setSnippetNotice(`${file.name} added — ${chunkCount} searchable chunk${chunkCount === 1 ? "" : "s"}.`);
+    } catch (error) {
+      setSnippetNotice(error instanceof Error ? error.message : "Upload failed.");
+    } finally {
+      setUploadingFile(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
+  async function onAddWebsite() {
+    if (!websiteUrl.trim()) return;
+    setAddingWebsite(true); setWebsiteNotice("");
+    try {
+      const result = await addWebsiteSource({
+        workspaceId,
+        title: websiteTitle.trim() || new URL(websiteUrl.trim()).hostname,
+        url: websiteUrl.trim(),
+        crawlMode: websiteMode,
+        includePaths: websiteInclude.trim() ? [websiteInclude.trim()] : undefined,
+        excludePaths: websiteExclude.trim() ? [websiteExclude.trim()] : undefined,
+        pageLimit: websiteMode === "crawl" ? websitePageLimit : undefined,
+      });
+      setWebsiteUrl(""); setWebsiteTitle(""); setWebsiteInclude(""); setWebsiteExclude("");
+      setWebsiteNotice(result.started
+        ? "Firecrawl is fetching the site now — chunks land automatically."
+        : "Website registered; the crawl was already running or queued.");
+    } catch (error) {
+      setWebsiteNotice(error instanceof Error ? error.message : "Could not add the website.");
+    } finally { setAddingWebsite(false); }
+  }
+
+  async function onResync(sourceId: Id<"dataSources">) {
+    setResyncingId(sourceId);
+    try { await resyncSource({ workspaceId, sourceId }); }
+    catch { setWebsiteNotice("Resync failed — try again in a moment."); }
+    finally { setResyncingId(null); }
+  }
+
+  async function onRemoveSource(sourceId: Id<"dataSources">, title: string) {
+    if (!window.confirm(`Remove "${title}"? Missions will stop retrieving from it.`)) return;
+    try { await removeSource({ workspaceId, sourceId }); }
+    catch (error) { setSnippetNotice(error instanceof Error ? error.message : "Could not remove the source."); }
   }
 
   async function onSearch() {
@@ -701,6 +807,21 @@ Clarification: ${clarifyAnswer.trim()}` });
         ))}
       </nav>
       <div className="sidebar-spacer" />
+      <div className="theme-switch" role="radiogroup" aria-label="Theme">
+        {themeOptions.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            role="radio"
+            aria-checked={themeChoice === option.value}
+            className={themeChoice === option.value ? "active" : ""}
+            onClick={() => setTheme(option.value)}
+            title={`${option.label} theme`}
+          >
+            <span aria-hidden="true">{option.glyph}</span>{option.label}
+          </button>
+        ))}
+      </div>
       <div className="backend-status-card">
         <div className="status-icon"><span className="status-dot" /></div>
         <div><strong>{backendConnected ? "Convex connected" : "Backend setup"}</strong><span>{backendConnected ? "Live subscriptions on" : "Run npx convex dev"}</span></div>
@@ -1586,6 +1707,108 @@ Clarification: ${clarifyAnswer.trim()}` });
                   </section>
                 </>
               )}
+            </div>
+          )}
+
+          {activeView === "sources" && (
+            <div className="view-stack">
+              <section className="panel" aria-label="Add a data source">
+                <div className="panel-head"><p className="eyebrow">ADD A SOURCE</p>{dataProgress && <span className="muted">{dataProgress.activeCount} processing</span>}</div>
+                <div className="source-tabs" role="tablist" aria-label="Source type">
+                  {(["file", "website", "snippet"] as const).map((tab) => (
+                    <button key={tab} type="button" role="tab" aria-selected={sourceTab === tab} className={sourceTab === tab ? "active" : ""} onClick={() => setSourceTab(tab)}>
+                      {tab === "file" ? "File" : tab === "website" ? "Website" : "Snippet"}
+                    </button>
+                  ))}
+                </div>
+
+                {sourceTab === "file" && (
+                  <div
+                    className={fileDrag ? "drop-zone dragging" : "drop-zone"}
+                    onDragOver={(event) => { event.preventDefault(); setFileDrag(true); }}
+                    onDragLeave={() => setFileDrag(false)}
+                    onDrop={(event) => { event.preventDefault(); setFileDrag(false); void onUploadFile(event.dataTransfer.files); }}
+                  >
+                    <input ref={fileInputRef} id="source-file" type="file" accept=".pdf,.doc,.docx,.txt,.md" onChange={(event) => void onUploadFile(event.target.files)} className="visually-hidden" />
+                    <button type="button" className="drop-inner" onClick={() => fileInputRef.current?.click()} disabled={!backendConnected || uploadingFile}>
+                      <strong>{uploadingFile ? "Reading your file…" : fileDrag ? "Drop to add it" : "Click to choose a file, or drop it here"}</strong>
+                      <span>PDF, DOC, DOCX, TXT, MD · up to 20 MB · text must be selectable</span>
+                    </button>
+                  </div>
+                )}
+
+                {sourceTab === "website" && (
+                  <form
+                    className="source-form"
+                    onSubmit={(event) => { event.preventDefault(); void onAddWebsite(); }}
+                  >
+                    <div className="field-pair">
+                      <label>URL<input required type="url" placeholder="https://example.com" value={websiteUrl} onChange={(event) => setWebsiteUrl(event.target.value)} /></label>
+                      <label>Title<input placeholder="Optional — defaults to the domain" value={websiteTitle} onChange={(event) => setWebsiteTitle(event.target.value)} /></label>
+                    </div>
+                    <div className="field-pair">
+                      <label>How deep
+                        <select value={websiteMode} onChange={(event) => setWebsiteMode(websiteMode as typeof websiteMode)}>
+                          <option value="single">Just this page</option>
+                          <option value="crawl">Crawl linked pages</option>
+                          <option value="sitemap">Follow the sitemap</option>
+                      </select>
+                      </label>
+                      {websiteMode === "crawl" && (
+                        <label>Page limit<input type="number" min={1} max={50} value={websitePageLimit} onChange={(event) => setWebsitePageLimit(Number(event.target.value))} /></label>
+                      )}
+                    </div>
+                    <div className="field-pair">
+                      <label>Only paths starting with<input placeholder="/blog" value={websiteInclude} onChange={(event) => setWebsiteInclude(event.target.value)} /></label>
+                      <label>Skip paths starting with<input placeholder="/tag" value={websiteExclude} onChange={(event) => setWebsiteExclude(event.target.value)} /></label>
+                    </div>
+                    <button type="submit" className="btn" disabled={!backendConnected || addingWebsite}>{addingWebsite ? "Starting…" : "Add website"}</button>
+                    {websiteNotice && <p className="stage-note" role="status">{websiteNotice}</p>}
+                  </form>
+                )}
+
+                {sourceTab === "snippet" && (
+                  <form className="source-form" onSubmit={(event) => { event.preventDefault(); void onAddSnippet(); }}>
+                    <label>Title<input required value={snippetTitle} onChange={(event) => setSnippetTitle(event.target.value)} placeholder="e.g. Services I offer" /></label>
+                    <label>Text<textarea required rows={5} value={snippetText} onChange={(event) => setSnippetText(event.target.value)} placeholder="Paste anything Radar should know — an offer, a bio, a product one-pager." /></label>
+                    <div className="inline-actions">
+                      <button type="submit" className="btn" disabled={!backendConnected || addingSnippet}>{addingSnippet ? "Saving…" : "Add snippet"}</button>
+                      <span className="muted">{snippetText.length}/20,000</span>
+                    </div>
+                    {snippetNotice && <p className="stage-note" role="status">{snippetNotice}</p>}
+                  </form>
+                )}
+              </section>
+
+              <section aria-label="Your sources">
+                <div className="panel-head"><p className="eyebrow">YOUR SOURCES</p><span className="muted">{(dataSources ?? []).length} · retrieved into missions by relevance, not everything every time</span></div>
+                {(dataSources ?? []).length === 0 ? (
+                  <div className="panel"><p className="empty-state">No sources yet. A portfolio, a product page, a bio — Radar reads these the way it reads the web: chunked, bounded, and only when relevant to a mission.</p></div>
+                ) : (
+                  <div className="row-list">
+                    {(dataSources ?? []).map((source) => (
+                      <article className="row-item static" key={source._id}>
+                        <div className="row-copy">
+                          <strong><span className={`kind-pill kind-${source.kind}`}>{source.kind}</span> {source.title}</strong>
+                          <em>{source.summary || source.url || ""}</em>
+                          <span className="muted">{source.chunkCount} chunks · {source.pageCount} pages · added {shortDate(source.createdAt)}{source.lastSyncedAt ? ` · synced ${shortDate(source.lastSyncedAt)}` : ""}</span>
+                          {source.syncError && <span className="stage-note error">{source.syncError}</span>}
+                        </div>
+                        <div className="inline-actions">
+                          <span className={`status-pill status-${source.status}`}>{source.status}</span>
+                          {source.kind === "website" && source.status !== "syncing" && (
+                            <button type="button" className="btn ghost" disabled={!backendConnected || resyncingId === source._id} onClick={() => void onResync(source._id)}>
+                              {resyncingId === source._id ? "Resyncing…" : "Resync"}
+                            </button>
+                          )}
+                          {source.url && <a className="source-link" href={source.url} target="_blank" rel="noreferrer">Open</a>}
+                          <button type="button" className="btn ghost" onClick={() => void onRemoveSource(source._id, source.title)}>Remove</button>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </section>
             </div>
           )}
 

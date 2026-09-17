@@ -5,6 +5,8 @@
 - **What it does:** Turns a natural-language opportunity goal into sourced, explained matches, approval-bound AgentMail outreach, live replies, and persisted outcomes on Convex.
 - **Live app:** https://wry-walrus-528.convex.site
 - **Repo:** https://github.com/tope-olajide/prospect-radar
+- **Demo video (< 3 min):** _link pending — will be added before the Sept 22 submission_
+- **Submission:** due Sept 22, 12:00 PM PT at vibeapps.dev; social post tagging @convex @OpenAI @firecrawl @agentmail
 - **Frontend:** Convex static hosting (@convex-dev/static-hosting)
 - **Convex deployment:** wry-walrus-528 (production, team tope-olajide, project prospect-radar)
 - **Components:** @firecrawl/firecrawl-convex, @agentmail/convex (vendored as a local component under `convex/agentmail/` — the published build declares its app-facing functions `internal*`, which are invisible to the parent; see `convex/agentmail/README.md`), @convex-dev/static-hosting, @convex-dev/workpool
@@ -12,11 +14,38 @@
 - **Auth:** none (demo workspace scope)
 - **AI models:** any OpenAI-compatible model via OPENAI_BASE_URL / OPENAI_MODEL (DashScope qwen-max in production; provider recorded on plans and classifications)
 - **Started:** 2026-09-13T00:00:00Z
-- **Last updated:** 2026-09-17T16:30:00Z
+- **Last updated:** 2026-09-17T19:20:00Z
 
 ## Log
 
-### 2026-09-17 - working tree
+### 2026-09-17 - later — Data sources + dual-theme redesign (UI phase begins)
+The agent-experience redesign starts: a light/dark theme system, and the new
+**Data sources** page — the user's side of the evidence ledger.
+
+**Data sources (frontend + backend).** Users upload what Radar cannot find on
+the public web: a freelancer's portfolio, a company's product one-pager, a
+résumé. Three kinds — **file** (drag-and-drop, 20 MB cap, stored via Convex
+file storage, text extracted and chunked), **website** (single page, crawl, or
+sitemap ingested through the Firecrawl component's durable crawl with a
+completion callback, plus manual resync), and **snippet** (paste up to 20k
+chars). Everything is chunked (~1.2k chars, overlapping) into
+`dataSourceChunks` with a Convex **search index**, so the agent retrieves only
+the mission-relevant chunks — never a whole document. Retrieval is wired into
+the real pipeline: intent classification, match explanations, outreach drafts,
+and sequence steps all now receive `userSources` alongside confirmed facts,
+with the same grounding rule (sources describe the sender only; they are never
+cited as evidence about a match). Tests: 13 new (chunking, CRUD, relevance
+ordering, ingest success/failure/late-callback paths).
+
+**Dual theme.** Full token rewrite of `index.css` — light base, dark via
+`[data-theme="dark"]`, defaults to the **operating system preference**
+(pre-paint script in `index.html` prevents any flash), with a System / Light /
+Dark switch in the sidebar persisted to localStorage and live-following the OS
+while in System mode.
+
+Deployed to https://wry-walrus-528.convex.site (functions + static frontend).
+
+### 2026-09-17
 Crawl-failure recovery, the crawl watchdog, and the full live agent-loop proof.
 
 **Three resilience bugs found by running the live outreach proof, fixed.**

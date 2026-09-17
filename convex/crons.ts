@@ -40,4 +40,14 @@ crons.interval(
   {},
 );
 
+// Website data sources age: portfolios change, companies pivot, pricing pages
+// move. Once a day, re-sync the stalest website sources so the agent's picture
+// of the user's world never goes quiet silently.
+crons.interval(
+  "data source resync",
+  { hours: 24 },
+  internal.dataFlows.resyncSweep,
+  {},
+);
+
 export default crons;

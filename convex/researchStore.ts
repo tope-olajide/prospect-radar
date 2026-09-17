@@ -763,6 +763,7 @@ export const missionForExplanation = internalQuery({
     targetEntity: v.union(v.null(), v.string()),
     relationshipGoal: v.union(v.null(), v.string()),
     confirmedFacts: v.array(v.object({ category: v.string(), value: v.string() })),
+    userSources: v.array(v.object({ title: v.string(), kind: v.string(), text: v.string() })),
   }), v.null()),
   handler: async (ctx, args) => {
     const mission = await ctx.db.get(args.missionId);
@@ -774,6 +775,7 @@ export const missionForExplanation = internalQuery({
     const factRows = await ctx.db.query("contextFacts")
       .withIndex("by_workspaceId", (q) => q.eq("workspaceId", mission.workspaceId))
       .take(100);
+    const userSources: Array<{ title: string; kind: string; text: string }> = await ctx.runQuery(internal.dataSources.relevantChunks, { workspaceId: mission.workspaceId, query: plan?.normalizedGoal ?? mission.rawGoal });
     return {
       _id: mission._id,
       rawGoal: mission.rawGoal,
@@ -785,6 +787,7 @@ export const missionForExplanation = internalQuery({
       normalizedGoal: plan?.normalizedGoal ?? mission.rawGoal,
       completionPredicate: plan?.completionPredicate ?? mission.completionPredicate,
       confirmedFacts: confirmedFactPairs(factRows, mission._id),
+      userSources,
     };
   },
 });
@@ -873,6 +876,7 @@ export const matchDraftContext = internalQuery({
     targetEntity: v.union(v.null(), v.string()),
     relationshipGoal: v.union(v.null(), v.string()),
     confirmedFacts: v.array(v.object({ category: v.string(), value: v.string() })),
+    userSources: v.array(v.object({ title: v.string(), kind: v.string(), text: v.string() })),
   }), v.null()),
   handler: async (ctx, args) => {
     const mission = await ctx.db.get(args.missionId);
@@ -888,6 +892,11 @@ export const matchDraftContext = internalQuery({
     const factRows = await ctx.db.query("contextFacts")
       .withIndex("by_workspaceId", (q) => q.eq("workspaceId", mission.workspaceId))
       .take(100);
+    const draftGoal = plan?.normalizedGoal ?? mission.rawGoal;
+    const userSources: Array<{ title: string; kind: string; text: string }> = await ctx.runQuery(internal.dataSources.relevantChunks, {
+      workspaceId: mission.workspaceId,
+      query: `${draftGoal} ${discovery.subject}`.trim(),
+    });
     return {
       normalizedGoal: plan?.normalizedGoal ?? mission.rawGoal,
       mode: mission.mode,
@@ -901,6 +910,7 @@ export const matchDraftContext = internalQuery({
       sourceTitle: source.title,
       content: source.content ? bounded(source.content, 4000) : null,
       confirmedFacts: confirmedFactPairs(factRows, mission._id),
+      userSources,
     };
   },
 });
