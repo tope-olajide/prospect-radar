@@ -185,6 +185,9 @@ h1, h2, h3, p { margin: 0; }
 .stage-note.warn { color: var(--amber); }
 .stage-note.error { color: var(--red); }
 .empty-state { color: var(--muted); font-size: 11px; line-height: 1.7; }
+.boundary { display: grid; gap: 10px; max-width: 480px; margin: 18vh auto 0; padding: 24px; border: 1px solid var(--red-line); border-radius: 14px; background: var(--panel); }
+.boundary strong { color: var(--red); font-size: 13px; }
+.boundary p { color: var(--text-faint); font-size: 11px; line-height: 1.6; overflow-wrap: anywhere; }
 .mono-tag { padding: 3px 7px; border: 1px solid var(--cyan-line); border-radius: 6px; color: var(--cyan); background: var(--cyan-wash); font-family: 'DM Mono', monospace; font-size: 9px; }
 
 /* ---------- Status pills ---------- */

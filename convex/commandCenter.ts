@@ -62,7 +62,7 @@ export const threadSteps = query({
       .withIndex("by_missionId", (q) => q.eq("missionId", args.missionId))
       .order("asc")
       .take(THREAD_STEPS);
-    return rows.map(({ missionId: _m, runId: _r, reference: _ref, ...row }) => ({
+    return rows.map(({ _creationTime: _t, missionId: _m, runId: _r, reference: _ref, ...row }) => ({
       ...row,
       tool: row.tool ?? null,
     }));
@@ -81,7 +81,7 @@ export const threadStepsMany = query({
         .take(THREAD_STEPS);
       out.push({
         missionId,
-        steps: rows.map(({ missionId: _m, runId: _r, reference: _ref, ...row }) => ({
+        steps: rows.map(({ _creationTime: _t, missionId: _m, runId: _r, reference: _ref, ...row }) => ({
           ...row,
           tool: row.tool ?? null,
         })),
