@@ -34,6 +34,74 @@ const overviewCounts = v.object({
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 const SCAN_LIMIT = 300;
+/** The runs board renders one row per mission; bounded so its cost stays fixed. */
+const BOARD_LIMIT = 30;
+
+/**
+ * The agent-runs board: one truthful row per mission — run state, the stage
+ * the run is actually in, the most recent step the agent recorded, and how
+ * many approvals are waiting. This is what "what is Radar doing right now"
+ * means, per mission, without exposing raw logs.
+ */
+export const runsBoard = query({
+  args: { workspaceId: v.string() },
+  returns: v.array(v.object({
+    missionId: v.id("missions"),
+    missionTitle: v.string(),
+    missionStatus: v.string(),
+    runStatus: v.union(v.literal("queued"), v.literal("active"), v.literal("waiting"), v.literal("blocked"), v.literal("complete"), v.literal("failed"), v.literal("cancelled"), v.literal("none")),
+    currentStage: v.union(v.string(), v.null()),
+    activeInterruption: v.union(v.string(), v.null()),
+    lastStep: v.union(v.null(), v.object({
+      stage: v.string(),
+      label: v.string(),
+      summary: v.string(),
+      tool: v.union(v.string(), v.null()),
+      errorCode: v.union(v.string(), v.null()),
+      createdAt: v.number(),
+    })),
+    awaitingApprovals: v.number(),
+    updatedAt: v.number(),
+  })),
+  handler: async (ctx, args) => {
+    const [missions, runs, drafts] = await Promise.all([
+      ctx.db.query("missions").withIndex("by_workspaceId", (q) => q.eq("workspaceId", args.workspaceId)).order("desc").take(BOARD_LIMIT),
+      ctx.db.query("agentRuns").withIndex("by_workspaceId", (q) => q.eq("workspaceId", args.workspaceId)).take(SCAN_LIMIT),
+      ctx.db.query("actionDrafts").withIndex("by_workspaceId", (q) => q.eq("workspaceId", args.workspaceId)).take(SCAN_LIMIT),
+    ]);
+    const runByMission = new Map(runs.map((run) => [run.missionId, run]));
+    const awaitingByMission = new Map<string, number>();
+    for (const draft of drafts) {
+      if (draft.status === "awaiting_approval" || draft.status === "approved") {
+        awaitingByMission.set(draft.missionId, (awaitingByMission.get(draft.missionId) ?? 0) + 1);
+      }
+    }
+    const board = [];
+    for (const mission of missions) {
+      const run = runByMission.get(mission._id);
+      const runStatus: "queued" | "active" | "waiting" | "blocked" | "complete" | "failed" | "cancelled" | "none" = run?.status ?? "none";
+      // One indexed read per row: the latest step is the agent's "now".
+      const lastStep = await ctx.db.query("runSteps")
+        .withIndex("by_missionId", (q) => q.eq("missionId", mission._id))
+        .order("desc")
+        .first();
+      board.push({
+        missionId: mission._id,
+        missionTitle: mission.title,
+        missionStatus: mission.status,
+        runStatus,
+        currentStage: run?.currentStage ?? null,
+        activeInterruption: run?.activeInterruption ?? null,
+        lastStep: lastStep
+          ? { stage: lastStep.stage, label: lastStep.label, summary: lastStep.summary, tool: lastStep.tool ?? null, errorCode: lastStep.errorCode, createdAt: lastStep.createdAt }
+          : null,
+        awaitingApprovals: awaitingByMission.get(mission._id) ?? 0,
+        updatedAt: lastStep?.createdAt ?? run?.updatedAt ?? mission.updatedAt,
+      });
+    }
+    return board;
+  },
+});
 
 export const overview = query({
   args: { workspaceId: v.string() },

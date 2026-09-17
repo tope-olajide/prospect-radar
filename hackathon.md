@@ -14,9 +14,34 @@
 - **Auth:** none (demo workspace scope)
 - **AI models:** any OpenAI-compatible model via OPENAI_BASE_URL / OPENAI_MODEL (DashScope qwen-max in production; provider recorded on plans and classifications)
 - **Started:** 2026-09-13T00:00:00Z
-- **Last updated:** 2026-09-17T19:20:00Z
+- **Last updated:** 2026-09-17T19:55:00Z
 
 ## Log
+
+### 2026-09-17 - later still — mission & run screens rebuilt around the agent lifecycle
+The redesign's second piece: the agent is now the primary character on the
+three screens where you supervise it.
+
+**MissionLifecycle (`src/MissionLifecycle.tsx`).** One truthful lifecycle —
+understand → plan → research → evaluate → approval → act → complete — whose
+every node derives from `(run.status, run.currentStage)`: done only if the run
+has verifiably moved past it, active only if the run is in it right now. The
+active node shows the agent's **latest recorded step** (label, summary, tool)
+— real `runSteps` receipts, no optimistic updates, no fake progress, no
+animation. Waiting, budget-blocked, stale-parked, and failed states each have
+their own honest note and color.
+
+**Home:** the mission queue became an **agent runs board**
+(`commandCenter:runsBoard`): per mission — run status, current stage, the
+agent's last step, and how many approvals are waiting, all live via reactive
+subscription. **Mission panel:** the lifecycle rail replaced the one-line
+stage readout. **Activity:** the same lifecycle replaced the terse stage pills,
+with the step transcript and event trail beneath it. The dev-only stage strip
+and `STAGES` constant are gone.
+
+187 tests pass (the lone failure in one full-suite run was the known flaky
+timing assertion under load; it passes consistently in isolation and on the
+re-run), tsc clean, deployed.
 
 ### 2026-09-17 - later — Data sources + dual-theme redesign (UI phase begins)
 The agent-experience redesign starts: a light/dark theme system, and the new
