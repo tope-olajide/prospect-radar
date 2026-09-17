@@ -1,4 +1,4 @@
-import { FormEvent, useMemo, useRef, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
@@ -307,6 +307,14 @@ export default function App({ backendConnected }: { backendConnected: boolean })
     const live = board.find((row) => liveStatuses.includes(row.runStatus));
     return (live ?? board[0]).missionId;
   }, [board, openThreadId]);
+
+  // ChatGPT-pattern: the moment the user sends, the exchange must appear in
+  // the viewport. Submitting selects the new mission; Home scrolls the thread
+  // into view as soon as it mounts.
+  useEffect(() => {
+    if (!selectedMissionId || activeView !== "home") return;
+    document.getElementById(`thread-${selectedMissionId}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [selectedMissionId, activeView]);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -921,10 +929,25 @@ Clarification: ${clarifyAnswer.trim()}` });
 
           {activeView === "home" && (
             <div className="workspace">
-              {(recentThreadSteps ?? []).filter((thread) => thread.steps.length > 0).map((thread) => {
+              {(() => {
+                // Render from the runs board (authoritative, updates instantly),
+                // not from the steps list — a brand-new mission has zero steps
+                // for its first seconds, and hiding it then is exactly the
+                // "clicked start and nothing happened" bug.
+                const stepMap = new Map((recentThreadSteps ?? []).map((thread) => [thread.missionId as string, thread.steps]));
+                const stepsFor = (id: string) => stepMap.get(id) ?? [];
+                const liveStatuses = ["queued", "active", "waiting", "blocked"];
+                const rows = (board ?? []).filter((row) => stepsFor(row.missionId).length > 0 || row.runStatus !== "none" || row.missionId === selectedMissionId);
+                const ordered = [...rows].sort((a, b) => {
+                  const live = (row: typeof a) => liveStatuses.includes(row.runStatus);
+                  if (live(a) !== live(b)) return live(a) ? -1 : 1;
+                  return stepsFor(b.missionId).length - stepsFor(a.missionId).length;
+                });
+                return ordered.map((row) => {
+                const thread = { missionId: row.missionId, steps: stepsFor(row.missionId) };
                 const mission = missions?.find((item) => item._id === thread.missionId);
                 if (!mission) return null;
-                const threadRun = board?.find((row) => row.missionId === thread.missionId);
+                const threadRun = row;
                 const threadMatches = thread.missionId === selectedMissionId ? matches : undefined;
                 const threadDrafts = thread.missionId === selectedMissionId ? drafts : undefined;
                 const threadApprovals = (threadDrafts ?? []).filter((draft) => ["awaiting_approval", "approved"].includes(draft.status));
@@ -935,7 +958,7 @@ Clarification: ${clarifyAnswer.trim()}` });
                 const headStep = thread.steps.length > 0 ? thread.steps[thread.steps.length - 1] : null;
                 const runLive = runState ? ["queued", "active", "waiting", "blocked"].includes(runState.status) : false;
                 return (
-                  <article className={`panel thread-card${isOpen ? " open" : ""}`} key={thread.missionId}>
+                  <article className={`panel thread-card${isOpen ? " open" : ""}`} key={thread.missionId} id={`thread-${thread.missionId}`}>
                     <button type="button" className="thread-card-head" onClick={() => setOpenThreadId(isOpen ? null : thread.missionId)} aria-expanded={isOpen}>
                       <span className={`status-pill status-${runState?.status ?? mission.status}`}>{runState?.status ?? mission.status}</span>
                       <strong className="thread-goal">{mission.rawGoal}</strong>
@@ -952,6 +975,9 @@ Clarification: ${clarifyAnswer.trim()}` });
                         </div>
                         <div className="thread-msg radar">
                           <span className="thread-who">Radar</span>
+                          {thread.steps.length === 0 && (
+                            <p className="thread-picking-up" aria-live="polite">Picking up your request…</p>
+                          )}
                           {mission.intent && (
                             <p className="thread-understanding">{mission.intent.rationale}</p>
                           )}
@@ -1006,7 +1032,8 @@ Clarification: ${clarifyAnswer.trim()}` });
                     )}
                   </article>
                 );
-              })}
+                });
+              })()}
 
               <section className="panel composer-panel" aria-label="Ask Radar">
                 <form onSubmit={onSubmit}>
