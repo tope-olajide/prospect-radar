@@ -115,6 +115,9 @@ export default function App({ backendConnected }: { backendConnected: boolean })
   const [notice, setNotice] = useState("");
   const [selectedMissionId, setSelectedMissionId] = useState<string | null>(null);
   const [openThreadId, setOpenThreadId] = useState<string | null>(null);
+  // The user's request as typed, held locally until the Convex row exists —
+  // so the exchange is visible on screen the instant the button is pressed.
+  const [pendingGoal, setPendingGoal] = useState<string | null>(null);
   const [planning, setPlanning] = useState(false);
   const [planNotice, setPlanNotice] = useState("");
 
@@ -309,32 +312,44 @@ export default function App({ backendConnected }: { backendConnected: boolean })
   }, [board, openThreadId]);
 
   // ChatGPT-pattern: the moment the user sends, the exchange must appear in
-  // the viewport. Submitting selects the new mission; Home scrolls the thread
-  // into view as soon as it mounts.
+  // the viewport. Scroll to the pending card, then to the real thread.
   useEffect(() => {
-    if (!selectedMissionId || activeView !== "home") return;
-    document.getElementById(`thread-${selectedMissionId}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, [selectedMissionId, activeView]);
+    if (activeView !== "home") return;
+    const target = (selectedMissionId && document.getElementById(`thread-${selectedMissionId}`)) || (pendingGoal !== null ? document.getElementById("thread-pending") : null);
+    target?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [selectedMissionId, activeView, pendingGoal]);
+
+  // Once the real run row lands in Convex, the local pending card retires —
+  // the persisted thread replaces it with identical content in place.
+  useEffect(() => {
+    if (pendingGoal === null || !selectedMissionId || !board) return;
+    if (board.some((row) => row.missionId === selectedMissionId)) setPendingGoal(null);
+  }, [board, pendingGoal, selectedMissionId]);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!goal.trim() || !backendConnected) return;
+    const requested = goal.trim();
+    // The user must SEE their request working immediately: the pending
+    // exchange renders above the composer before any network round-trip.
+    setPendingGoal(requested);
     setSubmitting(true);
     setNotice("");
     try {
-      const result = await createMission({ workspaceId, title: goal.trim().slice(0, 80), rawGoal: goal.trim(), constraints: [], sourceScope: "public-web", completionPredicate: "A user-approved next action exists for at least one sourced match." });
+      const result = await Promise.race([
+        createMission({ workspaceId, title: requested.slice(0, 80), rawGoal: requested, constraints: [], sourceScope: "public-web", completionPredicate: "A user-approved next action exists for at least one sourced match." }),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Convex is not responding — check your connection. Your request is kept below; press Run Radar again.")), 10000)),
+      ]);
       setSelectedMissionId(result.missionId);
       setClarifyAnswer("");
       setGoal("");
-      // The agent's work must appear in front of the user immediately: start
-      // the durable run now instead of waiting for a second click.
-      try {
-        await runPipeline({ workspaceId, missionId: result.missionId });
-      } catch {
-        // Surface nothing fatal — the run can be started from the thread if the
-        // immediate start lost a race with the scheduler.
-      }
+      // Start the durable run without blocking the UI on it.
+      runPipeline({ workspaceId, missionId: result.missionId }).catch(() => {
+        setNotice("The run did not start automatically — open Dashboard and press ▶ Run Radar end-to-end.");
+      });
     } catch (error) {
+      setPendingGoal(null);
+      setGoal(requested);
       setNotice(error instanceof Error ? error.message : "Mission creation failed.");
     } finally {
       setSubmitting(false);
@@ -929,6 +944,20 @@ Clarification: ${clarifyAnswer.trim()}` });
 
           {activeView === "home" && (
             <div className="workspace">
+              {pendingGoal !== null && (
+                <article className="panel thread-card open" id="thread-pending" aria-label="Starting mission">
+                  <div className="thread-body">
+                    <div className="thread-msg you">
+                      <span className="thread-who">You</span>
+                      <p>{pendingGoal}</p>
+                    </div>
+                    <div className="thread-msg radar">
+                      <span className="thread-who">Radar</span>
+                      <p className="thread-picking-up" aria-live="polite">Picking up your request…</p>
+                    </div>
+                  </div>
+                </article>
+              )}
               {(() => {
                 // Render from the runs board (authoritative, updates instantly),
                 // not from the steps list — a brand-new mission has zero steps
