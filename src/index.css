@@ -477,6 +477,14 @@ label { display: grid; gap: 6px; color: var(--muted); font-size: 10px; font-weig
 .lifecycle-error { color: var(--red) !important; }
 .board-state { display: grid; gap: 5px; justify-items: end; }
 
+/* ---------- Outcomes stage summary + memory timeline ---------- */
+.stage-summary { display: flex; flex-wrap: wrap; gap: 8px; }
+.stage-summary > span { display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel-2); color: var(--text-soft); font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+.stage-summary > span strong { color: var(--text); font-size: 12px; font-weight: 800; }
+.stage-summary > span.zero { opacity: .45; }
+.memory-timeline { margin-top: 10px; }
+.memory-timeline .stage-note { margin: 0 0 2px; color: var(--muted-2); font-size: 9px; letter-spacing: .1em; text-transform: uppercase; }
+
 /* ---------- Responsive ---------- */
 @media (max-width: 1100px) {
   .home-grid, .inbox-layout { grid-template-columns: 1fr; }

@@ -1502,24 +1502,51 @@ Clarification: ${clarifyAnswer.trim()}` });
 
           {activeView === "outcomes" && (
             <div className="view-stack">
-              {dueFollowUps.length > 0 && (
-                <section className="panel" aria-label="Follow-ups due">
-                  <div className="panel-head"><p className="eyebrow">FOLLOW-UPS DUE</p><span className="muted">{dueFollowUps.length}</span></div>
-                  <p className="stage-note">A due follow-up already produced a draft where Radar could write one. Nothing has been sent.</p>
+              {overview && (
+                <section className="panel" aria-label="Where every relationship stands">
+                  <div className="panel-head"><p className="eyebrow">WHERE EVERYTHING STANDS</p><span className="muted">live per-relationship stages across this workspace</span></div>
+                  <div className="stage-summary">
+                    {overview.pipeline.map((row) => (
+                      <span key={row.stage} className={row.count > 0 ? "" : "zero"}>
+                        <span className={`stage-dot stage-${row.stage}`} />{PIPELINE_LABELS[row.stage as PipelineStageName] ?? row.stage}
+                        <strong>{row.count}</strong>
+                      </span>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {(sequences ?? []).filter((sequence) => sequence.status === "active").length > 0 && (
+                <section className="panel" aria-label="Ongoing sequences">
+                  <div className="panel-head"><p className="eyebrow">ONGOING SEQUENCES</p><span className="muted">each step becomes its own approval — nothing auto-sends</span></div>
+                  <div className="row-list">
+                    {(sequences ?? []).filter((sequence) => sequence.status === "active").map((sequence) => {
+                      const nextStep = sequence.steps.filter((step) => step.status === "draft_ready" || step.status === "pending")[0];
+                      return (
+                        <div className="row-item static" key={sequence._id}>
+                          <div className="row-copy">
+                            <strong>{matches?.find((match) => match._id === sequence.matchId)?.subject ?? "Relationship sequence"}</strong>
+                            <em>{nextStep ? `Next: step ${nextStep.index + 1} — ${nextStep.intent} (${nextStep.status.replace("_", " ")})` : "All steps sent or awaiting approval"}</em>
+                          </div>
+                          <span className={`status-pill status-${sequence.status}`}>{sequence.steps.filter((step) => step.status === "sent").length}/{sequence.steps.length} sent</span>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </section>
               )}
 
               <section className="panel" aria-label="Follow-ups">
                 <div className="panel-head"><p className="eyebrow">FOLLOW-UPS</p><span className="muted">{(followUps ?? []).length} open</span></div>
                 {(followUps ?? []).length === 0 ? (
-                  <p className="empty-state">No follow-ups. Radar schedules one when a reply defers, and you can schedule your own on any relationship.</p>
+                  <p className="empty-state">No open follow-ups. Radar schedules one when a reply defers; you can schedule your own on any relationship below.</p>
                 ) : (
                   <div className="row-list">
                     {(followUps ?? []).map((item) => (
                       <article className={`row-item static ${item.status === "due" || item.dueAt <= Date.now() ? "attention" : ""}`} key={item._id}>
                         <div className="row-copy">
                           <strong>{item.note}</strong>
-                          <em>Due {shortDate(item.dueAt)} · {item.source === "agent" ? "scheduled by Radar" : "scheduled by you"}{item.status === "due" ? " · due now" : ""}</em>
+                          <em>{item.source === "agent" ? "Radar scheduled this" : "You scheduled this"} · due {shortDate(item.dueAt)}{item.status === "due" ? " · due now" : ""}</em>
                         </div>
                         <div className="inline-actions">
                           <button type="button" className="btn ghost" onClick={() => onSnoozeFollowUp(item._id, 1)}>Snooze 1d</button>
@@ -1532,9 +1559,9 @@ Clarification: ${clarifyAnswer.trim()}` });
                 )}
               </section>
 
-              <section aria-label="Relationship pipeline">
+              <section aria-label="Relationships">
                 {outcomes === undefined ? <p className="empty-state">Loading the pipeline…</p> : outcomes.length === 0 ? (
-                  <div className="panel"><p className="empty-state">No relationships yet. The pipeline fills when an approved message is sent or a reply arrives — Radar keeps the relationship, not just the send.</p></div>
+                  <div className="panel"><p className="empty-state">No relationships yet. Radar opens one the moment an approved message is sent or a reply arrives — and remembers everything that happens next.</p></div>
                 ) : (
                   <div className="pipeline-grid">
                     {PIPELINE_STAGES.map((stage) => {
@@ -1558,27 +1585,27 @@ Clarification: ${clarifyAnswer.trim()}` });
                                     <strong>{outcome.counterpart}</strong>
                                     <span className="muted">updated {shortDate(outcome.updatedAt)}</span>
                                   </div>
-                                  <p>{outcome.latestEvidence}</p>
-                                  <p className="next-action"><b>Next</b>{outcome.nextAction}</p>
+                                  <p className="why-row"><b>Where this stands</b>{outcome.latestEvidence}</p>
+                                  <p className="next-action"><b>Radar's next step</b>{outcome.nextAction}{outcome.nextStepAt ? ` · ${shortDate(outcome.nextStepAt)}` : ""}</p>
                                   {followUp && (
                                     <p className={`stage-note ${overdue ? "error" : ""}`}>
                                       {overdue ? "Follow-up due now" : `Follow-up ${shortDate(followUp.dueAt)}`} · {followUp.note}
                                     </p>
                                   )}
                                   {outcomeMeetings.length > 0 && (
-                                    <p className="stage-note">Meetings: {outcomeMeetings.map((meeting) => shortDate(meeting.scheduledAt)).join(" · ")}</p>
+                                    <p className="stage-note">Meetings on record: {outcomeMeetings.map((meeting) => shortDate(meeting.scheduledAt)).join(" · ")}</p>
                                   )}
-                                  <details className="history-details">
-                                    <summary>{outcome.timeline.length} timeline event{outcome.timeline.length === 1 ? "" : "s"}</summary>
+                                  <div className="memory-timeline">
+                                    <p className="stage-note">RELATIONSHIP MEMORY</p>
                                     <ol className="event-trail compact">
-                                      {outcome.timeline.map((event, index) => (
+                                      {outcome.timeline.slice().reverse().map((event, index) => (
                                         <li key={`${outcome._id}-${index}`}>
                                           <span className="event-dot" />
-                                          <div><strong>{event.summary}</strong><em>{event.type} · {shortDate(event.createdAt)}</em></div>
+                                          <div><strong>{event.summary}</strong><em>{event.type.replace(/_/g, " ")} · {shortDate(event.createdAt)}</em></div>
                                         </li>
                                       ))}
                                     </ol>
-                                  </details>
+                                  </div>
                                   <div className="inline-actions">
                                     <button type="button" className="btn ghost" onClick={() => onAdvanceStage(outcome._id, "engaged", "Reply with a concrete next step and keep the conversation moving.")}>Engaged</button>
                                     <button type="button" className="btn ghost" onClick={() => onAdvanceStage(outcome._id, "proposal", "Put scope, timeline, and terms in writing for review.")}>Proposal</button>
@@ -1871,46 +1898,61 @@ Clarification: ${clarifyAnswer.trim()}` });
 
           {activeView === "context" && (
             <div className="view-stack">
-              <section className="panel" aria-label="Add a profile fact">
-                <div className="panel-head"><p className="eyebrow">ADD A FACT</p></div>
-                <p className="stage-note">User-entered facts are confirmed immediately. Anything Radar infers later starts unreviewed and is never used until you confirm it.</p>
+              <section className="panel" aria-label="Why context matters">
+                <div className="panel-head"><p className="eyebrow">RADAR USES THIS WHEN IT THINKS</p><span className="muted">{contextFacts?.filter((fact) => ["user_confirmed", "user_corrected"].includes(fact.verificationStatus)).length ?? 0} confirmed · {contextFacts?.filter((fact) => fact.verificationStatus === "unreviewed").length ?? 0} awaiting your review</span></div>
+                <p className="stage-note">Confirmed facts shape what Radar hunts for, how it judges matches, and what it says about you in drafts and replies. Anything you have not confirmed is never used.</p>
                 <div className="control-row">
-                  <input className="composer-input" style={{ flex: "0 0 220px" }} placeholder="Category (e.g. my skills)" value={factCategory} onChange={(e) => setFactCategory(e.target.value)} aria-label="Fact category" maxLength={60} />
+                  <input className="composer-input" style={{ flex: "0 0 220px" }} placeholder="Category (e.g. my services)" value={factCategory} onChange={(e) => setFactCategory(e.target.value)} aria-label="Fact category" maxLength={60} />
                   <input className="composer-input" placeholder="Value (e.g. React, TypeScript, product design)" value={factValue} onChange={(e) => setFactValue(e.target.value)} aria-label="Fact value" maxLength={240} />
                   <button type="button" className="btn" disabled={!backendConnected || !factCategory.trim() || !factValue.trim()} onClick={async () => { await addFact({ workspaceId, missionId: null, category: factCategory, value: factValue, sourceType: "user_input", sourceReference: null, confidence: 1, visibility: "workspace" }); setFactCategory(""); setFactValue(""); }}>Add fact</button>
                 </div>
               </section>
 
-              <section className="panel" aria-label="Profile facts">
-                <div className="panel-head"><p className="eyebrow">PROFILE FACTS</p><span className="muted">{contextFacts?.length ?? 0} stored</span></div>
-                {contextFacts === undefined ? <p className="empty-state">Loading facts…</p> : contextFacts.length === 0 ? <p className="empty-state">No profile facts yet. Add skills, services, goals, or constraints — confirmed facts guide plans, match explanations, and drafts.</p> : (
-                  <div className="row-list">
-                    {contextFacts.map((fact) => (
-                      <article className="row-item static" key={fact._id}>
-                        <div>
-                          <strong>{fact.category}</strong>
-                          <em>{fact.value}</em>
-                          <span className="muted">{fact.sourceType} · added {shortDate(fact.createdAt)}</span>
-                        </div>
-                        <div className="inline-actions">
-                          <span className={`status-pill status-${fact.verificationStatus}`}>{fact.verificationStatus.replace("user_", "")}</span>
-                          {fact.verificationStatus !== "user_confirmed" && <button type="button" className="btn ghost" onClick={() => confirmFact({ workspaceId, factId: fact._id })}>Confirm</button>}
-                          {editingFactId === fact._id ? (
-                            <>
-                              <input className="composer-input" style={{ maxWidth: 220 }} value={factEditValue} onChange={(e) => setFactEditValue(e.target.value)} aria-label="Corrected value" maxLength={240} />
-                              <button type="button" className="btn ghost" onClick={async () => { await correctFact({ workspaceId, factId: fact._id, value: factEditValue }); setEditingFactId(null); }}>Save</button>
-                            </>
-                          ) : (
-                            <button type="button" className="btn ghost" onClick={() => { setEditingFactId(fact._id); setFactEditValue(fact.value); }}>Correct</button>
-                          )}
-                          <button type="button" className="btn ghost" onClick={() => rejectFact({ workspaceId, factId: fact._id })}>Reject</button>
-                          <button type="button" className="btn ghost" onClick={() => deleteFact({ workspaceId, factId: fact._id })}>Delete</button>
-                        </div>
-                      </article>
-                    ))}
-                  </div>
-                )}
-              </section>
+              {(["user_confirmed", "user_corrected", "unreviewed", "user_rejected"] as const).map((group) => {
+                const facts = (contextFacts ?? []).filter((fact) => fact.verificationStatus === group);
+                if (group !== "unreviewed" && facts.length === 0) return null;
+                const groupCopy: Record<string, { title: string; note: string }> = {
+                  user_confirmed: { title: "CONFIRMED — RADAR USES THESE", note: "You entered or approved these. They are already steering plans, matches, and drafts." },
+                  user_corrected: { title: "CORRECTED — RADAR USES THESE", note: "Your corrected wording replaced the original everywhere." },
+                  unreviewed: { title: "AWAITING YOUR REVIEW", note: facts.length === 0 ? "Nothing inferred is waiting. When Radar proposes a fact, it lands here and stays unused until you confirm it." : "Radar inferred these but will not use them until you confirm." },
+                  user_rejected: { title: "REJECTED", note: "Marked not-true by you; Radar excludes them from every prompt." },
+                };
+                return (
+                  <section className="panel" aria-label={groupCopy[group].title} key={group}>
+                    <div className="panel-head"><p className="eyebrow">{groupCopy[group].title}</p><span className="muted">{facts.length}</span></div>
+                    <p className="stage-note">{groupCopy[group].note}</p>
+                    {facts.length === 0 ? null : (
+                      <div className="row-list">
+                        {facts.map((fact) => (
+                          <article className="row-item static" key={fact._id}>
+                            <div className="row-copy">
+                              <strong>{fact.category}</strong>
+                              <em>{fact.value}</em>
+                              <span className="muted">
+                                {fact.sourceType === "user_input" ? "added by you" : fact.sourceType === "plan_extraction" ? "from a mission plan" : fact.sourceType === "source_extraction" ? "from a researched source" : "inferred by Radar"}
+                                · added {shortDate(fact.createdAt)}
+                              </span>
+                            </div>
+                            <div className="inline-actions">
+                              {fact.verificationStatus !== "user_confirmed" && <button type="button" className="btn ghost" onClick={() => confirmFact({ workspaceId, factId: fact._id })}>Confirm</button>}
+                              {editingFactId === fact._id ? (
+                                <>
+                                  <input className="composer-input" style={{ maxWidth: 220 }} value={factEditValue} onChange={(e) => setFactEditValue(e.target.value)} aria-label="Corrected value" maxLength={240} />
+                                  <button type="button" className="btn ghost" onClick={async () => { await correctFact({ workspaceId, factId: fact._id, value: factEditValue }); setEditingFactId(null); }}>Save</button>
+                                </>
+                              ) : (
+                                <button type="button" className="btn ghost" onClick={() => { setEditingFactId(fact._id); setFactEditValue(fact.value); }}>Correct</button>
+                              )}
+                              {fact.verificationStatus !== "user_rejected" && <button type="button" className="btn ghost" onClick={() => rejectFact({ workspaceId, factId: fact._id })}>Reject</button>}
+                              <button type="button" className="btn ghost" onClick={() => deleteFact({ workspaceId, factId: fact._id })}>Delete</button>
+                            </div>
+                          </article>
+                        ))}
+                      </div>
+                    )}
+                  </section>
+                );
+              })}
             </div>
           )}
 
