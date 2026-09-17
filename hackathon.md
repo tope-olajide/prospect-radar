@@ -14,9 +14,29 @@
 - **Auth:** none (demo workspace scope)
 - **AI models:** any OpenAI-compatible model via OPENAI_BASE_URL / OPENAI_MODEL (DashScope qwen-max in production; provider recorded on plans and classifications)
 - **Started:** 2026-09-13T00:00:00Z
-- **Last updated:** 2026-09-17T19:55:00Z
+- **Last updated:** 2026-09-17T20:20:00Z
 
 ## Log
+
+### 2026-09-17 - later ×4 — Discover & Inbox redesigns shipped; full agent loop re-proven live on the redesigned UI
+**Discover** match cards now carry a **why-chain**: why Radar looked (the plan
+query that surfaced the source, joined from the research job), why it matches,
+up to three cited evidence quotes, unknowns, risks, and which of the user's
+data sources the judgment was checked against. **Inbox** threads show their
+mission, Radar's latest read, and pending drafts; the conversation renders
+"Radar understood → proposed next action → drafted reply" with the exact
+approval state (including expiry) for every classification.
+
+Then the canonical proof mission was re-run live against the deployed site so
+every captured state is the redesigned UI's data: qwen-max classified
+`find_opportunity` (target organization, goal `become_their_vendor`), Firecrawl
+ran 10 jobs across search/crawl/extract (22 sources), 6 entities + 4 signals,
+22 matches with 6 explained, draft → hash-bound approval → **AgentMail send**
+(real SES delivery id) → **counterpart replied inside the provider thread** →
+**signed webhook delivered it** → classified `needs_info` with a suggested
+next action → follow-up reply drafted → approved → **sent** → delivery state
+confirmed. Outcome, 1 sequence, 2 follow-ups persisted; idempotent re-send
+returned the same message. Evidence in `proof/agent-loop.json`.
 
 ### 2026-09-17 - later still — mission & run screens rebuilt around the agent lifecycle
 The redesign's second piece: the agent is now the primary character on the
