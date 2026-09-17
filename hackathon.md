@@ -14,9 +14,25 @@
 - **Auth:** none (demo workspace scope)
 - **AI models:** any OpenAI-compatible model via OPENAI_BASE_URL / OPENAI_MODEL (DashScope qwen-max in production; provider recorded on plans and classifications)
 - **Started:** 2026-09-13T00:00:00Z
-- **Last updated:** 2026-09-17T20:20:00Z
+- **Last updated:** 2026-09-17T20:50:00Z
 
 ## Log
+
+### 2026-09-17 - later ×5 — Outcomes & Context redesigned; agent-first pass complete
+**Outcomes** now opens with a workspace-wide stage summary, surfaces ongoing
+sequences with their next-step state, attributes every follow-up to whoever
+scheduled it (Radar or you), and shows each relationship card with Radar's
+next step (and when) above an **always-visible relationship memory timeline**
+— newest events first, no longer hidden behind a collapsed details toggle.
+**Context** groups facts by verification state and says what Radar actually
+does with each group: confirmed facts "are already steering plans, matches,
+and drafts"; unreviewed ones "stay unused until you confirm"; rejected ones
+are excluded from every prompt. Provenance is written in plain language
+("added by you", "inferred by Radar") instead of enum names.
+
+Every primary surface now follows the same agent-first language: lifecycle
+(Home/Activity), reasoning (Discover), supervision (Outreach/Forms/Inbox),
+memory (Outcomes), and the user's own ledger (Context, Data sources).
 
 ### 2026-09-17 - later ×4 — Discover & Inbox redesigns shipped; full agent loop re-proven live on the redesigned UI
 **Discover** match cards now carry a **why-chain**: why Radar looked (the plan
