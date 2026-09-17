@@ -95,6 +95,55 @@ export const skipQuery = internalMutation({
 });
 
 /**
+ * Re-opens a stage that a retryable failure parked as `blocked`.
+ *
+ * `failStage` blocks the run so the failure is visible, then schedules a
+ * backoff retry. That retry has to pass back through this mutation first:
+ * `blocked` is deliberately not advanceable, so a retry that called `runStage`
+ * directly returned immediately and the automatic recovery never actually ran.
+ *
+ * Guarded so it can never steal a run the user owns: it only acts while the run
+ * is still `blocked` on the *same* interruption that scheduled it. If the user
+ * stopped the run, raised a budget, or another failure parked it differently in
+ * the meantime, this is a no-op.
+ */
+export const retryResume = internalMutation({
+  args: { missionId: v.id("missions"), interruption: v.union(v.string(), v.null()) },
+  returns: v.object({ resumed: v.boolean() }),
+  handler: async (ctx, args) => {
+    const run = await ctx.db.query("agentRuns").withIndex("by_missionId", (q) => q.eq("missionId", args.missionId)).first();
+    if (!run || run.status !== "blocked") return { resumed: false };
+    if ((run.activeInterruption ?? null) !== args.interruption) return { resumed: false };
+    await ctx.runMutation(internal.runs.transition, {
+      missionId: args.missionId, targetStage: run.currentStage as Stage, targetStatus: "active",
+      interruption: null, eventType: `stage.${run.currentStage}.retrying`,
+      safeSummary: "Retrying this stage automatically after a transient provider failure.",
+    });
+    await ctx.scheduler.runAfter(0, internal.missionOrchestrator.runStage, { missionId: args.missionId });
+    return { resumed: true };
+  },
+});
+
+/**
+ * Consumes a discovery query whose provider call failed, with the classified
+ * reason. Discovery is best-effort per query: a host Firecrawl refuses (or a
+ * transient provider error) skips that query and the run continues down the
+ * backlog, instead of throwing out of the stage and stranding the run.
+ */
+export const failQuery = internalMutation({
+  args: { queryId: v.id("missionQueries"), missionId: v.id("missions"), reason: v.string(), errorCode: v.union(v.string(), v.null()), tool: v.string() },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.queryId, { status: "skipped" });
+    await ctx.runMutation(internal.runs.recordStepForAction, {
+      missionId: args.missionId, stage: "discover", label: "discover.query.failed",
+      summary: args.reason, reference: null, errorCode: args.errorCode, tool: args.tool,
+    });
+    return null;
+  },
+});
+
+/**
  * Marks the crawl query consumed and parks the run in `wait`. The crawl's own
  * completion callback (researchStore.crawlCompleted) later transitions
  * wait→evaluate; the evaluate stage re-checks the backlog and either resumes

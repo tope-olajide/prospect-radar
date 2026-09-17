@@ -15,15 +15,18 @@ function llmReply(body: unknown) {
   return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(body) } }] }), { status: 200 });
 }
 
-/** Captures prompts so tests can assert what the AI actually received. */
+/** Captures prompts and raw request bodies so tests can assert what the AI received. */
 let capturedPrompts: string[] = [];
-function stubFetch(responder: (prompt: string) => Response) {
+let capturedBodies: Array<Record<string, unknown>> = [];
+function stubFetch(responder: (prompt: string, callIndex: number) => Response) {
   capturedPrompts = [];
+  capturedBodies = [];
   vi.stubGlobal("fetch", vi.fn(async (_url: unknown, init?: { body?: string }) => {
-    const body = JSON.parse(init?.body ?? "{}") as { messages?: Array<{ content?: string }> };
+    const body = JSON.parse(init?.body ?? "{}") as Record<string, unknown> & { messages?: Array<{ content?: string }> };
     const prompt = (body.messages ?? []).map((m) => m.content ?? "").join("\n");
     capturedPrompts.push(prompt);
-    return responder(prompt);
+    capturedBodies.push(body);
+    return responder(prompt, capturedBodies.length - 1);
   }));
 }
 
@@ -230,6 +233,28 @@ describe("classifyMissionIntent — semantic classification through the real pip
     const result = await classify(t, missionId);
     // Invalid secondary is dropped, not stored.
     expect(result.intent.secondary).toBeNull();
+    // ...and it is not worth a repair round-trip: only the primary is enforced.
+    expect(capturedBodies.length).toBe(1);
+  });
+
+  it("repairs an unusable primary intent instead of storing a bad label", async () => {
+    const valid = { intent: { primary: "find_person", secondary: null, confidence: 0.8, rationale: "x" }, targetEntity: "person", relationshipGoal: "hire_or_contract", understanding: "y", clarificationNeeded: false, clarificationQuestion: null };
+    stubFetch((_prompt, callIndex) => llmReply(callIndex === 0
+      ? { ...valid, intent: { ...valid.intent, primary: "find_a_wizard" } }
+      : valid));
+    const t = convexTest(schema, convexModules);
+    const missionId = await seedMission(t, "Find a developer.");
+    const result = await classify(t, missionId);
+    expect(result.intent.primary).toBe("find_person");
+    expect(capturedBodies.length).toBe(2);
+    expect(capturedPrompts[1]).toContain("intent.primary");
+  });
+
+  it("fails loudly when the model cannot produce a usable primary intent", async () => {
+    stubFetch(() => llmReply({ intent: { primary: "find_a_wizard", secondary: null, confidence: 0.8, rationale: "x" }, targetEntity: "person", relationshipGoal: "hire_or_contract", understanding: "y", clarificationNeeded: false, clarificationQuestion: null }));
+    const t = convexTest(schema, convexModules);
+    const missionId = await seedMission(t, "Find a developer.");
+    await expect(classify(t, missionId)).rejects.toThrow(/OPENAI_SCHEMA_INVALID.*intent\.primary/);
   });
 });
 
@@ -249,7 +274,7 @@ describe("planMission — strategy-bearing planning driven by the classified int
     await classify(t, missionId);
 
     // Stage 2: plan — the strategy guidance for find_opportunity must be in the prompt.
-    stubFetch(() => llmReply({ normalizedGoal: "Find companies with publicly expressed React/Next.js development needs.", mode: "opportunity", mustHave: ["evidence of a current dev need"], niceToHave: ["remote-friendly"], exclusions: ["staffing agencies"], missingFacts: ["budget range"], recommendedSources: ["job boards", "company engineering blogs"], proposedSteps: ["search", "scrape", "rank"], completionPredicate: "3 sourced, explained matches approved for outreach.", strategyNotes: "Following guidance; prioritizing hiring signals." }));
+    stubFetch(() => llmReply({ normalizedGoal: "Find companies with publicly expressed React/Next.js development needs.", mode: "opportunity", mustHave: ["evidence of a current dev need"], niceToHave: ["remote-friendly"], exclusions: ["staffing agencies"], missingFacts: ["budget range"], recommendedSources: ["job boards", "company engineering blogs"], proposedSteps: ["search", "scrape", "rank"], completionPredicate: "3 sourced, explained matches approved for outreach.", strategyNotes: "Following guidance; prioritizing hiring signals.", searchQueries: ["companies hiring React developers", "nextjs rebuild in progress"], crawlTargets: ["https://example.com/careers"] }));
     const { planId } = await plan(t, missionId);
 
     const planPrompt = capturedPrompts[0] ?? "";
@@ -270,7 +295,7 @@ describe("planMission — strategy-bearing planning driven by the classified int
     stubFetch(() => llmReply({ intent: { primary: "find_opportunity", secondary: "find_client", confidence: 0.9, rationale: "x" }, targetEntity: "organization", relationshipGoal: "become_their_vendor", understanding: "y", clarificationNeeded: false, clarificationQuestion: null }));
     await classify(t, missionId);
 
-    stubFetch(() => llmReply({ normalizedGoal: "g", mode: "opportunity", mustHave: [], niceToHave: [], exclusions: [], missingFacts: [], recommendedSources: [], proposedSteps: [], completionPredicate: "c", strategyNotes: "ok" }));
+    stubFetch(() => llmReply({ normalizedGoal: "g", mode: "opportunity", mustHave: [], niceToHave: [], exclusions: [], missingFacts: [], recommendedSources: [], proposedSteps: [], completionPredicate: "c", strategyNotes: "ok", searchQueries: ["q"], crawlTargets: [] }));
     await plan(t, missionId);
 
     expect(capturedPrompts[0]).toContain(intentStrategy.find_client.sourcePriorities[0]);
@@ -288,6 +313,134 @@ describe("planMission — strategy-bearing planning driven by the classified int
       const interpretStep = steps.find((s) => s.stage === "interpret" && s.label === "intent.find_person");
       expect(interpretStep?.summary).toContain("React developer");
     });
+  });
+});
+
+/**
+ * The structured-output contract.
+ *
+ * A production run died at the plan stage because `response_format:
+ * {type: "json_object"}` does not constrain the shape: the model simply omitted
+ * `completionPredicate`, and the missing key surfaced as an
+ * ArgumentValidationError inside the save mutation, which told the user nothing.
+ * The reply schema is now sent as strict Structured Outputs, verified against
+ * its required fields, and repaired once before the stage is allowed to fail.
+ */
+describe("structured output contract — required fields are enforced, not hoped for", () => {
+  const completePlan = {
+    normalizedGoal: "Find companies with publicly expressed React/Next.js needs.",
+    mode: "opportunity",
+    mustHave: ["a current dev need"],
+    niceToHave: [],
+    exclusions: [],
+    missingFacts: [],
+    recommendedSources: ["job boards"],
+    proposedSteps: ["search", "scrape"],
+    completionPredicate: "3 sourced matches approved.",
+    strategyNotes: "Following guidance.",
+    searchQueries: ["companies hiring React developers"],
+    crawlTargets: [],
+  };
+  // The same plan with the discovery backlog omitted — the shape that killed a
+  // live run, because the queries are what the planner exists to produce.
+  const planWithoutQueries = {
+    normalizedGoal: completePlan.normalizedGoal,
+    mode: completePlan.mode,
+    mustHave: completePlan.mustHave,
+    niceToHave: completePlan.niceToHave,
+    exclusions: completePlan.exclusions,
+    missingFacts: completePlan.missingFacts,
+    recommendedSources: completePlan.recommendedSources,
+    proposedSteps: completePlan.proposedSteps,
+    completionPredicate: completePlan.completionPredicate,
+    strategyNotes: completePlan.strategyNotes,
+  };
+
+  it("sends the reply schema as strict Structured Outputs", async () => {
+    const t = convexTest(schema, convexModules);
+    const missionId = await seedMission(t, "Find companies that need React development.");
+    stubFetch(() => llmReply(completePlan));
+    await t.run((ctx) => ctx.runMutation(internal.missions.applyIntent, {
+      missionId: missionId as never,
+      intent: { primary: "find_opportunity", secondary: null, confidence: 0.9, rationale: "needs" },
+      targetEntity: "organization",
+      relationshipGoal: "become_their_vendor",
+      mode: "opportunity",
+      clarification: null,
+    }));
+    await plan(t, missionId);
+
+    const format = capturedBodies[0].response_format as { type: string; json_schema: { name: string; strict: boolean; schema: { required: string[] } } };
+    expect(format.type).toBe("json_schema");
+    expect(format.json_schema.name).toBe("mission_plan");
+    expect(format.json_schema.strict).toBe(true);
+    // The schema that constrains the reply is the one the code validates against.
+    expect(format.json_schema.schema.required).toContain("completionPredicate");
+    expect(format.json_schema.schema.required).toContain("searchQueries");
+  });
+
+  it("repairs a reply that omitted a required field instead of failing the stage", async () => {
+    const t = convexTest(schema, convexModules);
+    const missionId = await seedMission(t, "Find companies that need React development.");
+    await t.run((ctx) => ctx.runMutation(internal.missions.applyIntent, {
+      missionId: missionId as never,
+      intent: { primary: "find_opportunity", secondary: null, confidence: 0.9, rationale: "needs" },
+      targetEntity: "organization",
+      relationshipGoal: "become_their_vendor",
+      mode: "opportunity",
+      clarification: null,
+    }));
+    // First reply is missing the queries; the second (the repair round-trip) is complete.
+    stubFetch((_prompt, callIndex) => llmReply(callIndex === 0 ? planWithoutQueries : completePlan));
+    const result = await plan(t, missionId);
+    expect(result.model).toBeTruthy();
+    expect(capturedBodies.length).toBe(2);
+    // The repair turn names the missing fields rather than starting over.
+    const repairPrompt = capturedPrompts[1];
+    expect(repairPrompt).toContain("searchQueries");
+    expect(repairPrompt).toContain("crawlTargets");
+
+    const planRow = await t.run((ctx) => ctx.db.query("missionPlans").first());
+    expect(planRow?.completionPredicate).toBe("3 sourced matches approved.");
+    // The repaired queries became real discovery work, not just a stored field.
+    const queries = await t.run((ctx) => ctx.db.query("missionQueries").collect());
+    expect(queries.map((row) => `${row.kind}:${row.query}`)).toContain("search:companies hiring React developers");
+    expect(queries.every((row) => row.status === "pending")).toBe(true);
+  });
+
+  it("fails with the missing field named when the model never supplies it", async () => {
+    const t = convexTest(schema, convexModules);
+    const missionId = await seedMission(t, "Find companies that need React development.");
+    await t.run((ctx) => ctx.runMutation(internal.missions.applyIntent, {
+      missionId: missionId as never,
+      intent: { primary: "find_opportunity", secondary: null, confidence: 0.9, rationale: "needs" },
+      targetEntity: "organization",
+      relationshipGoal: "become_their_vendor",
+      mode: "opportunity",
+      clarification: null,
+    }));
+    stubFetch(() => llmReply(planWithoutQueries));
+    await expect(plan(t, missionId)).rejects.toThrow(/OPENAI_SCHEMA_INVALID.*searchQueries/);
+  });
+
+  it("falls back to json_object when the endpoint does not implement Structured Outputs", async () => {
+    const t = convexTest(schema, convexModules);
+    const missionId = await seedMission(t, "Find companies that need React development.");
+    await t.run((ctx) => ctx.runMutation(internal.missions.applyIntent, {
+      missionId: missionId as never,
+      intent: { primary: "find_opportunity", secondary: null, confidence: 0.9, rationale: "needs" },
+      targetEntity: "organization",
+      relationshipGoal: "become_their_vendor",
+      mode: "opportunity",
+      clarification: null,
+    }));
+    stubFetch((_prompt, callIndex) => callIndex === 0
+      ? new Response(JSON.stringify({ error: { message: "response_format.type json_schema is not supported" } }), { status: 400 })
+      : llmReply(completePlan));
+    const result = await plan(t, missionId);
+    expect(result.model).toBeTruthy();
+    expect((capturedBodies[0].response_format as { type: string }).type).toBe("json_schema");
+    expect((capturedBodies[1].response_format as { type: string }).type).toBe("json_object");
   });
 });
 

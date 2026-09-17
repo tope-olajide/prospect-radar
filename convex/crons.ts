@@ -29,4 +29,15 @@ crons.interval(
   {},
 );
 
+// A crawl (or its completion callback) can die without waking the run that
+// parked for it, which would leave a resumable mission reported as "waiting"
+// forever. This sweep resumes from the sources already stored, or parks the run
+// as a visible failure when a crawl stored nothing at all.
+crons.interval(
+  "crawl watchdog",
+  { minutes: 10 },
+  internal.crawlWatchdog.resumeStalledCrawls,
+  {},
+);
+
 export default crons;
