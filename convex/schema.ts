@@ -18,6 +18,9 @@ const missionStatus = v.union(v.literal("draft"), v.literal("ready"), v.literal(
 const runStatus = v.union(v.literal("queued"), v.literal("active"), v.literal("waiting"), v.literal("blocked"), v.literal("complete"), v.literal("failed"), v.literal("cancelled"));
 const runStage = v.union(v.literal("intake"), v.literal("interpret"), v.literal("plan"), v.literal("discover"), v.literal("evaluate"), v.literal("approval"), v.literal("execute"), v.literal("wait"), v.literal("complete"));
 const sourceType = v.union(v.literal("search_result"), v.literal("scraped_page"), v.literal("crawled_page"), v.literal("mapped_site"));
+const dataSourceKind = v.union(v.literal("file"), v.literal("website"), v.literal("snippet"));
+const dataSourceCrawlMode = v.union(v.literal("crawl"), v.literal("sitemap"), v.literal("single"));
+const dataSourceStatus = v.union(v.literal("syncing"), v.literal("ready"), v.literal("failed"), v.literal("archived"));
 const sourceProcessingStatus = v.union(v.literal("discovered"), v.literal("scraping"), v.literal("scraped"), v.literal("failed"));
 const sourceFreshness = v.union(
   v.literal("fresh"),
@@ -374,4 +377,57 @@ export default defineSchema({
   }).index("by_missionId", ["missionId"])
     .index("by_proposalId", ["proposalId"])
     .index("by_workspaceId", ["workspaceId"]),
+
+  /**
+   * User-supplied data sources — the user's side of the evidence ledger. The
+   * public web tells Radar what the world wants; these sources tell it what the
+   * user offers. One row per source: an uploaded file (text extracted from the
+   * stored blob), a website crawled with Firecrawl, or a pasted snippet.
+   * `active` sources are gated into the agent's plan, match-explanation, and
+   * drafting prompts; `archived` sources are kept but excluded.
+   */
+  dataSources: defineTable({
+    workspaceId: v.string(),
+    kind: dataSourceKind,
+    title: v.string(),
+    /** Website only: where the crawl starts. */
+    url: v.union(v.string(), v.null()),
+    /** Website only: crawl mode. */
+    crawlMode: dataSourceCrawlMode,
+    /** Website only: Firecrawl crawl id for progress and re-syncs. */
+    crawlId: v.union(v.string(), v.null()),
+    /** File only: Convex storage id of the uploaded blob. */
+    fileId: v.union(v.id("_storage"), v.null()),
+    /** Snippet/file only: the user's own text, bounded. */
+    text: v.union(v.string(), v.null()),
+    status: dataSourceStatus,
+    /** Website only: count of pages ingested by the latest crawl. */
+    pageCount: v.number(),
+    /** Website only: last successful sync, for the auto-resync cadence. */
+    lastSyncedAt: v.union(v.number(), v.null()),
+    /** Website only: why the last sync failed, if it did. */
+    syncError: v.union(v.string(), v.null()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_workspaceId", ["workspaceId"])
+    .index("by_workspaceId_and_kind", ["workspaceId", "kind"])
+    .index("by_crawlId", ["crawlId"]),
+
+  /**
+   * Bounded, searchable chunks of a data source. The agent reads chunks, never
+   * whole documents — the same bounding rule applied to untrusted web content.
+   * `searchText` feeds a Convex search index so mission planning can retrieve
+   * only the chunks relevant to the goal.
+   */
+  dataSourceChunks: defineTable({
+    workspaceId: v.string(), sourceId: v.id("dataSources"), ordinal: v.number(),
+    text: v.string(), searchText: v.string(),
+  })
+    .index("by_sourceId", ["sourceId"])
+    .index("by_workspaceId", ["workspaceId"])
+    .searchIndex("search_text", {
+      searchField: "searchText",
+      filterFields: ["workspaceId"],
+    }),
 });

@@ -8,6 +8,18 @@
       content="Prospect Radar turns opportunity goals into sourced, explainable, approval-bound outreach."
     />
     <title>Prospect Radar</title>
+    <script>
+      // Applied before first paint so the theme never flashes.
+      (function () {
+        try {
+          var stored = localStorage.getItem("radar-theme");
+          var dark = stored === "dark" || (stored !== "light" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+          document.documentElement.dataset.theme = dark ? "dark" : "light";
+        } catch (e) {
+          document.documentElement.dataset.theme = "light";
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

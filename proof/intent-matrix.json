@@ -1,0 +1,956 @@
+{
+  "generatedAt": "2026-09-17T15:43:25.545Z",
+  "deployment": "https://wry-walrus-528.convex.cloud",
+  "workspace": "demo-workspace",
+  "results": [
+    {
+      "key": "find_opportunity",
+      "goal": "Find companies that need a React/Next.js developer.",
+      "steps": {
+        "created": true,
+        "started": true,
+        "classified": true,
+        "planned": true,
+        "discovered": false
+      },
+      "missionId": "kd71cmzfvjkzxwqx6wr9xsm6658ek30m",
+      "classification": {
+        "primary": "find_opportunity",
+        "secondary": null,
+        "confidence": 0.95,
+        "rationale": "The user is looking for companies that need a React/Next.js developer, which aligns with the intent to find an opportunity where they can offer their services.",
+        "targetEntity": "organization",
+        "relationshipGoal": "become_their_vendor",
+        "understanding": null,
+        "clarification": null,
+        "status": "running"
+      },
+      "strategy": {
+        "mode": "opportunity",
+        "mustHave": [
+          "a specific stated need matching the user's offer",
+          "recency of the need",
+          "a realistic contact path exists"
+        ],
+        "niceToHave": [
+          "budget or scale signals",
+          "information on the company's growth or new projects"
+        ],
+        "searchQueries": 4,
+        "proposedSteps": [
+          "Search job boards and company career pages for positions requiring React/Next.js skills.",
+          "Review company news and blogs for announcements of new projects or growth that may require React/Next.js development.",
+          "Monitor community forums and social media groups for posts where companies are seeking recommendations for React/Next.js developers.",
+          "Check freelance and contract marketplaces for project requests or RFPs related to React/Next.js."
+        ],
+        "strategyNotes": "The strategy adheres to the provided guidance, focusing on finding organizations with a clear, recent, and actionable need for a React/Next.js developer. No deviations were made from the strategy guidance."
+      },
+      "discovery": {
+        "runStage": "discover",
+        "runStatus": "active",
+        "sourceCount": 0,
+        "matchCount": 0,
+        "queriesPlanned": 1,
+        "queriesDone": 0,
+        "firstHosts": []
+      }
+    },
+    {
+      "key": "find_person",
+      "goal": "Find a React developer with SaaS experience.",
+      "steps": {
+        "created": true,
+        "started": true,
+        "classified": true,
+        "planned": true,
+        "discovered": true
+      },
+      "missionId": "kd77bq4jrty6mkxm0h31ebt9b98ej9tm",
+      "classification": {
+        "primary": "find_person",
+        "secondary": null,
+        "confidence": 0.95,
+        "rationale": "The user is looking for a specific type of developer, which indicates they are seeking an individual with the required skills and experience.",
+        "targetEntity": "person",
+        "relationshipGoal": "hire_or_contract",
+        "understanding": null,
+        "clarification": null,
+        "status": "running"
+      },
+      "strategy": {
+        "mode": "person",
+        "mustHave": [
+          "React development skills",
+          "SaaS project experience",
+          "Verifiable work evidence",
+          "Contact information"
+        ],
+        "niceToHave": [
+          "Contributions to open-source projects",
+          "Published articles or talks on relevant topics",
+          "Indication of current availability or interest in new opportunities"
+        ],
+        "searchQueries": 5,
+        "proposedSteps": [
+          "Search for individuals with React and SaaS keywords in their GitHub repositories and LinkedIn profiles",
+          "Review personal websites and portfolios for detailed project descriptions and contact information",
+          "Check for any published articles, blog posts, or conference talks related to React and SaaS",
+          "Shortlist candidates based on the quality and relevance of their work, along with their availability signals"
+        ],
+        "strategyNotes": "Following the strategy guidance, the focus will be on finding professionals with publicly verifiable skills and a clear indication of SaaS experience. The sources and steps are designed to gather comprehensive evidence of the candidate's qualifications and to ensure they can be contacted directly."
+      },
+      "discovery": {
+        "runStage": "discover",
+        "runStatus": "active",
+        "sourceCount": 6,
+        "matchCount": 6,
+        "queriesPlanned": 1,
+        "queriesDone": 1,
+        "firstHosts": [
+          "www.reddit.com",
+          "www.facebook.com",
+          "github.com",
+          "github.com",
+          "github.com"
+        ]
+      }
+    },
+    {
+      "key": "find_solution",
+      "goal": "I need a solution for automating customer support.",
+      "steps": {
+        "created": true,
+        "started": true,
+        "classified": true,
+        "planned": true,
+        "discovered": false
+      },
+      "missionId": "kd79zzhk70xtrrctemsymfntsn8ejrvv",
+      "classification": {
+        "primary": "find_solution",
+        "secondary": null,
+        "confidence": 1,
+        "rationale": "The user is explicitly looking for a solution to automate customer support, which aligns with the 'find_solution' intent.",
+        "targetEntity": "product_or_service",
+        "relationshipGoal": "implement_tool",
+        "understanding": null,
+        "clarification": null,
+        "status": "running"
+      },
+      "strategy": {
+        "mode": "solution",
+        "mustHave": [
+          "The solution must specifically address the automation of customer support.",
+          "There must be credible evidence such as customer testimonials, reviews, or case studies to support the effectiveness of the solution."
+        ],
+        "niceToHave": [
+          "Pricing information is available and fits within a reasonable budget.",
+          "The solution offers a clear and realistic path for implementation and ongoing support."
+        ],
+        "searchQueries": 4,
+        "proposedSteps": [
+          "Search for and gather information from product/vendor sites, comparison and review pages, and case studies.",
+          "Evaluate the gathered solutions based on the problem-solution fit, credibility, and pricing.",
+          "Create a shortlist of the most promising solutions.",
+          "Contact the providers of the shortlisted solutions to gather more detailed information and possibly arrange a demo."
+        ],
+        "strategyNotes": "Following the strategy guidance, the focus is on discovering the best solution type for automating customer support. The proposed steps aim to identify, evaluate, and shortlist potential solutions, with the final step being to contact the providers for further details."
+      },
+      "discovery": {
+        "runStage": "discover",
+        "runStatus": "active",
+        "sourceCount": 0,
+        "matchCount": 0,
+        "queriesPlanned": 1,
+        "queriesDone": 0,
+        "firstHosts": []
+      }
+    },
+    {
+      "key": "find_customer",
+      "goal": "Find companies that could become customers for my SaaS.",
+      "steps": {
+        "created": true,
+        "started": true,
+        "classified": true,
+        "planned": true,
+        "discovered": true
+      },
+      "missionId": "kd7cvzz6rfm66ajb08zma9m64h8ekbfa",
+      "classification": {
+        "primary": "find_customer",
+        "secondary": null,
+        "confidence": 0.95,
+        "rationale": "The user is looking for companies that could potentially become customers for their SaaS product, which aligns with the find_customer intent.",
+        "targetEntity": "organization",
+        "relationshipGoal": "become_their_vendor",
+        "understanding": null,
+        "clarification": null,
+        "status": "running"
+      },
+      "strategy": {
+        "mode": "customer",
+        "mustHave": [
+          "segment/ICP fit",
+          "evidence of the pain point"
+        ],
+        "niceToHave": [
+          "signals of willingness to pay (stack, funding, hiring)",
+          "plausible use case for the user's product"
+        ],
+        "searchQueries": 4,
+        "proposedSteps": [
+          "Gather detailed information on the SaaS product and the user’s ICP.",
+          "Search and analyze companies within the target segment based on the ICP.",
+          "Review product review sites and forums to identify companies expressing the relevant pain points.",
+          "Examine industry news and reports for additional insights into potential customers and their challenges.",
+          "Investigate companies currently using competitor or complementary products to gauge interest and need."
+        ],
+        "strategyNotes": "The strategy focuses on identifying and validating potential customer organizations by matching them against the user's ICP and finding concrete evidence of the pain points. The proposed steps align with the primary entity focus and source priorities as outlined in the strategy guidance."
+      },
+      "discovery": {
+        "runStage": "discover",
+        "runStatus": "active",
+        "sourceCount": 6,
+        "matchCount": 6,
+        "queriesPlanned": 2,
+        "queriesDone": 1,
+        "firstHosts": [
+          "www.reddit.com",
+          "www.givainc.com",
+          "www.quora.com",
+          "www.zendesk.com",
+          "www.m1-project.com"
+        ]
+      }
+    },
+    {
+      "key": "find_collaborator",
+      "goal": "Find an AI engineer to collaborate with me.",
+      "steps": {
+        "created": true,
+        "started": true,
+        "classified": true,
+        "planned": true,
+        "discovered": true
+      },
+      "missionId": "kd72geydfdd8z9drrf05cac8zx8ek74m",
+      "classification": {
+        "primary": "find_collaborator",
+        "secondary": null,
+        "confidence": 0.95,
+        "rationale": "The user is specifically looking for an AI engineer to collaborate with, which aligns with the 'find_collaborator' intent.",
+        "targetEntity": "person",
+        "relationshipGoal": "partner_on_venture",
+        "understanding": null,
+        "clarification": null,
+        "status": "running"
+      },
+      "strategy": {
+        "mode": "collaborator",
+        "mustHave": [
+          "AI engineering skills",
+          "active in the community or on projects",
+          "seeking collaboration"
+        ],
+        "niceToHave": [
+          "similar project experience",
+          "complementary skill set to the user's",
+          "evidence of past successful collaborations"
+        ],
+        "searchQueries": 4,
+        "proposedSteps": [
+          "Search for individuals in co-founder matching communities and professional networks like LinkedIn.",
+          "Explore GitHub for active contributors in AI-related projects who are looking for collaborators.",
+          "Join and post in relevant technical forums and discussion boards to express interest in collaborating with an AI engineer."
+        ],
+        "strategyNotes": "The strategy focuses on finding an AI engineer through channels where they are likelyly to be actively seeking collaboration. The approach aims to ensure that any potential matches have complementary goals and a credible path for contact. No deviations from the provided guidance were necessary."
+      },
+      "discovery": {
+        "runStage": "discover",
+        "runStatus": "active",
+        "sourceCount": 6,
+        "matchCount": 6,
+        "queriesPlanned": 2,
+        "queriesDone": 1,
+        "firstHosts": [
+          "www.deshaw.com",
+          "weworkremotely.com",
+          "zenvanriel.com",
+          "ai.engineer",
+          "www.facebook.com"
+        ]
+      }
+    },
+    {
+      "key": "find_service",
+      "goal": "I need someone to create API documentation.",
+      "steps": {
+        "created": true,
+        "started": true,
+        "classified": true,
+        "planned": true,
+        "discovered": true
+      },
+      "missionId": "kd775ey02n5cmvc2r5n2w5hgyx8ekfaj",
+      "classification": {
+        "primary": "find_service",
+        "secondary": null,
+        "confidence": 0.95,
+        "rationale": "The user is looking for someone to provide a specific service, which is the creation of API documentation.",
+        "targetEntity": "person",
+        "relationshipGoal": "hire_or_contract",
+        "understanding": null,
+        "clarification": null,
+        "status": "running"
+      },
+      "strategy": {
+        "mode": "person",
+        "mustHave": [
+          "service explicitly offered",
+          "portfolio evidence of similar work",
+          "contactable"
+        ],
+        "niceToHave": [
+          "engagement/pricing signals",
+          "positive reviews on review platforms",
+          "detailed case studies"
+        ],
+        "searchQueries": 4,
+        "proposedSteps": [
+          "Search and gather information from recommended sources",
+          "Evaluate and shortlist potential service providers based on must-have and nice-to-have criteria",
+          "Contact the shortlisted providers to discuss the project and obtain more detailed information"
+        ],
+        "strategyNotes": "The strategy focuses on finding and evaluating service providers who offer API documentation services, with a strong emphasis on their past work and contactability. The user's request aligns well with the provided strategy guidance, so no deviations were made."
+      },
+      "discovery": {
+        "runStage": "discover",
+        "runStatus": "active",
+        "sourceCount": 6,
+        "matchCount": 6,
+        "queriesPlanned": 2,
+        "queriesDone": 1,
+        "firstHosts": [
+          "redocly.com",
+          "www.quora.com",
+          "www.gitbook.com",
+          "www.servicenow.com",
+          "apisyouwonthate.com"
+        ]
+      }
+    },
+    {
+      "key": "find_client",
+      "goal": "Find clients that need frontend development.",
+      "steps": {
+        "created": true,
+        "started": true,
+        "classified": true,
+        "planned": true,
+        "discovered": true
+      },
+      "missionId": "kd7dntrbv6mq5wjwy87xpe28718ekj0y",
+      "classification": {
+        "primary": "find_client",
+        "secondary": null,
+        "confidence": 0.95,
+        "rationale": "The user is looking for clients who need frontend development, which aligns with the service they offer.",
+        "targetEntity": "organization",
+        "relationshipGoal": "become_their_vendor",
+        "understanding": null,
+        "clarification": null,
+        "status": "running"
+      },
+      "strategy": {
+        "mode": "customer",
+        "mustHave": [
+          "demand signal for the exact service (frontend development)",
+          "recent signal (recency of the demand)"
+        ],
+        "niceToHave": [
+          "company scale/fit (size, industry, and other relevant demographics)",
+          "contact route (information on how to reach out to the organization)"
+        ],
+        "searchQueries": 4,
+        "proposedSteps": [
+          "Search for recent job postings, RFPs, and social media mentions indicating a need for frontend development.",
+          "Review industry directories and community posts to find organizations that are actively seeking frontend development services.",
+          "Identify companies that are hiring for frontend development roles in-house, as they may be candidates for outsourcing.",
+          "Prioritize organizations based on recency of the demand signal, company scale/fit, and availability of contact information.",
+          "Prepare an outreach plan for the top-prioritized organizations."
+        ],
+        "strategyNotes": "The strategy focuses on finding organizations with a clear and recent need for frontend development. The sources and evidence required are aligned with the primary guidance, and no deviations were made."
+      },
+      "discovery": {
+        "runStage": "evaluate",
+        "runStatus": "active",
+        "sourceCount": 20,
+        "matchCount": 20,
+        "queriesPlanned": 4,
+        "queriesDone": 4,
+        "firstHosts": [
+          "www.indeed.com",
+          "www.roberthalf.com",
+          "www.toptal.com",
+          "www.reddit.com",
+          "rightpeoplegroup.com"
+        ]
+      }
+    },
+    {
+      "key": "find_provider",
+      "goal": "Find an agency that can handle SEO for a SaaS startup.",
+      "steps": {
+        "created": true,
+        "started": true,
+        "classified": true,
+        "planned": true,
+        "discovered": true
+      },
+      "missionId": "kd7dwkarkc0q4b4qcsz3mpb3j18ekr4z",
+      "classification": {
+        "primary": "find_service",
+        "secondary": null,
+        "confidence": 0.95,
+        "rationale": "The user is looking for an agency that can provide SEO services, which is a specific service need.",
+        "targetEntity": "organization",
+        "relationshipGoal": "hire_or_contract",
+        "understanding": null,
+        "clarification": null,
+        "status": "running"
+      },
+      "strategy": {
+        "mode": "person",
+        "mustHave": [
+          "service explicitly offered",
+          "contact route"
+        ],
+        "niceToHave": [
+          "portfolio evidence of similar work",
+          "engagement/pricing signals"
+        ],
+        "searchQueries": 4,
+        "proposedSteps": [
+          "Search and identify potential SEO service providers that specialize in working with SaaS startups.",
+          "Review the service offerings on their websites to confirm they offer the required SEO services.",
+          "Check portfolios and case studies for evidence of successful SEO projects for SaaS companies.",
+          "Look for reviews and testimonials on review platforms to gauge the quality and reliability of the agencies.",
+          "Collect contact information and any available pricing or engagement details from the agency's website or marketplace listings.",
+          "Shortlist the most promising agencies based on the gathered evidence and prepare for the next step, which could be contacting the selected agencies."
+        ],
+        "strategyNotes": "The search will focus on finding SEO service providers with proven experience in SaaS. The primary criteria are that the service is explicitly offered and that there is a clear way to make contact. Additional desirable but not essential criteria include portfolio evidence and pricing signals."
+      },
+      "discovery": {
+        "runStage": "discover",
+        "runStatus": "active",
+        "sourceCount": 6,
+        "matchCount": 6,
+        "queriesPlanned": 2,
+        "queriesDone": 1,
+        "firstHosts": [
+          "www.groie.io",
+          "paylinedata.com",
+          "rightleftagency.com",
+          "www.impressiondigital.com",
+          "firstpagesage.com"
+        ]
+      }
+    },
+    {
+      "key": "find_business",
+      "goal": "Find cybersecurity SaaS companies.",
+      "steps": {
+        "created": true,
+        "started": true,
+        "classified": true,
+        "planned": true,
+        "discovered": true
+      },
+      "missionId": "kd76q2d3ymm9zg83bhs8xs025x8ekak4",
+      "classification": {
+        "primary": "find_business",
+        "secondary": null,
+        "confidence": 0.95,
+        "rationale": "The user is looking for cybersecurity SaaS companies, which indicates they are trying to find businesses in that specific sector.",
+        "targetEntity": "organization",
+        "relationshipGoal": "become_their_vendor",
+        "understanding": null,
+        "clarification": null,
+        "status": "running"
+      },
+      "strategy": {
+        "mode": "customer",
+        "mustHave": [
+          "industry/segment confirmation as cybersecurity SaaS",
+          "relevance to the user's goal of becoming a vendor"
+        ],
+        "niceToHave": [
+          "size/stage signals",
+          "contact route where public"
+        ],
+        "searchQueries": 4,
+        "proposedSteps": [
+          "Search and gather information from industry directories, company lists, and rankings.",
+          "Review recent news and market maps to ensure the information is current and relevant.",
+          "Evaluate and shortlist companies that match the requested structure and are relevant to the goal.",
+          "Prepare an outreach plan for the shortlisted companies."
+        ],
+        "strategyNotes": "Following the strategy guidance closely, focusing on structural profile matching and using prioritized sources. No deviations were made."
+      },
+      "discovery": {
+        "runStage": "discover",
+        "runStatus": "active",
+        "sourceCount": 6,
+        "matchCount": 6,
+        "queriesPlanned": 2,
+        "queriesDone": 1,
+        "firstHosts": [
+          "www.sentinelone.com",
+          "www.gartner.com",
+          "builtin.com",
+          "www.obsidiansecurity.com",
+          "www.softwaresecured.com"
+        ]
+      }
+    },
+    {
+      "key": "multi_intent",
+      "goal": "Find companies that need React development and help me turn the best ones into clients.",
+      "steps": {
+        "created": true,
+        "started": true,
+        "classified": true,
+        "planned": true,
+        "discovered": true
+      },
+      "missionId": "kd7dkjt8jzpy8r1ae80s4hrs5d8ek40t",
+      "classification": {
+        "primary": "find_customer",
+        "secondary": null,
+        "confidence": 0.95,
+        "rationale": "The user is looking for companies that need React development, with the goal of turning them into clients, which aligns with a customer acquisition intent.",
+        "targetEntity": "organization",
+        "relationshipGoal": "become_their_vendor",
+        "understanding": null,
+        "clarification": null,
+        "status": "running"
+      },
+      "strategy": {
+        "mode": "customer",
+        "mustHave": [
+          "segment/ICP fit",
+          "evidence of the pain point",
+          "signals of willingness to pay (stack, funding, hiring)",
+          "use-case match"
+        ],
+        "niceToHave": [
+          "recently posted job openings for React developers",
+          "active participation in tech forums or events related to React",
+          "published content or whitepapers on web development or React"
+        ],
+        "searchQueries": 4,
+        "proposedSteps": [
+          "Define a clear ICP (Ideal Customer Profile) based on missing facts",
+          "Search for companies matching the ICP using LinkedIn and Crunchbase",
+          "Analyze GitHub and Stack Overflow for evidence of current React-related challenges and needs",
+          "Review product-review sites and industry news for additional pain points and signals of willingness to pay",
+          "Prioritize companies based on the strength of the match criteria",
+          "Develop a targeted outreach plan for the top candidates"
+        ],
+        "strategyNotes": "The strategy focuses on finding companies that fit the ICP and show clear signs of needing React development. The proposed steps include leveraging multiple sources to gather comprehensive data, ensuring a strong match before outreach."
+      },
+      "discovery": {
+        "runStage": "discover",
+        "runStatus": "active",
+        "sourceCount": 6,
+        "matchCount": 6,
+        "queriesPlanned": 2,
+        "queriesDone": 1,
+        "firstHosts": [
+          "jaydevs.com",
+          "codiant.com",
+          "www.psdtohtmlninja.com",
+          "technologychecker.io",
+          "clutch.co"
+        ]
+      }
+    },
+    {
+      "key": "ambiguous",
+      "goal": "I need help with marketing.",
+      "steps": {
+        "created": true,
+        "started": true,
+        "classified": true,
+        "planned": true,
+        "discovered": true
+      },
+      "missionId": "kd7956dv5trspxberd6cgp3zp58ekh2c",
+      "classification": {
+        "primary": "find_service",
+        "secondary": null,
+        "confidence": 0.95,
+        "rationale": "The user is looking for assistance with marketing, which suggests they need a service to help them with their marketing needs.",
+        "targetEntity": "product_or_service",
+        "relationshipGoal": "hire_or_contract",
+        "understanding": null,
+        "clarification": null,
+        "status": "running"
+      },
+      "strategy": {
+        "mode": "person",
+        "mustHave": [
+          "service explicitly offered",
+          "portfolio evidence of similar work",
+          "contactable"
+        ],
+        "niceToHave": [
+          "engagement/pricing signals",
+          "positive reviews and testimonials"
+        ],
+        "searchQueries": 4,
+        "proposedSteps": [
+          "Identify and visit agency/service-provider sites that offer marketing services",
+          "Review portfolios and case-study pages to find evidence of similar work",
+          "Check review platforms for customer feedback and ratings",
+          "Explore marketplace listings for additional options and pricing information",
+          "Shortlist potential providers based on the match criteria",
+          "Contact the shortlisted providers to discuss the project and obtain more details"
+        ],
+        "strategyNotes": "Following the strategy guidance, the focus is on finding and evaluating service providers or agencies. The proposed steps align with the recommended actions of 'evaluate_and_shortlist' and 'contact_provider'. If the user specifies a particular type of marketing service or any other specific requirements, the strategy will be adjusted accordingly."
+      },
+      "discovery": {
+        "runStage": "discover",
+        "runStatus": "active",
+        "sourceCount": 6,
+        "matchCount": 6,
+        "queriesPlanned": 2,
+        "queriesDone": 1,
+        "firstHosts": [
+          "www.g2.com",
+          "thriveagency.com",
+          "www.business.com",
+          "www.activecampaign.com",
+          "www.constantcontact.com"
+        ]
+      }
+    },
+    {
+      "key": "context_dependent",
+      "goal": "Find companies that need what I do.",
+      "steps": {
+        "created": true,
+        "started": true,
+        "classified": true,
+        "planned": true,
+        "discovered": true
+      },
+      "missionId": "kd74jexnjx7k0jq8qcje6ntx8n8ejqgz",
+      "classification": {
+        "primary": "find_opportunity",
+        "secondary": null,
+        "confidence": 0.95,
+        "rationale": "The user is looking for companies that need their services, which aligns with an opportunity search.",
+        "targetEntity": "organization",
+        "relationshipGoal": "become_their_vendor",
+        "understanding": null,
+        "clarification": null,
+        "status": "running"
+      },
+      "strategy": {
+        "mode": "opportunity",
+        "mustHave": [
+          "a specific stated need matching the user's offer",
+          "recency of the need (within the last 6 months)",
+          "a realistic contact path exists"
+        ],
+        "niceToHave": [
+          "budget or scale signals",
+          "information on decision-makers or key contacts"
+        ],
+        "searchQueries": 4,
+        "proposedSteps": [
+          "Search job boards and company career pages for hiring posts that indicate a need for the user's services.",
+          "Review company news and blogs for announcements of new projects or growth that may require the user's services.",
+          "Explore community forums and social media groups for posts where companies are seeking recommendations or expressing dissatisfaction with current solutions.",
+          "Check freelance and contract marketplaces for project requests that align with the user's offerings."
+        ],
+        "strategyNotes": "The strategy is aligned with the provided guidance. No deviations were made as the request and context fit well within the outlined parameters."
+      },
+      "discovery": {
+        "runStage": "discover",
+        "runStatus": "active",
+        "sourceCount": 6,
+        "matchCount": 6,
+        "queriesPlanned": 2,
+        "queriesDone": 1,
+        "firstHosts": [
+          "admin.ks.gov",
+          "jobcenterofwisconsin.com",
+          "jobs.horizonservices.com",
+          "mschelps.org",
+          "careers.unitedsiteservices.com"
+        ]
+      }
+    }
+  ],
+  "derived": {
+    "nineCanonicalClassified": 8,
+    "of": 9,
+    "distinctTargetEntities": [
+      "organization",
+      "person",
+      "product_or_service"
+    ],
+    "distinctRelationshipGoals": [
+      "become_their_vendor",
+      "hire_or_contract",
+      "implement_tool",
+      "partner_on_venture"
+    ],
+    "distinctPlanModes": [
+      "opportunity",
+      "person",
+      "solution",
+      "customer",
+      "collaborator"
+    ],
+    "multiIntentSecondaryCaptured": false,
+    "multiIntentDetail": null,
+    "ambiguousAskedClarification": false,
+    "ambiguousDetail": null,
+    "contextResolvedFromProfile": true,
+    "contextDetail": "The user is looking for companies that need their services, which aligns with an opportunity search.",
+    "perIntent": [
+      {
+        "key": "find_opportunity",
+        "primary": "find_opportunity",
+        "secondary": null,
+        "entity": "organization",
+        "relationship": "become_their_vendor",
+        "mode": "opportunity",
+        "mustHave": [
+          "a specific stated need matching the user's offer",
+          "recency of the need"
+        ],
+        "sources": 0,
+        "hosts": []
+      },
+      {
+        "key": "find_person",
+        "primary": "find_person",
+        "secondary": null,
+        "entity": "person",
+        "relationship": "hire_or_contract",
+        "mode": "person",
+        "mustHave": [
+          "React development skills",
+          "SaaS project experience"
+        ],
+        "sources": 6,
+        "hosts": [
+          "www.reddit.com",
+          "www.facebook.com",
+          "github.com",
+          "github.com",
+          "github.com"
+        ]
+      },
+      {
+        "key": "find_solution",
+        "primary": "find_solution",
+        "secondary": null,
+        "entity": "product_or_service",
+        "relationship": "implement_tool",
+        "mode": "solution",
+        "mustHave": [
+          "The solution must specifically address the automation of customer support.",
+          "There must be credible evidence such as customer testimonials, reviews, or case studies to support the effectiveness of the solution."
+        ],
+        "sources": 0,
+        "hosts": []
+      },
+      {
+        "key": "find_customer",
+        "primary": "find_customer",
+        "secondary": null,
+        "entity": "organization",
+        "relationship": "become_their_vendor",
+        "mode": "customer",
+        "mustHave": [
+          "segment/ICP fit",
+          "evidence of the pain point"
+        ],
+        "sources": 6,
+        "hosts": [
+          "www.reddit.com",
+          "www.givainc.com",
+          "www.quora.com",
+          "www.zendesk.com",
+          "www.m1-project.com"
+        ]
+      },
+      {
+        "key": "find_collaborator",
+        "primary": "find_collaborator",
+        "secondary": null,
+        "entity": "person",
+        "relationship": "partner_on_venture",
+        "mode": "collaborator",
+        "mustHave": [
+          "AI engineering skills",
+          "active in the community or on projects"
+        ],
+        "sources": 6,
+        "hosts": [
+          "www.deshaw.com",
+          "weworkremotely.com",
+          "zenvanriel.com",
+          "ai.engineer",
+          "www.facebook.com"
+        ]
+      },
+      {
+        "key": "find_service",
+        "primary": "find_service",
+        "secondary": null,
+        "entity": "person",
+        "relationship": "hire_or_contract",
+        "mode": "person",
+        "mustHave": [
+          "service explicitly offered",
+          "portfolio evidence of similar work"
+        ],
+        "sources": 6,
+        "hosts": [
+          "redocly.com",
+          "www.quora.com",
+          "www.gitbook.com",
+          "www.servicenow.com",
+          "apisyouwonthate.com"
+        ]
+      },
+      {
+        "key": "find_client",
+        "primary": "find_client",
+        "secondary": null,
+        "entity": "organization",
+        "relationship": "become_their_vendor",
+        "mode": "customer",
+        "mustHave": [
+          "demand signal for the exact service (frontend development)",
+          "recent signal (recency of the demand)"
+        ],
+        "sources": 20,
+        "hosts": [
+          "www.indeed.com",
+          "www.roberthalf.com",
+          "www.toptal.com",
+          "www.reddit.com",
+          "rightpeoplegroup.com"
+        ]
+      },
+      {
+        "key": "find_provider",
+        "primary": "find_service",
+        "secondary": null,
+        "entity": "organization",
+        "relationship": "hire_or_contract",
+        "mode": "person",
+        "mustHave": [
+          "service explicitly offered",
+          "contact route"
+        ],
+        "sources": 6,
+        "hosts": [
+          "www.groie.io",
+          "paylinedata.com",
+          "rightleftagency.com",
+          "www.impressiondigital.com",
+          "firstpagesage.com"
+        ]
+      },
+      {
+        "key": "find_business",
+        "primary": "find_business",
+        "secondary": null,
+        "entity": "organization",
+        "relationship": "become_their_vendor",
+        "mode": "customer",
+        "mustHave": [
+          "industry/segment confirmation as cybersecurity SaaS",
+          "relevance to the user's goal of becoming a vendor"
+        ],
+        "sources": 6,
+        "hosts": [
+          "www.sentinelone.com",
+          "www.gartner.com",
+          "builtin.com",
+          "www.obsidiansecurity.com",
+          "www.softwaresecured.com"
+        ]
+      },
+      {
+        "key": "multi_intent",
+        "primary": "find_customer",
+        "secondary": null,
+        "entity": "organization",
+        "relationship": "become_their_vendor",
+        "mode": "customer",
+        "mustHave": [
+          "segment/ICP fit",
+          "evidence of the pain point"
+        ],
+        "sources": 6,
+        "hosts": [
+          "jaydevs.com",
+          "codiant.com",
+          "www.psdtohtmlninja.com",
+          "technologychecker.io",
+          "clutch.co"
+        ]
+      },
+      {
+        "key": "ambiguous",
+        "primary": "find_service",
+        "secondary": null,
+        "entity": "product_or_service",
+        "relationship": "hire_or_contract",
+        "mode": "person",
+        "mustHave": [
+          "service explicitly offered",
+          "portfolio evidence of similar work"
+        ],
+        "sources": 6,
+        "hosts": [
+          "www.g2.com",
+          "thriveagency.com",
+          "www.business.com",
+          "www.activecampaign.com",
+          "www.constantcontact.com"
+        ]
+      },
+      {
+        "key": "context_dependent",
+        "primary": "find_opportunity",
+        "secondary": null,
+        "entity": "organization",
+        "relationship": "become_their_vendor",
+        "mode": "opportunity",
+        "mustHave": [
+          "a specific stated need matching the user's offer",
+          "recency of the need (within the last 6 months)"
+        ],
+        "sources": 6,
+        "hosts": [
+          "admin.ks.gov",
+          "jobcenterofwisconsin.com",
+          "jobs.horizonservices.com",
+          "mschelps.org",
+          "careers.unitedsiteservices.com"
+        ]
+      }
+    ]
+  }
+}
