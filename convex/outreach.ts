@@ -2,13 +2,18 @@
 
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
-import { AgentMail } from "@agentmail/convex";
+import { AgentMail, type AgentMailComponent } from "@agentmail/convex";
 import { api, components, internal } from "./_generated/api";
 import { action } from "./_generated/server";
 import { contentHash, boundedText } from "./hash";
 import { llmConfig } from "./ai";
 
-const agentmail = new AgentMail(components.agentmail);
+// Convex's generated ComponentApi labels the functions a parent may call as
+// "internal" — component functions are never exposed to clients — while the
+// client package's hand-authored type labels those same functions by their
+// source visibility ("public"). The runtime surface is identical; only the
+// label differs. See convex/agentmail/README.md for the full story.
+const agentmail = new AgentMail(components.agentmail as unknown as AgentMailComponent);
 
 // The component's client accepts a structural { runMutation | runQuery | runAction }
 // context; Convex's GenericActionCtx is structurally compatible but its rest-arg

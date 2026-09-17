@@ -12,6 +12,7 @@ import type * as ai from "../ai.js";
 import type * as budget from "../budget.js";
 import type * as commandCenter from "../commandCenter.js";
 import type * as context from "../context.js";
+import type * as crawlWatchdog from "../crawlWatchdog.js";
 import type * as crons from "../crons.js";
 import type * as entityStore from "../entityStore.js";
 import type * as formFlows from "../formFlows.js";
@@ -50,6 +51,7 @@ declare const fullApi: ApiFromModules<{
   budget: typeof budget;
   commandCenter: typeof commandCenter;
   context: typeof context;
+  crawlWatchdog: typeof crawlWatchdog;
   crons: typeof crons;
   entityStore: typeof entityStore;
   formFlows: typeof formFlows;
@@ -106,6 +108,6 @@ export declare const internal: FilterApi<
 
 export declare const components: {
   firecrawl: import("@firecrawl/firecrawl-convex/_generated/component.js").ComponentApi<"firecrawl">;
-  agentmail: import("@agentmail/convex/_generated/component.js").ComponentApi<"agentmail">;
+  agentmail: import("../agentmail/_generated/component.js").ComponentApi<"agentmail">;
   staticHosting: import("@convex-dev/static-hosting/_generated/component.js").ComponentApi<"staticHosting">;
 };

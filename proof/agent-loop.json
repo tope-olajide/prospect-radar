@@ -1,0 +1,337 @@
+{
+  "generatedAt": "2026-09-17T15:23:00.622Z",
+  "environment": "prod wry-walrus-528",
+  "cloud": "https://wry-walrus-528.convex.cloud",
+  "site": "https://wry-walrus-528.convex.site",
+  "workspace": "demo-workspace",
+  "goal": "Find companies that need a React/Next.js developer and help me contact them.",
+  "counterpart": "inquisitivehistory455@agentmail.to",
+  "note": "All email stays inside the workspace owner's own AgentMail account; no third party was contacted.",
+  "ids": {
+    "inbox": {
+      "email": "sleepycharge122@agentmail.to",
+      "agentmailInboxId": "sleepycharge122@agentmail.to"
+    },
+    "counterpart": "inquisitivehistory455@agentmail.to",
+    "contextFacts": [
+      {
+        "category": "full_name",
+        "status": "user_confirmed"
+      },
+      {
+        "category": "email",
+        "status": "user_confirmed"
+      },
+      {
+        "category": "phone",
+        "status": "user_confirmed"
+      },
+      {
+        "category": "delivery_instructions",
+        "status": "user_confirmed"
+      },
+      {
+        "category": "pizza_size",
+        "status": "user_confirmed"
+      },
+      {
+        "category": "pizza_toppings",
+        "status": "user_confirmed"
+      },
+      {
+        "category": "services",
+        "status": "user_confirmed"
+      },
+      {
+        "category": "portfolio",
+        "status": "user_confirmed"
+      },
+      {
+        "category": "experience",
+        "status": "user_confirmed"
+      }
+    ],
+    "missionId": "kd7dkagrykhrs6r7m4mydgf22n8ejaq3",
+    "runId": "jd79sfpjhcyqkjx9zek2vtpehn8ej3j9",
+    "runStartedAt": 1789658390812,
+    "runStatus": "waiting",
+    "runStage": "approval",
+    "plan": {
+      "provider": "dashscope:qwen-max",
+      "intent": "find_opportunity",
+      "secondary": null,
+      "confidence": 0.95,
+      "rationale": "The user is looking for companies that need a React/Next.js developer, which aligns with finding an opportunity to offer their services.",
+      "targetEntity": "organization",
+      "relationshipGoal": "become_their_vendor",
+      "mustHave": 3,
+      "strategyNotes": "The strategy closely follows the provided guidance, focusing on finding recent and relevant opportunities where the user can offer their services. No deviations were made from the suggested approach."
+    },
+    "sourceCount": 19,
+    "entityCount": 6,
+    "matchIds": [
+      "k576tvc7gty59hrs0yw2p6c41s8ek378",
+      "k5726sy5pjest2j5mxfd21bmpd8ekbht",
+      "k57f92yy45x7j0z1prw68gdfmh8ejpry",
+      "k5781dm39jasjjk09f6v9kcj7d8ejrs1",
+      "k579jnbjtjskwfwfrk7v60rf498ek39v",
+      "k571q9zcxnnx5p83fg4hh0wgjd8ej5xs",
+      "k57eaqx0k3d3p8ana0r7nrqbtn8ekgrv",
+      "k5744cdgvk1xww24zss072xb1h8ejaax",
+      "k57da9ppj78fz2r0hyydsz7fw18ekkj3",
+      "k576sgkyqgdwja4nhz2qddapzh8ekyhf",
+      "k573x49ta5kqvs611gsvnf80a98ej2yd",
+      "k579q5nyfqb4zcxt5fhzj9wjxh8ekjpq",
+      "k574j6xzfhrz36m32g7jey3pys8ejv57",
+      "k579hftxnz5d9p36f7ftaebyks8ekcbb",
+      "k570f2r1njbd7qw482t4mdfhah8ekrxw",
+      "k57b2xtc5bfv5zpzakpjzp47k18ek4zt",
+      "k574fwtsc0c53wtkk0bhjkg7v98eke8f",
+      "k574hv65trqfvq4dnykq5e3f1h8ejzhj",
+      "k573445swh90a1d091h1208fad8ej6da"
+    ],
+    "topMatch": {
+      "label": "promising",
+      "summary": "ZipRecruiter lists several Next.js developer jobs, which align with the user's offer. Recency of the need is unknown, but the contact route is clear.",
+      "model": "qwen-max",
+      "unknowns": [],
+      "risks": [],
+      "recommendedAction": "contact_via_platform"
+    },
+    "runTools": [
+      "llm.classify",
+      "llm.plan",
+      "firecrawl.search",
+      "orchestrator",
+      "firecrawl.extract"
+    ],
+    "actionId": "j5798n3xpsq2nv99xpqdbbn0g18ej7v0",
+    "approval": {
+      "status": "approved",
+      "expiresAt": 1789662139860
+    },
+    "outboundId": "jh73pv6awqp999yanktxdd5za18ek733",
+    "threadId": null,
+    "providerMessageId": null,
+    "deliveryStatus": "sent",
+    "counterpartMessageId": "<010001a0aff62b9f-a27772be-e10b-4d5c-9c38-146eb36e8730-000000@email.amazonses.com>",
+    "counterpartReplyId": "<010001a0aff652a8-84e8c91d-9ac4-4f6c-ba52-e78d48f161cd-000000@email.amazonses.com>",
+    "inbound": {
+      "messageId": "jx78cjvknt273nw3as5yj2fcs18ek9ne",
+      "threadId": "1e93c296-8ffb-4474-8b56-d62f7ade62c9",
+      "subject": "Re: Prospect Radar self-test: approved outreach over AgentMail",
+      "preview": "Thanks for reaching out — this is relevant to us. Before we take it further: can you send examples of your previous work? -- Sent via AgentMail On Thu, Sep 17, "
+    },
+    "classification": {
+      "label": "needs_info",
+      "confidence": 0.9,
+      "model": "qwen-max",
+      "nextAction": "Share examples of previous work with the recipient and follow up to gauge their interest after they have reviewed the materials.",
+      "suggestedDraftId": "j57er6wnehns3w70gc4dxcjhc98ekghf",
+      "summary": "The recipient is interested in the offer but has requested to see examples of previous work before proceeding further."
+    },
+    "continuationDraftId": "j57er6wnehns3w70gc4dxcjhc98ekghf",
+    "continuationOutboundId": "jh73gc4sjf57ah9074fpma5pgd8ejxpv",
+    "outcome": {
+      "stage": "contacted",
+      "nextAction": "Wait for a reply or review delivery activity.",
+      "evidence": "Approved message sent through AgentMail; awaiting delivery confirmation.",
+      "counterpart": "Probe <inquisitivehistory455@agentmail.to>"
+    },
+    "pipeline": [
+      {
+        "count": 5,
+        "stage": "contacted"
+      },
+      {
+        "count": 6,
+        "stage": "engaged"
+      }
+    ]
+  },
+  "summary": {
+    "steps": 29,
+    "proven": 26,
+    "runStatus": "waiting",
+    "runStage": "approval",
+    "delivery": "sent",
+    "classifiedAs": "needs_info",
+    "outcomeStage": "contacted"
+  },
+  "evidence": [
+    {
+      "at": "2026-09-17T15:19:49.521Z",
+      "step": "AgentMail inbox linked",
+      "status": "✅ real",
+      "detail": "sleepycharge122@agentmail.to"
+    },
+    {
+      "at": "2026-09-17T15:19:50.423Z",
+      "step": "User context available to the agent",
+      "status": "✅ real",
+      "detail": "9 confirmed facts (0 added now); categories: full_name, email, phone, delivery_instructions, pizza_size, pizza_toppings, services, portfolio, experience"
+    },
+    {
+      "at": "2026-09-17T15:19:50.812Z",
+      "step": "Mission created from a natural-language goal",
+      "status": "✅ real",
+      "detail": "kd7dkagrykhrs6r7m4mydgf22n8ejaq3 (run jd79sfpjhcyqkjx9zek2vtpehn8ej3j9)"
+    },
+    {
+      "at": "2026-09-17T15:19:51.144Z",
+      "step": "Agent run started",
+      "status": "✅ real",
+      "detail": "stage intake"
+    },
+    {
+      "at": "2026-09-17T15:22:15.318Z",
+      "step": "Autonomous run reached the approval gate",
+      "status": "✅ real",
+      "detail": "waiting at approval — the agent will not act on its own"
+    },
+    {
+      "at": "2026-09-17T15:22:16.345Z",
+      "step": "AI classified intent and planned strategy",
+      "status": "✅ real",
+      "detail": "dashscope:qwen-max · intent find_opportunity · target organization · goal become_their_vendor · 3 must-have criteria"
+    },
+    {
+      "at": "2026-09-17T15:22:16.345Z",
+      "step": "Classifier rationale",
+      "status": "•",
+      "detail": "The user is looking for companies that need a React/Next.js developer, which aligns with finding an opportunity to offer their services."
+    },
+    {
+      "at": "2026-09-17T15:22:16.751Z",
+      "step": "Firecrawl discovery jobs",
+      "status": "✅ real",
+      "detail": "4 jobs, 4 complete, first returned 6 results"
+    },
+    {
+      "at": "2026-09-17T15:22:17.371Z",
+      "step": "Sourced evidence persisted",
+      "status": "✅ real",
+      "detail": "19 sources, first www.ziprecruiter.com"
+    },
+    {
+      "at": "2026-09-17T15:22:17.693Z",
+      "step": "Entities + signals extracted",
+      "status": "✅ real",
+      "detail": "6 entities, first \"Dave Gray\" (person, extracted)"
+    },
+    {
+      "at": "2026-09-17T15:22:18.084Z",
+      "step": "Signals recorded",
+      "status": "✅ real",
+      "detail": "3 signals, first type \"hiring\""
+    },
+    {
+      "at": "2026-09-17T15:22:18.597Z",
+      "step": "Explainable matches produced",
+      "status": "✅ real",
+      "detail": "19 matches, 19 explained by qwen-max; top label \"promising\", recommends contact_via_platform"
+    },
+    {
+      "at": "2026-09-17T15:22:18.597Z",
+      "step": "Explained match",
+      "status": "•",
+      "detail": "promising: ZipRecruiter lists several Next.js developer jobs, which align with the user's offer. Recency of the need is unknown, but the contact route is clear."
+    },
+    {
+      "at": "2026-09-17T15:22:18.597Z",
+      "step": "Explained match",
+      "status": "•",
+      "detail": "promising: Facebook post looking for a React/Next.js developer, which aligns with the user's offer. Recency of the need and the contact route are unknown."
+    },
+    {
+      "at": "2026-09-17T15:22:18.949Z",
+      "step": "Agent transcript receipts",
+      "status": "✅ real",
+      "detail": "tools: llm.classify, llm.plan, firecrawl.search, orchestrator, firecrawl.extract"
+    },
+    {
+      "at": "2026-09-17T15:22:19.738Z",
+      "step": "Outreach draft created (unsent)",
+      "status": "✅ real",
+      "detail": "j5798n3xpsq2nv99xpqdbbn0g18ej7v0 → inquisitivehistory455@agentmail.to, status \"draft\""
+    },
+    {
+      "at": "2026-09-17T15:22:20.092Z",
+      "step": "Approval bound to the exact content",
+      "status": "✅ real",
+      "detail": "status \"approved\", expires 2026-09-17T16:22:19.860Z"
+    },
+    {
+      "at": "2026-09-17T15:22:20.781Z",
+      "step": "AgentMail send",
+      "status": "✅ real",
+      "detail": "outbound jh73pv6awqp999yanktxdd5za18ek733"
+    },
+    {
+      "at": "2026-09-17T15:22:28.734Z",
+      "step": "Delivery state observed",
+      "status": "✅ real",
+      "detail": "status \"sent\", provider message <010001a0aff62b9f-a27772be-e10b-4d5c-9c38-146eb36e8730-000000@email.amazonses.com>"
+    },
+    {
+      "at": "2026-09-17T15:22:31.601Z",
+      "step": "Counterpart replied inside the provider thread",
+      "status": "✅ real",
+      "detail": "from inquisitivehistory455@agentmail.to replying to <010001a0aff62b9f-a27772be-e10b-4d5c-9c38-146eb36e8730-000000@email.amazonses.com> in thread feecc56a-2a49-43d1-a289-85195629f957"
+    },
+    {
+      "at": "2026-09-17T15:22:47.985Z",
+      "step": "Inbound reply delivered by the signed webhook",
+      "status": "✅ real",
+      "detail": "jx78cjvknt273nw3as5yj2fcs18ek9ne in thread 1e93c296-8ffb-4474-8b56-d62f7ade62c9, subject \"Re: Prospect Radar self-test: approved outreach over AgentMail\""
+    },
+    {
+      "at": "2026-09-17T15:22:48.395Z",
+      "step": "Reply classified and next action decided by the LLM",
+      "status": "✅ real",
+      "detail": "label \"needs_info\" · qwen-max · next step: Share examples of previous work with the recipient and follow up to gauge their interest after they have reviewed the materials. · suggested reply drafted"
+    },
+    {
+      "at": "2026-09-17T15:22:48.807Z",
+      "step": "Agent proposed a follow-up reply (awaiting approval)",
+      "status": "✅ real",
+      "detail": "j57er6wnehns3w70gc4dxcjhc98ekghf → Probe <inquisitivehistory455@agentmail.to>"
+    },
+    {
+      "at": "2026-09-17T15:22:49.931Z",
+      "step": "Continuation reply sent after approval",
+      "status": "✅ real",
+      "detail": "approval \"approved\" → outbound jh73gc4sjf57ah9074fpma5pgd8ejxpv"
+    },
+    {
+      "at": "2026-09-17T15:22:58.841Z",
+      "step": "Continuation delivery state",
+      "status": "✅ real",
+      "detail": "status \"sent\""
+    },
+    {
+      "at": "2026-09-17T15:22:59.250Z",
+      "step": "Relationship outcome persisted",
+      "status": "✅ real",
+      "detail": "stage \"contacted\" · next action: Wait for a reply or review delivery activity. · evidence: Approved message sent through AgentMail; awaiting delivery confirmation."
+    },
+    {
+      "at": "2026-09-17T15:22:59.969Z",
+      "step": "Relationship memory (sequences + follow-ups)",
+      "status": "✅ real",
+      "detail": "1 sequences, 2 follow-ups"
+    },
+    {
+      "at": "2026-09-17T15:23:00.279Z",
+      "step": "Command center reflects the relationship",
+      "status": "✅ real",
+      "detail": "contacted:5, engaged:6"
+    },
+    {
+      "at": "2026-09-17T15:23:00.622Z",
+      "step": "Re-sending the same approved action does not duplicate",
+      "status": "✅ real",
+      "detail": "second call returned jh73pv6awqp999yanktxdd5za18ek733 with status \"sent\""
+    }
+  ]
+}

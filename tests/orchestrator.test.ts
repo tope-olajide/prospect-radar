@@ -178,20 +178,32 @@ describe("runStage — stage dispatch", () => {
     expect(plan?.normalizedGoal).toBe("Find companies needing React work.");
   });
 
-  it("discover: executes the next search query and marks it done", async () => {
+  it("discover: a provider refusal consumes its query and leaves the mission running", async () => {
     // First fetch call is the plan LLM, then Firecrawl search (module-level client hits network only via component mock).
     stubFetch(() => llmReply({ web: [] }));
     const t = convexTest(schema, convexModules);
     const missionId = await seedMission(t);
     await seedBacklog(t, missionId);
     await forceStage(t, missionId, "discover", "active");
-    // The Firecrawl component is not mocked here; the search action will fail
-    // on the network call. Run and expect a classified blocked state instead.
+    // The Firecrawl component is not mocked here, so the search action fails on
+    // the network call. One refused query is a missing source, not a dead
+    // mission: the query is consumed with a classified reason and the run keeps
+    // working through the rest of the backlog.
     await t.action(internal.missionOrchestrator.runStage, { missionId: missionId as never });
     const run = await getRun(t, missionId);
-    expect(["blocked", "failed"]).toContain(run?.status);
+    expect(run?.status).toBe("active");
+    expect(run?.currentStage).toBe("discover");
+
     const steps = await stepsFor(t, missionId);
-    expect(steps.some((s) => s.label === "stage.discover.failed")).toBe(true);
+    const failed = steps.find((s) => s.label === "discover.query.failed");
+    expect(failed).toBeTruthy();
+    expect(failed!.tool).toBe("firecrawl.search");
+
+    // Consumed, not retried: a skipped query can never produce a duplicate call.
+    const statuses = await t.run(async (ctx) =>
+      (await ctx.db.query("missionQueries").withIndex("by_missionId", (q) => q.eq("missionId", missionId as never)).collect()).map((row) => row.status),
+    );
+    expect(statuses).toContain("skipped");
   });
 
   it("discover with an empty backlog advances to evaluate; evaluating with no sources blocks honestly", async () => {

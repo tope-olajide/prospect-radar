@@ -13,6 +13,7 @@ import {
   estimateSearch,
 } from "./budget";
 import { BUDGET_BLOCKED_INTERRUPTION, classifyAndDecide } from "./retryPolicy";
+import { classifyProviderError } from "./providerErrors";
 
 /**
  * The mission orchestrator: the agent that drives a run through its stages.
@@ -105,7 +106,7 @@ async function guardBudget(
  */
 async function failStage(ctx: ActionCtx, args: { missionId: Id<"missions">; stage: Stage; message: string }) {
   const run = await runForMission(ctx, args.missionId);
-  if (!run || ["cancelled", "complete"].includes(run.status)) return { retry: false, delayMs: 0, classified: null };
+  if (!run || ["cancelled", "complete"].includes(run.status)) return { retry: false, delayMs: 0, classified: null, interruption: null };
   const { classified, retry, delayMs } = classifyAndDecide(args.message, run.retryCount ?? 0);
   // Block at the run's CURRENT stage: a stage handler may have already
   // advanced the run (e.g. intake → interpret) before the failure, and
@@ -139,7 +140,7 @@ async function failStage(ctx: ActionCtx, args: { missionId: Id<"missions">; stag
   if (retry) {
     await ctx.runMutation(internal.orchestratorStore.bumpRetry, { missionId: args.missionId });
   }
-  return { retry, delayMs, classified };
+  return { retry, delayMs, classified, interruption: classified?.code ?? null };
 }
 
 export const runStage = internalAction({
@@ -201,9 +202,26 @@ export const runStage = internalAction({
             // Durable crawl: startCrawlJob keeps the run in discover, the
             // crawl runs asynchronously, and its completion callback
             // (crawlCompleted → completeCrawl) wakes the run.
-            await ctx.runAction(api.research.startCrawl, {
-              missionId: args.missionId, requestId: crypto.randomUUID(), url: parsed.toString(), limit: 25,
-            });
+            try {
+              await ctx.runAction(api.research.startCrawl, {
+                missionId: args.missionId, requestId: crypto.randomUUID(), url: parsed.toString(), limit: 25,
+              });
+            } catch (error) {
+              // A host Firecrawl will not crawl (robots.txt, unsupported
+              // scheme) is a missing source, not a dead mission: consume the
+              // query with the classified reason and keep going down the
+              // backlog. The job row and its step receipt were already written
+              // by research.startCrawl's failure path.
+              const message = error instanceof Error ? error.message : "Firecrawl crawl failed to start.";
+              const classified = classifyProviderError(message);
+              await ctx.runMutation(internal.orchestratorStore.failQuery, {
+                queryId: next._id, missionId: args.missionId,
+                reason: `${classified.summary} Radar skipped the crawl of ${parsed.hostname} and continued with the rest of the plan.`,
+                errorCode: classified.code, tool: "firecrawl.crawl",
+              });
+              await ctx.scheduler.runAfter(0, internal.missionOrchestrator.runStage, { missionId: args.missionId });
+              return null;
+            }
             await ctx.runMutation(internal.orchestratorStore.awaitCrawl, {
               queryId: next._id, missionId: args.missionId, host: parsed.hostname,
             });
@@ -215,11 +233,27 @@ export const runStage = internalAction({
             label: `the search "${next.query.slice(0, 80)}"`,
           });
           if (!budget.allowed) return null;
-          const result = await ctx.runAction(api.research.search, {
-            missionId: args.missionId, requestId: crypto.randomUUID(), query: next.query, limit: ORCHESTRATOR_SEARCH_LIMIT,
-          });
+          let resultCount: number;
+          try {
+            const result = await ctx.runAction(api.research.search, {
+              missionId: args.missionId, requestId: crypto.randomUUID(), query: next.query, limit: ORCHESTRATOR_SEARCH_LIMIT,
+            });
+            resultCount = result.resultCount;
+          } catch (error) {
+            // Same policy as a crawl: a failed search consumes its query with
+            // the classified reason so the remaining backlog still runs.
+            const message = error instanceof Error ? error.message : "Firecrawl search failed.";
+            const classified = classifyProviderError(message);
+            await ctx.runMutation(internal.orchestratorStore.failQuery, {
+              queryId: next._id, missionId: args.missionId,
+              reason: `${classified.summary} Radar skipped this discovery query and continued with the rest of the plan.`,
+              errorCode: classified.code, tool: "firecrawl.search",
+            });
+            await ctx.scheduler.runAfter(0, internal.missionOrchestrator.runStage, { missionId: args.missionId });
+            return null;
+          }
           await ctx.runMutation(internal.orchestratorStore.completeQuery, {
-            queryId: next._id, missionId: args.missionId, resultCount: result.resultCount,
+            queryId: next._id, missionId: args.missionId, resultCount,
           });
           await ctx.scheduler.runAfter(0, internal.missionOrchestrator.runStage, { missionId: args.missionId });
           return null;
@@ -284,9 +318,15 @@ export const runStage = internalAction({
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Stage failed.";
-      const { retry, delayMs } = await failStage(ctx, { missionId: args.missionId, stage, message });
+      const { retry, delayMs, interruption } = await failStage(ctx, { missionId: args.missionId, stage, message });
       if (retry) {
-        await ctx.scheduler.runAfter(delayMs, internal.missionOrchestrator.runStage, { missionId: args.missionId });
+        // The run is parked as `blocked` (visible, resumable). The retry has to
+        // re-open that block first: `blocked` is not advanceable, so scheduling
+        // `runStage` directly would silently do nothing.
+        await ctx.scheduler.runAfter(delayMs, internal.orchestratorStore.retryResume, {
+          missionId: args.missionId,
+          interruption,
+        });
       }
       return null;
     }

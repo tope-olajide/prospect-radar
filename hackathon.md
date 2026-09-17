@@ -7,14 +7,65 @@
 - **Repo:** https://github.com/tope-olajide/prospect-radar
 - **Frontend:** Convex static hosting (@convex-dev/static-hosting)
 - **Convex deployment:** wry-walrus-528 (production, team tope-olajide, project prospect-radar)
-- **Components:** @firecrawl/firecrawl-convex, @agentmail/convex
+- **Components:** @firecrawl/firecrawl-convex, @agentmail/convex (vendored as a local component under `convex/agentmail/` — the published build declares its app-facing functions `internal*`, which are invisible to the parent; see `convex/agentmail/README.md`), @convex-dev/static-hosting, @convex-dev/workpool
 - **Convex features:** schema, indexes, queries, mutations, actions, scheduler, HTTP webhooks, reactive subscriptions, function handles
 - **Auth:** none (demo workspace scope)
-- **AI models:** any OpenAI-compatible model via OPENAI_BASE_URL / OPENAI_MODEL (gpt-5-mini default; provider recorded on plans and classifications)
+- **AI models:** any OpenAI-compatible model via OPENAI_BASE_URL / OPENAI_MODEL (DashScope qwen-max in production; provider recorded on plans and classifications)
 - **Started:** 2026-09-13T00:00:00Z
-- **Last updated:** 2026-09-16T15:30:00Z
+- **Last updated:** 2026-09-17T16:30:00Z
 
 ## Log
+
+### 2026-09-17 - working tree
+Crawl-failure recovery, the crawl watchdog, and the full live agent-loop proof.
+
+**Three resilience bugs found by running the live outreach proof, fixed.**
+(1) A durable crawl that Firecrawl refuses (robots.txt) or that ends without
+completing used to fail the whole mission — even with 19 sources already
+stored — because the crawl callback marked the run `failed` unconditionally.
+`completeCrawl` now continues the run to `evaluate` with the evidence it has
+(records `crawl.failed` with the provider reason) and fails the mission only
+when it has neither sources nor pending discovery. (2) A provider call the
+orchestrator makes (search, crawl start) that throws used to strand the run;
+the discover stage now consumes that query via `orchestratorStore.failQuery`
+with the classified reason and keeps working down the backlog. (3) Automatic
+retries scheduled `runStage` directly — but `blocked` is deliberately not
+advanceable, so the retry silently did nothing. A new
+`orchestratorStore.retryResume` re-opens the block (only while the run is
+still blocked on the same interruption, so it can never steal a user-stopped
+or budget-blocked run) and then schedules the stage.
+
+**Crawl watchdog (`convex/crawlWatchdog.ts`, cron every 10 minutes).** The
+other half of the same class: a run parked `waiting` on a crawl whose callback
+never arrives stayed waiting forever. The sweep distinguishes the two `wait`
+producers by the run's latest event — it resumes runs waiting on
+`crawl.awaiting` (with stored sources it advances to `evaluate`; with none it
+parks as `blocked`/`crawl_timed_out`) and never touches runs waiting on a
+counterpart's reply (`action.sent`), which only the counterpart can end.
+
+**Live proof re-run end to end after the fixes (`proof/agent-loop.json`,
+26/26 material steps):** natural-language mission → qwen-max classified
+`find_opportunity`, target organization, goal `become_their_vendor`, with the
+rationale recorded → 4 real Firecrawl searches, 19 deduplicated sources → 6
+entities + 3 signals extracted → 19/19 matches explained by qwen-max with
+evidence-grounded summaries, unknowns, and recommended actions (`
+contact_via_platform`, `research_alt_route`) → draft → approval bound to the
+exact content hash → AgentMail send → delivery confirmed (SES message id) →
+counterpart reply inside the real thread → signed inbound webhook → reply
+classified `needs_info` with a suggested reply → approval → continuation send
+delivered → outcome persisted at `contacted` with sequences and follow-ups →
+idempotent re-send proven. First attempt surfaced the three bugs above plus a
+second real one (explanations not landing during the orchestrator's evaluate
+hop): `ai.explainMatches` re-run live explained all 19 matches, and the
+orchestrator failure path now records a step receipt instead of dying
+silently.
+
+**Tests:** 174 across 14 files — new `tests/crawlRecovery.test.ts` (crawl
+failure continues the mission with evidence; fails honestly with none;
+`failJob` never kills a working run; retry re-opens its own block and never
+steals another owner's run) and `tests/crawlWatchdog.test.ts` (resume with
+sources; reply-waits untouched; empty crawl parks visible; freshness and
+single-fire). tsc clean; backend deployed.
 
 ### 2026-09-16 - working tree
 Stale-run reaper, and the failure-path proofs (Phase 7, item 2).

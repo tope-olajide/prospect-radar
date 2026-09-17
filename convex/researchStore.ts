@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
-import { components } from "./_generated/api";
+import { components, internal } from "./_generated/api";
 import { internalMutation, internalQuery, query } from "./_generated/server";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { transitionRun } from "./runState";
@@ -486,16 +486,61 @@ async function completeCrawl(
 
     const run = await ctx.db.get(job.runId);
     if (run && !["complete", "failed", "cancelled"].includes(run.status)) {
-      await transitionRun(ctx, {
-        missionId: job.missionId,
-        targetStage: failed ? run.currentStage : "evaluate",
-        targetStatus: failed ? "failed" : "active",
-        interruption: failed ? "Firecrawl crawl did not complete. Retry after reviewing the error." : null,
-        eventType: failed ? "source.failed" : "source.ready",
-        safeSummary: failed
-          ? "Firecrawl crawl ended without completing."
-          : `Firecrawl crawl persisted ${resultCount} deduplicated page${resultCount === 1 ? "" : "s"}.`,
-      });
+      if (!failed) {
+        await transitionRun(ctx, {
+          missionId: job.missionId,
+          targetStage: "evaluate",
+          targetStatus: "active",
+          interruption: null,
+          eventType: "source.ready",
+          safeSummary: `Firecrawl crawl persisted ${resultCount} deduplicated page${resultCount === 1 ? "" : "s"}.`,
+        });
+      } else {
+        // A crawl that ends without completing is a missing source, not a dead
+        // mission. If this mission already holds evidence — or still has
+        // discovery queries left to run — Radar continues with what it has and
+        // records the refusal honestly. Only a mission with nothing at all is
+        // actually failed.
+        const stored = await ctx.db
+          .query("sourceRecords")
+          .withIndex("by_missionId", (q) => q.eq("missionId", job.missionId))
+          .take(1);
+        const pending = await ctx.db
+          .query("missionQueries")
+          .withIndex("by_missionId_and_status", (q) => q.eq("missionId", job.missionId).eq("status", "pending"))
+          .take(1);
+        const detail = bounded(args.error ?? `Firecrawl crawl ended with status ${args.crawlStatus}.`, 160);
+
+        if (stored.length > 0 || pending.length > 0) {
+          await recordStep(ctx, {
+            missionId: job.missionId,
+            stage: "discover",
+            label: "crawl.failed",
+            summary: `Firecrawl could not finish this crawl (${detail}). Radar kept the sources it already has and continued instead of failing the mission.`,
+            reference: args.crawlId,
+            errorCode: "CRAWL_FAILED",
+            tool: "firecrawl.crawl",
+          });
+          await transitionRun(ctx, {
+            missionId: job.missionId,
+            targetStage: "evaluate",
+            targetStatus: "active",
+            interruption: null,
+            eventType: "crawl.failed",
+            safeSummary: `A crawl ended without completing; Radar continued with the sources already stored.`,
+          });
+          await ctx.scheduler.runAfter(0, internal.missionOrchestrator.runStage, { missionId: job.missionId });
+        } else {
+          await transitionRun(ctx, {
+            missionId: job.missionId,
+            targetStage: run.currentStage,
+            targetStatus: "failed",
+            interruption: "Firecrawl crawl did not complete. Retry after reviewing the error.",
+            eventType: "source.failed",
+            safeSummary: "Firecrawl crawl ended without completing and stored nothing, so the mission has no evidence to evaluate.",
+          });
+        }
+      }
     }
     return { jobId: job._id, resultCount };
   }
@@ -528,6 +573,20 @@ export const crawlCompleted = internalMutation({
   },
 });
 
+/**
+ * Records a failed provider job.
+ *
+ * Deliberately does **not** touch the run. A refused search, a blocked scrape,
+ * or a crawl Firecrawl will not start (robots.txt, an unsupported host) is a
+ * *missing source*, not a dead mission: the caller owns the recovery. Synchronous
+ * callers (the orchestrator's discover stage) skip that query and continue with
+ * the rest of the backlog; an asynchronous crawl failure is recovered by
+ * `completeCrawl`, which resumes the run with whatever evidence it already has.
+ *
+ * Failing the run here was a real production bug: Firecrawl refusing a single
+ * crawl host on a mission that had already stored 19 sources marked the whole
+ * mission failed and skipped evaluation entirely.
+ */
 export const failJob = internalMutation({
   args: { jobId: v.id("researchJobs"), errorSummary: v.string(), errorCode: v.union(v.string(), v.null()) },
   returns: v.id("researchJobs"),
@@ -538,16 +597,6 @@ export const failJob = internalMutation({
     await ctx.db.patch(job._id, { status: "failed", errorSummary: bounded(args.errorSummary, 240), errorCode: args.errorCode, finishedAt: now, updatedAt: now });
     const classified = classifyProviderError(args.errorSummary);
     const run = await ctx.db.get(job.runId);
-    if (run && !["complete", "failed", "cancelled"].includes(run.status)) {
-      await transitionRun(ctx, {
-        missionId: job.missionId,
-        targetStage: run.currentStage,
-        targetStatus: "failed",
-        interruption: "Firecrawl research failed. Retry after reviewing the error.",
-        eventType: "source.failed",
-        safeSummary: "Firecrawl research failed; no side effect was attempted.",
-      });
-    }
     await recordStep(ctx, {
       missionId: job.missionId,
       stage: run && ["intake", "interpret", "plan", "wait"].includes(run.currentStage) ? "discover" : run?.currentStage ?? "discover",
