@@ -106,7 +106,7 @@
 }
 
 * { box-sizing: border-box; }
-body { margin: 0; min-width: 320px; background: var(--bg); color: var(--text); }
+body { margin: 0; min-width: 320px; overflow-x: hidden; background: var(--bg); color: var(--text); }
 button, input, textarea, select { font: inherit; }
 button { border: 0; cursor: pointer; color: inherit; background: none; }
 button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, a:focus-visible { outline: 2px solid var(--accent-bright); outline-offset: 3px; }
@@ -114,12 +114,12 @@ a { color: var(--cyan); }
 h1, h2, h3, p { margin: 0; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 
-.app-shell { min-height: 100vh; display: flex; background: var(--bg-glow), var(--bg); }
+.app-shell { min-height: 100vh; min-height: 100dvh; display: flex; background: var(--bg-glow), var(--bg); }
 .mobile-menu { display: none; }
 .mobile-nav-backdrop, .mobile-drawer { display: none; }
 
 /* ---------- Sidebar ---------- */
-.sidebar { width: 252px; flex: 0 0 252px; min-height: 100vh; padding: 24px 14px 16px; border-right: 1px solid var(--line); display: flex; flex-direction: column; background: color-mix(in srgb, var(--panel) 82%, transparent); }
+.sidebar { width: 252px; flex: 0 0 252px; min-height: 100vh; min-height: 100dvh; padding: 24px 14px 16px; border-right: 1px solid var(--line); display: flex; flex-direction: column; background: color-mix(in srgb, var(--panel) 82%, transparent); }
 .brand-lockup { display: flex; align-items: center; gap: 10px; padding: 0 12px 26px; }
 .brand-mark { width: 36px; height: 36px; display: grid; place-items: center; border: 1px solid var(--accent-line); border-radius: 12px; color: var(--accent); background: var(--accent-wash); font-weight: 800; }
 .brand-lockup strong { display: block; font-size: 14px; line-height: 1.1; font-weight: 700; color: var(--text); }
@@ -253,7 +253,7 @@ label { display: grid; gap: 6px; color: var(--muted); font-size: 10px; font-weig
 .thread-meta { color: var(--cyan); font-family: 'DM Mono', monospace; font-size: 9px; white-space: nowrap; }
 
 /* ---------- Matches ---------- */
-.match-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 14px; }
+.match-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(340px, 100%), 1fr)); gap: 14px; }
 .match-card h3 { font-size: 14px; }
 .match-signal { margin-top: 8px; color: var(--text-faint); font-size: 11px; line-height: 1.65; }
 
@@ -486,6 +486,21 @@ label { display: grid; gap: 6px; color: var(--muted); font-size: 10px; font-weig
 .memory-timeline .stage-note { margin: 0 0 2px; color: var(--muted-2); font-size: 9px; letter-spacing: .1em; text-transform: uppercase; }
 
 /* ---------- Responsive ---------- */
+@media (max-width: 760px) {
+  /* Rows: let the pills drop below the copy instead of squeezing titles. */
+  .row-item.static { flex-wrap: wrap; }
+  .row-item.static .inline-actions { margin-top: 2px; }
+  .board-state { justify-items: start; }
+  .thread-meta { white-space: normal; }
+  /* 16px inputs: iOS zooms any smaller font on focus, jumping the layout. */
+  input, textarea, select, .composer-input { font-size: 16px; }
+  .command-bar input { font-size: 16px; }
+  .proposal-field select, .meeting-form input, .budget-control input { font-size: 16px; }
+  .why-row, .why-row b, .evidence-list li { overflow-wrap: anywhere; }
+  .stage-summary > span { padding: 6px 10px; }
+  .lifecycle-copy strong { overflow-wrap: anywhere; }
+}
+
 @media (max-width: 1100px) {
   .home-grid, .inbox-layout { grid-template-columns: 1fr; }
   .journey { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -508,6 +523,7 @@ label { display: grid; gap: 6px; color: var(--muted); font-size: 10px; font-weig
   .mobile-drawer .nav-section-label { display: block; }
   .mobile-drawer .nav-item { padding: 11px 12px; }
   .mobile-drawer .nav-label em { display: none; }
+  .theme-switch.mobile-theme { display: flex; margin: 16px 2px 10px; }
 }
 @media (max-width: 900px) {
   .command-bar { max-width: none; }
