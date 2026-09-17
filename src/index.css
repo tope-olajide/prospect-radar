@@ -225,6 +225,43 @@ label { display: grid; gap: 6px; color: var(--muted); font-size: 10px; font-weig
 
 /* ---------- Attention cards ---------- */
 .attention-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+
+/* ---------- Home workspace: conversation threads ---------- */
+.workspace { display: grid; gap: 14px; max-width: 860px; margin: 0 auto; }
+.thread-card { padding: 0; overflow: hidden; }
+.thread-card.open { border-color: var(--accent-line); }
+.thread-card-head { display: flex; align-items: center; gap: 10px; width: 100%; padding: 13px 18px; border: none; background: none; cursor: pointer; text-align: left; font: inherit; }
+.thread-card-head:hover { background: var(--hover-wash); }
+.thread-goal { flex: 1; min-width: 0; color: var(--text); font-size: 12px; letter-spacing: -.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.thread-card-head .muted { flex-shrink: 0; }
+.thread-body { display: grid; gap: 12px; padding: 4px 18px 18px; border-top: 1px solid var(--line); }
+.thread-msg { display: grid; gap: 8px; }
+.thread-msg + .thread-msg { margin-top: 4px; }
+.thread-who { color: var(--text-faint); font-size: 9px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.thread-msg.you p { margin-top: 2px; padding: 10px 13px; border: 1px solid var(--line); border-radius: 12px 12px 12px 4px; background: var(--hover-wash); color: var(--text-soft); font-size: 12px; line-height: 1.6; }
+.thread-msg.radar { border-left: 2px solid var(--accent-line); padding-left: 14px; }
+.thread-understanding { color: var(--text-soft); font-size: 12px; line-height: 1.6; }
+.thread-ask { display: grid; gap: 8px; padding: 10px 12px; border: 1px solid var(--amber-line); border-radius: 10px; background: var(--amber-wash); }
+.thread-ask p { color: var(--amber); font-size: 11px; }
+.thread-ask b, .thread-approval b, .thread-count { color: var(--text); font-size: 11px; }
+.thread-ask p b { display: block; margin-bottom: 3px; }
+.thread-steps summary { color: var(--text-faint); font-size: 10px; cursor: pointer; }
+.thread-steps[open] summary { margin-bottom: 8px; }
+.thread-results { display: grid; gap: 8px; }
+.thread-cards { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+.thread-result { display: grid; gap: 4px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-2); }
+.thread-result strong { color: var(--text); font-size: 11px; }
+.thread-result .muted { font-size: 10px; line-height: 1.5; }
+.thread-approval { display: grid; gap: 8px; padding: 10px 12px; border: 1px solid var(--amber-line); border-radius: 10px; background: var(--amber-wash); }
+.thread-approval p { color: var(--text-faint); font-size: 11px; line-height: 1.6; }
+.thread-approval .btn { justify-self: start; }
+.event-trail.compact { margin: 0; }
+.event-trail.compact li { padding: 7px 0; }
+.event-trail.compact strong { font-size: 10px; }
+.event-trail.compact em { display: block; font-size: 10px; }
+.tool-chip { margin-left: 6px; padding: 1px 6px; border: 1px solid var(--cyan-line); border-radius: 5px; color: var(--cyan); font-family: 'DM Mono', monospace; font-size: 8px; font-style: normal; }
+.composer-panel { position: sticky; bottom: 0; z-index: 5; }
+.composer-panel form { display: grid; gap: 0; }
 .attention-card { display: grid; gap: 6px; padding: 16px; border-radius: 13px; text-align: left; transition: .2s ease; }
 .attention-card:hover { transform: translateY(-1px); }
 .attention-card strong { font-size: 12px; letter-spacing: -.01em; }

@@ -38,6 +38,60 @@ const SCAN_LIMIT = 300;
 const BOARD_LIMIT = 30;
 
 /**
+ * Live conversation threads for the Home workspace: the run's real step
+ * records, oldest first, so the agent's work reads as a timeline that
+ * reconstructs from persisted state on refresh. One bounded indexed read per
+ * mission; no joins.
+ */
+const THREAD_STEPS = 40;
+const threadStep = v.object({
+  _id: v.id("runSteps"),
+  stage: v.string(),
+  label: v.string(),
+  summary: v.string(),
+  tool: v.union(v.string(), v.null()),
+  errorCode: v.union(v.string(), v.null()),
+  createdAt: v.number(),
+});
+
+export const threadSteps = query({
+  args: { missionId: v.id("missions") },
+  returns: v.array(threadStep),
+  handler: async (ctx, args) => {
+    const rows = await ctx.db.query("runSteps")
+      .withIndex("by_missionId", (q) => q.eq("missionId", args.missionId))
+      .order("asc")
+      .take(THREAD_STEPS);
+    return rows.map(({ missionId: _m, runId: _r, reference: _ref, ...row }) => ({
+      ...row,
+      tool: row.tool ?? null,
+    }));
+  },
+});
+
+export const threadStepsMany = query({
+  args: { missionIds: v.array(v.id("missions")) },
+  returns: v.array(v.object({ missionId: v.id("missions"), steps: v.array(threadStep) })),
+  handler: async (ctx, args) => {
+    const out = [];
+    for (const missionId of args.missionIds.slice(0, 4)) {
+      const rows = await ctx.db.query("runSteps")
+        .withIndex("by_missionId", (q) => q.eq("missionId", missionId))
+        .order("asc")
+        .take(THREAD_STEPS);
+      out.push({
+        missionId,
+        steps: rows.map(({ missionId: _m, runId: _r, reference: _ref, ...row }) => ({
+          ...row,
+          tool: row.tool ?? null,
+        })),
+      });
+    }
+    return out;
+  },
+});
+
+/**
  * The agent-runs board: one truthful row per mission — run state, the stage
  * the run is actually in, the most recent step the agent recorded, and how
  * many approvals are waiting. This is what "what is Radar doing right now"
