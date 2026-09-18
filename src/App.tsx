@@ -6,7 +6,7 @@ import { useTheme, type ThemeChoice } from "./useTheme";
 import { MissionLifecycle } from "./MissionLifecycle";
 
 type MissionMode = "opportunity" | "person" | "customer" | "solution" | "collaborator";
-type View = "home" | "dashboard" | "discover" | "outreach" | "inbox" | "outcomes" | "forms" | "context" | "sources" | "activity";
+type View = "home" | "dashboard" | "discover" | "outreach" | "inbox" | "outcomes" | "forms" | "context" | "sources";
 type PipelineStageName = "contacted" | "replied" | "engaged" | "meeting" | "proposal" | "won" | "lost" | "dormant";
 
 const PIPELINE_STAGES: PipelineStageName[] = ["contacted", "replied", "engaged", "meeting", "proposal", "won", "lost", "dormant"];
@@ -32,7 +32,6 @@ const navItems: { id: View; label: string; hint: string }[] = [
   { id: "forms", label: "Forms", hint: "Approval-bound submissions" },
   { id: "sources", label: "Data sources", hint: "Files, sites, and snippets Radar reads" },
   { id: "context", label: "Context", hint: "Your profile facts Radar may use" },
-  { id: "activity", label: "Activity", hint: "The run's truthful trail" },
 ];
 
 const viewTitles: Record<View, { eyebrow: string; title: string; description: string }> = {
@@ -45,7 +44,6 @@ const viewTitles: Record<View, { eyebrow: string; title: string; description: st
   forms: { eyebrow: "Approval boundary", title: "Paperwork, handled honestly.", description: "Radar reads a public form, fills it from confirmed facts only, and submits one approved payload at a time — with a screenshot as evidence." },
   sources: { eyebrow: "Your side of the ledger", title: "Give Radar what it cannot find on the web.", description: "Documents, sites, and snippets you add here are chunked, searchable, and pulled into the missions they're relevant to — nothing more." },
   context: { eyebrow: "Verified profile", title: "You stay the source of truth.", description: "Confirm, correct, or reject every fact before Radar ever uses it in plans, matches, or drafts." },
-  activity: { eyebrow: "Durable run", title: "Watch Radar work.", description: "Persisted stages and events — never simulated progress." },
 };
 
 const quickPrompts: { label: string; goal: string }[] = [
@@ -116,6 +114,8 @@ export default function App({ backendConnected }: { backendConnected: boolean })
   const [submitting, setSubmitting] = useState(false);
   const [notice, setNotice] = useState("");
   const [selectedMissionId, setSelectedMissionId] = useState<string | null>(null);
+  const [sidebarSearch, setSidebarSearch] = useState("");
+  const [showMissionHistory, setShowMissionHistory] = useState(false);
 
   const [planning, setPlanning] = useState(false);
   const [planNotice, setPlanNotice] = useState("");
@@ -828,6 +828,13 @@ Clarification: ${clarifyAnswer.trim()}` });
   })();
   const meetingsForOutcome = (outcomeId: Id<"outcomes">) => (meetings ?? []).filter((meeting) => meeting.outcomeId === outcomeId);
 
+  const filteredMissions = useMemo(() => {
+    if (!missions) return [];
+    if (!sidebarSearch.trim()) return missions;
+    const q = sidebarSearch.toLowerCase();
+    return missions.filter((m) => m.rawGoal.toLowerCase().includes(q) || m.title.toLowerCase().includes(q));
+  }, [missions, sidebarSearch]);
+
   const sidebar = (
     <aside className="sidebar">
       <div className="brand-lockup">
@@ -838,6 +845,10 @@ Clarification: ${clarifyAnswer.trim()}` });
         <div className="workspace-avatar">PR</div>
         <div className="workspace-copy"><strong>Demo workspace</strong><span>Judge-friendly scope</span></div>
       </div>
+      <div className="sidebar-search">
+        <input type="text" placeholder="Search missions…" value={sidebarSearch} onChange={(e) => setSidebarSearch(e.target.value)} aria-label="Search missions" />
+        {sidebarSearch && <button type="button" className="sidebar-search-clear" onClick={() => setSidebarSearch("")}>✕</button>}
+      </div>
       <p className="nav-section-label">Workspace</p>
       <nav className="main-nav" aria-label="Primary">
         {navItems.map((item) => (
@@ -847,6 +858,31 @@ Clarification: ${clarifyAnswer.trim()}` });
           </button>
         ))}
       </nav>
+      {/* Mission history */}
+      <button type="button" className="nav-section-toggle" onClick={() => setShowMissionHistory(!showMissionHistory)}>
+        <span className="nav-section-label">Missions</span>
+        <span>{showMissionHistory ? "▾" : "▸"} {missions?.length ?? 0}</span>
+      </button>
+      {showMissionHistory && (
+        <div className="mission-history">
+          {filteredMissions.length === 0 ? (
+            <p className="empty-state">No missions yet.</p>
+          ) : (
+            filteredMissions.map((mission) => {
+              const missionRun = board?.find((row) => row.missionId === mission._id);
+              return (
+                <button key={mission._id} type="button" className={`mission-history-item${selectedMissionId === mission._id ? " selected" : ""}`} onClick={() => { setSelectedMissionId(mission._id); selectView("home"); }}>
+                  <span className="mission-history-title">{mission.rawGoal.slice(0, 40)}{mission.rawGoal.length > 40 ? "…" : ""}</span>
+                  <span className="mission-history-meta">
+                    {missionRun ? <span className={`status-pill status-${missionRun.runStatus}`}>{missionRun.runStatus}</span> : <span className="status-pill status-draft">draft</span>}
+                    <span className="muted">{shortDate(mission.createdAt)}</span>
+                  </span>
+                </button>
+              );
+            })
+          )}
+        </div>
+      )}
       <div className="sidebar-spacer" />
       <div className="theme-switch" role="radiogroup" aria-label="Theme">
         {themeOptions.map((option) => (
@@ -1354,28 +1390,12 @@ Clarification: ${clarifyAnswer.trim()}` });
             <div className="view-stack">
               {!selectedMission ? <p className="empty-state">Select or start a mission first.</p> : (
                 <>
-                  <section className="panel" aria-label="Research controls">
-                    <div className="panel-head"><p className="eyebrow">RESEARCH</p>
+                  <section className="panel" aria-label="Discovery results">
+                    <div className="panel-head"><p className="eyebrow">DISCOVERY RESULTS</p>
                       <span className="muted">Radar investigated these because of your mission — every card states why it looked, why it matches, and what it checked against your context.</span>
                       {runWorking && <span className="status-pill status-running">run active</span>}
                     </div>
-                    <div className="control-row">
-                      <input aria-label="Research query" placeholder={plan?.normalizedGoal || selectedMission.rawGoal} value={researchQuery} onChange={(event) => setResearchQuery(event.target.value)} />
-                      <button type="button" className="btn" onClick={onSearch} disabled={!backendConnected || researching}>{researching ? "Researching…" : "Search"}</button>
-                      <button type="button" className="btn ghost" onClick={onResolveEntities} disabled={!backendConnected || researching}>Resolve entities</button>
-                      <button type="button" className="btn ghost" onClick={onExplainMatches} disabled={!backendConnected || researching}>Explain matches</button>
-                    </div>
-                    <div className="control-row">
-                      <input aria-label="Site URL" placeholder="https://example.com — map it or run a durable crawl" value={mapUrl} onChange={(event) => setMapUrl(event.target.value)} />
-                      <button type="button" className="btn ghost" onClick={onMapSite} disabled={!backendConnected || researching}>Map site</button>
-                      <button type="button" className="btn ghost" onClick={onStartCrawl} disabled={!backendConnected || researching}>Durable crawl</button>
-                    </div>
-                    {crawlProgress && crawlProgress.jobStatus === "running" && (
-                      <p className="stage-note warn">
-                        Durable crawl {crawlProgress.crawlStatus}{crawlProgress.total ? ` · ${crawlProgress.completed ?? 0}/${crawlProgress.total} pages` : ""} · {crawlProgress.pageCount} captured{crawlProgress.error ? ` · ${crawlProgress.error}` : ""}
-                      </p>
-                    )}
-                    <p className="stage-note">{researchNotice || (latestJob ? `Latest job: ${latestJob.operation} · ${latestJob.status}${latestJob.crawlStatus ? ` (${latestJob.crawlStatus})` : ""} · ${latestJob.resultCount} sources` : "No Firecrawl jobs yet for this mission.")}</p>
+                    <p className="stage-note">{latestJob ? `${sources?.length ?? 0} sources from ${jobs?.length ?? 0} research jobs` : "The agent discovers sources automatically during its run."}</p>
                   </section>
 
                   {entities && entities.length > 0 && (
@@ -1496,23 +1516,14 @@ Clarification: ${clarifyAnswer.trim()}` });
               </section>
 
               {inbox && selectedMission && (
-                <section className="panel" aria-label="Compose outreach">
-                  <div className="panel-head"><p className="eyebrow">NEW DRAFT</p>{linkedMatchId && <span className="mono-tag">linked to match</span>}</div>
-                  <form onSubmit={onDraft} className="draft-form">
-                    <div className="field-pair">
-                      <label>Recipient<input type="email" required value={recipient} onChange={(event) => setRecipient(event.target.value)} placeholder="name@company.com" /></label>
-                      <label>Linked match
-                        <select value={linkedMatchId ?? ""} onChange={(event) => setLinkedMatchId((event.target.value || null) as Id<"matches"> | null)}>
-                          <option value="">None</option>
-                          {(matches ?? []).map((match) => <option key={match._id} value={match._id}>{match.subject}</option>)}
-                        </select>
-                      </label>
+                <section className="panel" aria-label="Agent-proposed outreach">
+                  <div className="panel-head"><p className="eyebrow">AGENT-PROPOSED DRAFTS</p></div>
+                  <p className="stage-note">Radar proposes drafts from the Discover page using "AI draft outreach" on a match. You review and approve each one before anything sends.</p>
+                  {matches && matches.filter((m) => m.label === "stronger").length > 0 && (
+                    <div className="inline-actions">
+                      <button type="button" className="btn" onClick={() => selectView("discover")}>Go to Discover to draft →</button>
                     </div>
-                    <label>Subject<input required value={subject} onChange={(event) => setSubject(event.target.value)} placeholder="Why this connection makes sense" /></label>
-                    <label>Message<textarea required rows={5} value={body} onChange={(event) => setBody(event.target.value)} placeholder="Reference the evidence you collected and ask one clear question." /></label>
-                    {linkedMatchSource && <p className="stage-note">Context used: {linkedMatchSource.url}</p>}
-                    <button type="submit" className="btn" disabled={!backendConnected || drafting}>{drafting ? "Creating draft…" : "Create draft"}</button>
-                  </form>
+                  )}
                 </section>
               )}
 
@@ -1746,71 +1757,23 @@ Clarification: ${clarifyAnswer.trim()}` });
                 {outcomes === undefined ? <p className="empty-state">Loading the pipeline…</p> : outcomes.length === 0 ? (
                   <div className="panel"><p className="empty-state">No relationships yet. Radar opens one the moment an approved message is sent or a reply arrives — and remembers everything that happens next.</p></div>
                 ) : (
-                  <div className="pipeline-grid">
-                    {PIPELINE_STAGES.map((stage) => {
-                      const cards = outcomes.filter((outcome) => outcome.stage === stage);
-                      if (cards.length === 0) return null;
+                  <div className="row-list">
+                    {outcomes.map((outcome) => {
+                      const followUp = followUpForOutcome(outcome._id);
+                      const overdue = followUp && (followUp.status === "due" || followUp.dueAt <= Date.now());
                       return (
-                        <div className="pipeline-column" key={stage}>
-                          <div className="pipeline-column-head">
-                            <span className={`stage-dot stage-${stage}`} />
-                            <strong>{PIPELINE_LABELS[stage]}</strong>
-                            <span className="nav-count">{cards.length}</span>
+                        <article className="row-item static" key={outcome._id}>
+                          <div className="row-copy">
+                            <strong><span className={`stage-dot stage-${outcome.stage}`} /> {outcome.counterpart}</strong>
+                            <em>{outcome.latestEvidence}</em>
+                            <span className="muted">{PIPELINE_LABELS[outcome.stage as PipelineStageName] ?? outcome.stage} · updated {shortDate(outcome.updatedAt)}{followUp ? ` · follow-up ${overdue ? "due now" : shortDate(followUp.dueAt)}` : ""}</span>
                           </div>
-                          <div className="view-stack">
-                            {cards.map((outcome) => {
-                              const followUp = followUpForOutcome(outcome._id);
-                              const outcomeMeetings = meetingsForOutcome(outcome._id);
-                              const overdue = followUp && (followUp.status === "due" || followUp.dueAt <= Date.now());
-                              return (
-                                <article className="panel relationship-card" key={outcome._id}>
-                                  <div className="panel-head">
-                                    <strong>{outcome.counterpart}</strong>
-                                    <span className="muted">updated {shortDate(outcome.updatedAt)}</span>
-                                  </div>
-                                  <p className="why-row"><b>Where this stands</b>{outcome.latestEvidence}</p>
-                                  <p className="next-action"><b>Radar's next step</b>{outcome.nextAction}{outcome.nextStepAt ? ` · ${shortDate(outcome.nextStepAt)}` : ""}</p>
-                                  {followUp && (
-                                    <p className={`stage-note ${overdue ? "error" : ""}`}>
-                                      {overdue ? "Follow-up due now" : `Follow-up ${shortDate(followUp.dueAt)}`} · {followUp.note}
-                                    </p>
-                                  )}
-                                  {outcomeMeetings.length > 0 && (
-                                    <p className="stage-note">Meetings on record: {outcomeMeetings.map((meeting) => shortDate(meeting.scheduledAt)).join(" · ")}</p>
-                                  )}
-                                  <div className="memory-timeline">
-                                    <p className="stage-note">RELATIONSHIP MEMORY</p>
-                                    <ol className="event-trail compact">
-                                      {outcome.timeline.slice().reverse().map((event, index) => (
-                                        <li key={`${outcome._id}-${index}`}>
-                                          <span className="event-dot" />
-                                          <div><strong>{event.summary}</strong><em>{event.type.replace(/_/g, " ")} · {shortDate(event.createdAt)}</em></div>
-                                        </li>
-                                      ))}
-                                    </ol>
-                                  </div>
-                                  <div className="inline-actions">
-                                    <button type="button" className="btn ghost" onClick={() => onAdvanceStage(outcome._id, "engaged", "Reply with a concrete next step and keep the conversation moving.")}>Engaged</button>
-                                    <button type="button" className="btn ghost" onClick={() => onAdvanceStage(outcome._id, "proposal", "Put scope, timeline, and terms in writing for review.")}>Proposal</button>
-                                    <button type="button" className="btn ghost" onClick={() => onOutcomeStatus(outcome._id, "positive")}>Won</button>
-                                    <button type="button" className="btn ghost" onClick={() => onOutcomeStatus(outcome._id, "closed")}>Lost</button>
-                                    {!followUp && <button type="button" className="btn ghost" onClick={() => onCreateFollowUp(outcome._id, outcome.matchId, outcome.counterpart)}>Schedule follow-up</button>}
-                                    {meetingFor === outcome._id
-                                      ? <button type="button" className="btn ghost" onClick={() => setMeetingFor(null)}>Cancel meeting</button>
-                                      : <button type="button" className="btn ghost" onClick={() => { setMeetingFor(outcome._id); setMeetingAt(""); setMeetingNotes(""); }}>Record meeting</button>}
-                                  </div>
-                                  {meetingFor === outcome._id && (
-                                    <div className="meeting-form">
-                                      <label>When<input type="datetime-local" value={meetingAt} onChange={(event) => setMeetingAt(event.target.value)} /></label>
-                                      <label>Notes<input value={meetingNotes} onChange={(event) => setMeetingNotes(event.target.value)} placeholder="What was agreed?" maxLength={1200} /></label>
-                                      <button type="button" className="btn" disabled={!meetingAt} onClick={() => onRecordMeeting(outcome._id, outcome.matchId, outcome.counterpart)}>Save meeting</button>
-                                    </div>
-                                  )}
-                                </article>
-                              );
-                            })}
+                          <div className="inline-actions">
+                            <button type="button" className="btn ghost" onClick={() => onAdvanceStage(outcome._id, "engaged", "Reply with a concrete next step.")}>Engaged</button>
+                            <button type="button" className="btn ghost" onClick={() => onOutcomeStatus(outcome._id, "positive")}>Won</button>
+                            <button type="button" className="btn ghost" onClick={() => onOutcomeStatus(outcome._id, "closed")}>Lost</button>
                           </div>
-                        </div>
+                        </article>
                       );
                     })}
                   </div>
@@ -2136,68 +2099,6 @@ Clarification: ${clarifyAnswer.trim()}` });
                   </section>
                 );
               })}
-            </div>
-          )}
-
-          {activeView === "activity" && (
-            <div className="view-stack">
-              {!run ? <div className="panel"><p className="empty-state">No run yet for this mission. Create or select a mission to see its durable activity.</p></div> : (
-                <>
-                  <section className="panel" aria-label="Run state">
-                    <div className="panel-head"><p className="eyebrow">RUN STATE</p><span className={`status-pill status-${run.status}`}>{run.status}</span></div>
-                    <p className="stage-note">Stage {run.currentStage} · checkpoint {run.checkpointVersion} · started {run.startedAt ? shortDate(run.startedAt) : "—"}</p>
-                    {run.activeInterruption && <p className="stage-note warn">Interruption: {run.activeInterruption}</p>}
-                    {run.status === "blocked" && (
-                      <div className="inline-actions"><button type="button" className="btn" onClick={onRetryStage}>↻ Retry stage</button></div>
-                    )}
-                    {!["cancelled", "complete", "failed"].includes(run.status) && (
-                      <div className="inline-actions"><button type="button" className="btn ghost" onClick={onStopRun}>■ Stop mission</button></div>
-                    )}
-                    <MissionLifecycle
-                      run={{ status: run.status, currentStage: run.currentStage, activeInterruption: run.activeInterruption ?? null }}
-                      latestStep={runSteps && runSteps.length > 0 ? runSteps[runSteps.length - 1] : undefined}
-                    />
-                  </section>
-                  <section className="panel" aria-label="Agent transcript">
-                    <div className="panel-head"><p className="eyebrow">AGENT TRANSCRIPT</p><span className="muted">{runSteps?.length ?? 0} steps</span></div>
-                    {runSteps === undefined ? <p className="empty-state">Loading…</p> : runSteps.length === 0 ? <p className="empty-state">The agent transcript appears here as Radar works: classification, planning, Firecrawl research, and sends each leave a receipt.</p> : (
-                      <ol className="event-trail transcript">
-                        {runSteps.slice().reverse().map((step) => (
-                          <li key={step._id}>
-                            <span className="event-dot" />
-                            <div>
-                              <strong>{step.label}{step.tool ? <em className="tool-chip">{step.tool}</em> : null}</strong>
-                              <em>{step.summary}</em>
-                              <small>{shortDate(step.createdAt)} · {step.stage}{step.errorCode ? ` · ${step.errorCode}` : ""}{step.reference ? ` · ref ${step.reference.slice(0, 12)}…` : ""}</small>
-                            </div>
-                          </li>
-                        ))}
-                      </ol>
-                    )}
-                  </section>
-                  <section className="panel" aria-label="Event trail">
-                    <div className="panel-head"><p className="eyebrow">EVENT TRAIL</p><span className="muted">{runEvents?.length ?? 0} events</span></div>
-                    <ol className="event-trail">
-                      {(runEvents ?? []).slice().reverse().map((event) => (
-                        <li key={event._id}><span className="event-dot" /><div><strong>{event.type}</strong><em>{event.safeSummary}</em><small>{shortDate(event.createdAt)} · {event.stage}</small></div></li>
-                      ))}
-                    </ol>
-                  </section>
-                  <section className="panel" aria-label="Research jobs">
-                    <div className="panel-head"><p className="eyebrow">FIRECRAWL JOBS</p></div>
-                    {jobs === undefined || jobs.length === 0 ? <p className="empty-state">No research jobs yet.</p> : (
-                      <div className="row-list">
-                        {jobs.map((job) => (
-                          <div className="row-item static" key={job._id}>
-                            <div><strong>{job.operation} · {job.query.slice(0, 60)}{job.query.length > 60 ? "…" : ""}</strong><em>{job.resultCount} sources{job.crawlId ? ` · crawl ${job.crawlId.slice(0, 12)}…` : ""}</em></div>
-                            <span className={`status-pill status-${job.status}`}>{job.status}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </section>
-                </>
-              )}
             </div>
           )}
 
