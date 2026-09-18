@@ -168,9 +168,10 @@ describe("runStage — stage dispatch", () => {
     });
     await t.action(internal.missionOrchestrator.runStage, { missionId: missionId as never });
     const run = await getRun(t, missionId);
-    // stageDone's awaited transition moves interpret → discover; the chained
-    // runStage invocation itself is scheduled (not executed inside t.run).
-    expect(run?.currentStage).toBe("discover");
+    // stageDone transitions interpret → plan_review; the orchestrator then
+    // pauses in waiting so the user can review the plan before searching.
+    expect(run?.currentStage).toBe("plan_review");
+    expect(run?.status).toBe("waiting");
     const queries = await t.run(async (ctx) => ctx.db.query("missionQueries").withIndex("by_missionId", (q) => q.eq("missionId", missionId as never)).collect());
     expect(queries.filter((q) => q.kind === "search")).toHaveLength(2);
     expect(queries.some((q) => q.kind === "crawl")).toBe(true);
@@ -211,18 +212,15 @@ describe("runStage — stage dispatch", () => {
     const t = convexTest(schema, convexModules);
     const missionId = await seedMission(t);
     await forceStage(t, missionId, "discover", "active");
-    // First invocation: empty backlog → discover stage completes.
+    // First invocation: empty backlog → discover stage completes → check_in.
     await t.action(internal.missionOrchestrator.runStage, { missionId: missionId as never });
     let run = await getRun(t, missionId);
-    expect(run?.currentStage).toBe("evaluate");
-    expect(run?.status).toBe("active");
-    // Second invocation (as the scheduler would): explain throws
-    // NO_RELIABLE_MATCH with zero sources → blocked honestly.
+    expect(run?.currentStage).toBe("check_in");
+    expect(run?.status).toBe("waiting");
+    // Second invocation: check_in is a waiting stage — the orchestrator no-ops.
     await t.action(internal.missionOrchestrator.runStage, { missionId: missionId as never });
     run = await getRun(t, missionId);
-    expect(run?.status).toBe("blocked");
-    const steps = await stepsFor(t, missionId);
-    expect(steps.some((s) => s.label === "stage.evaluate.failed")).toBe(true);
+    expect(run?.status).toBe("waiting");
   });
 
   it("approval gate: opens the gate and waits — never advances", async () => {

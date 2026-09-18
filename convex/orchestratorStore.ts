@@ -14,7 +14,7 @@ function advanceable(status: string, stage: string): boolean {
   return status === "active" || (status === "queued" && stage === "intake");
 }
 
-type Stage = "intake" | "interpret" | "plan" | "discover" | "evaluate" | "approval" | "execute" | "wait" | "complete";
+type Stage = "intake" | "interpret" | "plan" | "plan_review" | "discover" | "check_in" | "evaluate" | "approval" | "execute" | "wait" | "complete";
 
 export const runRow = internalQuery({
   args: { missionId: v.id("missions") },
@@ -261,6 +261,44 @@ export const retryStage = mutation({
     await ctx.runMutation(internal.runs.transition, {
       missionId: args.missionId, targetStage: run.currentStage, targetStatus: "active",
       interruption: null, eventType: "stage.retried", safeSummary: "User resumed the blocked stage.",
+    });
+    await ctx.scheduler.runAfter(0, internal.missionOrchestrator.runStage, { missionId: args.missionId });
+    return null;
+  },
+});
+
+/** User reviews the AI-generated plan and approves it to start discovery. */
+export const approvePlan = mutation({
+  args: { workspaceId: v.string(), missionId: v.id("missions") },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const mission = await ctx.db.get(args.missionId);
+    if (!mission || mission.workspaceId !== args.workspaceId) throw new Error("FORBIDDEN_SCOPE");
+    const run = await ctx.db.query("agentRuns").withIndex("by_missionId", (q) => q.eq("missionId", args.missionId)).first();
+    if (!run) throw new Error("Run not found.");
+    if (run.status !== "waiting" || run.currentStage !== "plan_review") throw new Error("INVALID_STATE: can only approve from plan_review.");
+    await ctx.runMutation(internal.runs.transition, {
+      missionId: args.missionId, targetStage: "discover", targetStatus: "active",
+      interruption: null, eventType: "plan.approved", safeSummary: "User approved the plan — starting discovery.",
+    });
+    await ctx.scheduler.runAfter(0, internal.missionOrchestrator.runStage, { missionId: args.missionId });
+    return null;
+  },
+});
+
+/** User reviews the discovery summary and tells Radar to continue to evaluation. */
+export const continueAfterCheckIn = mutation({
+  args: { workspaceId: v.string(), missionId: v.id("missions") },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const mission = await ctx.db.get(args.missionId);
+    if (!mission || mission.workspaceId !== args.workspaceId) throw new Error("FORBIDDEN_SCOPE");
+    const run = await ctx.db.query("agentRuns").withIndex("by_missionId", (q) => q.eq("missionId", args.missionId)).first();
+    if (!run) throw new Error("Run not found.");
+    if (run.status !== "waiting" || run.currentStage !== "check_in") throw new Error("INVALID_STATE: can only continue from check_in.");
+    await ctx.runMutation(internal.runs.transition, {
+      missionId: args.missionId, targetStage: "evaluate", targetStatus: "active",
+      interruption: null, eventType: "checkin.continued", safeSummary: "User confirmed — proceeding to evaluation.",
     });
     await ctx.scheduler.runAfter(0, internal.missionOrchestrator.runStage, { missionId: args.missionId });
     return null;

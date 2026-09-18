@@ -1,19 +1,21 @@
 /** The lifecycle nodes the run can be in, in agent order. */
-export const RUN_STAGES = ["intake", "interpret", "plan", "discover", "evaluate", "approval", "execute", "complete"] as const;
+export const RUN_STAGES = ["intake", "interpret", "plan", "plan_review", "discover", "check_in", "evaluate", "approval", "execute", "complete"] as const;
 export type RunStageName = (typeof RUN_STAGES)[number];
 
 const STAGE_COPY: Record<RunStageName, { title: string; doing: string }> = {
   intake: { title: "Receiving your request", doing: "Creating a durable run" },
   interpret: { title: "Understanding your request", doing: "Classifying what you're trying to accomplish" },
   plan: { title: "Planning the approach", doing: "Deciding what to hunt, where, and what evidence counts" },
+  plan_review: { title: "Reviewing the plan", doing: "Waiting for you to approve the plan before searching" },
   discover: { title: "Researching", doing: "Searching and crawling public sources for evidence" },
+  check_in: { title: "Showing what Radar found", doing: "Presenting discovery results before evaluating" },
   evaluate: { title: "Evaluating matches", doing: "Scoring what it found against your must-haves" },
   approval: { title: "Waiting for you", doing: "Nothing sends until you approve the exact content" },
   execute: { title: "Acting on your approval", doing: "Sending only what you approved" },
   complete: { title: "Mission complete", doing: "Outcome recorded; the relationship stays on the radar" },
 };
 
-const STAGE_ORDER: Record<RunStageName, number> = { intake: 0, interpret: 1, plan: 2, discover: 3, evaluate: 4, approval: 5, execute: 6, complete: 7 };
+const STAGE_ORDER: Record<RunStageName, number> = { intake: 0, interpret: 1, plan: 2, plan_review: 3, discover: 4, check_in: 5, evaluate: 6, approval: 7, execute: 8, complete: 9 };
 
 export type RunView = {
   status: string;
@@ -51,9 +53,10 @@ function activeNote(run: NonNullable<RunView>, latestStep: StepView | null | und
         : "Paused after a failure — retry when ready";
   }
   if (run.status === "waiting") {
-    return run.currentStage === "approval"
-      ? "Your approval is the next step"
-      : "Waiting on the outside world — Radar continues automatically";
+    if (run.currentStage === "approval") return "Your approval is the next step";
+    if (run.currentStage === "plan_review") return "Review the plan, then approve to start searching";
+    if (run.currentStage === "check_in") return "Review what Radar found, then continue to evaluation";
+    return "Waiting on the outside world — Radar continues automatically";
   }
   return latestStep ? latestStep.summary : STAGE_COPY[(run.currentStage as RunStageName) in STAGE_ORDER ? (run.currentStage as RunStageName) : "intake"].doing;
 }
