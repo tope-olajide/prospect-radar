@@ -13,6 +13,7 @@ import type * as auth from "../auth.js";
 import type * as budget from "../budget.js";
 import type * as commandCenter from "../commandCenter.js";
 import type * as context from "../context.js";
+import type * as contextCheck from "../contextCheck.js";
 import type * as crawlWatchdog from "../crawlWatchdog.js";
 import type * as crons from "../crons.js";
 import type * as dataFlows from "../dataFlows.js";
@@ -58,6 +59,7 @@ declare const fullApi: ApiFromModules<{
   budget: typeof budget;
   commandCenter: typeof commandCenter;
   context: typeof context;
+  contextCheck: typeof contextCheck;
   crawlWatchdog: typeof crawlWatchdog;
   crons: typeof crons;
   dataFlows: typeof dataFlows;

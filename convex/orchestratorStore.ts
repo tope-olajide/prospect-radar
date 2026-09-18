@@ -16,7 +16,7 @@ function advanceable(status: string, stage: string): boolean {
   return status === "active" || (status === "queued" && stage === "intake");
 }
 
-type Stage = "intake" | "interpret" | "plan" | "plan_review" | "discover" | "check_in" | "evaluate" | "approval" | "execute" | "wait" | "complete";
+type Stage = "intake" | "interpret" | "plan" | "context_check" | "plan_review" | "discover" | "check_in" | "evaluate" | "approval" | "execute" | "observe" | "wait" | "complete";
 
 export const runRow = internalQuery({
   args: { missionId: v.id("missions") },
@@ -344,6 +344,77 @@ export const advanceToExecute = internalMutation({
     }
     await ctx.scheduler.runAfter(0, internal.missionOrchestrator.runStage, { missionId: args.missionId });
     return { advanced: true };
+  },
+});
+
+/**
+ * Answer a context_check question — the user provides missing information
+ * that Radar needs before it can plan.
+ *
+ * Each answer becomes a confirmed fact in the workspace context, so Radar
+ * can reuse it across future missions without asking again.
+ */
+export const answerContextCheck = mutation({
+  args: { workspaceId: v.string(), missionId: v.id("missions"), key: v.string(), answer: v.string() },
+  returns: v.object({ factId: v.id("contextFacts"), resumed: v.boolean() }),
+  handler: async (ctx, args): Promise<{ factId: Id<"contextFacts">; resumed: boolean }> => {
+    await validateWorkspace(ctx, args.workspaceId);
+    const mission = await ctx.db.get(args.missionId);
+    if (!mission || mission.workspaceId !== args.workspaceId) {
+      throw new Error("FORBIDDEN_SCOPE: mission is not in this workspace.");
+    }
+    const answer = args.answer.trim().slice(0, 600);
+    if (!answer) throw new Error("INVALID_ARGUMENT: an answer is required.");
+    const now = Date.now();
+
+    // Persist the answer as a confirmed workspace fact, so it persists across
+    // missions. The category mirrors the requirement key so the readiness
+    // checker can match it.
+    const factId = await ctx.db.insert("contextFacts", {
+      workspaceId: args.workspaceId,
+      missionId: null, // workspace-wide: reusable across missions
+      category: args.key,
+      value: answer,
+      sourceType: "user_input",
+      sourceReference: null,
+      confidence: 1,
+      verificationStatus: "user_confirmed",
+      visibility: "workspace",
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    // Log the answer as a run event.
+    const run = await ctx.db.query("agentRuns").withIndex("by_missionId", (q) => q.eq("missionId", args.missionId)).first();
+    if (run) {
+      await ctx.db.insert("runEvents", {
+        missionId: args.missionId,
+        runId: run._id,
+        type: "context_check.answered",
+        stage: "context_check" as Stage,
+        safeSummary: `Provided: ${args.key} = ${answer.slice(0, 80)}`,
+        createdAt: now,
+      });
+    }
+
+    // Resume: re-run the readiness check, which will now see the new fact.
+    let resumed = false;
+    if (run) {
+      try {
+        await ctx.runMutation(internal.runs.transition, {
+          missionId: args.missionId, targetStage: "context_check", targetStatus: "active",
+          interruption: null, eventType: "context_check.resumed",
+          safeSummary: "Answer recorded — Radar is re-checking its readiness.",
+        });
+        resumed = true;
+      } catch {
+        resumed = false;
+      }
+      if (resumed) {
+        await ctx.scheduler.runAfter(0, internal.missionOrchestrator.runStage, { missionId: args.missionId });
+      }
+    }
+    return { factId, resumed };
   },
 });
 

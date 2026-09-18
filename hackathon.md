@@ -18,6 +18,23 @@
 
 ## Log
 
+### 2026-09-18 - working tree — Phase 2: Context Readiness
+New `context_check` stage between `interpret` and `plan_review`: the agent now
+verifies it has enough trustworthy information about the user before searching,
+rather than guessing or blocking every mission. Each of the nine intents defines
+what it actually needs (skills, engagement type, product description, problem
+statement, etc.) with per-requirement criticality (`required` / `important` /
+`nice_to_have`). The readiness check reads workspace-level confirmed facts and
+decides: if required info is present, the mission proceeds to plan review; if
+not, the run parks at `context_check`/`waiting` with a precise question. The
+user's answer becomes a confirmed workspace fact (`answerContextCheck` mutation
+in `orchestratorStore.ts`), reusable across future missions, and the run
+auto-resumes — no "Continue" button needed. The lifecycle rail and the home
+thread render the new stage with its own label and active note. All nine
+directives are defined in `convex/contextCheck.ts`; the orchestrator reads them
+via `readinessForMission`. Verified: tsc clean on both configs, **202 tests
+passing** (16 files). No deploy — Phase 0 gate remains open.
+
 ### 2026-09-18 - 4861629
 
 Made the approval gate actionable. The orchestrator parks every mission at

@@ -165,10 +165,29 @@ describe("runStage — stage dispatch", () => {
         mode: "opportunity",
         clarification: null,
       });
+      // Seed a confirmed skill fact so the context_check readiness passes.
+      await ctx.db.insert("contextFacts", {
+        workspaceId: WORKSPACE,
+        missionId: null,
+        category: "skills",
+        value: "React development",
+        sourceType: "user_input",
+        sourceReference: null,
+        confidence: 1,
+        verificationStatus: "user_confirmed",
+        visibility: "workspace",
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
     });
     await t.action(internal.missionOrchestrator.runStage, { missionId: missionId as never });
+    const run1 = await getRun(t, missionId);
+    // interpret → context_check: the orchestrator checks readiness before planning.
+    expect(run1?.currentStage).toBe("context_check");
+    // context_check runs automatically and, when ready, transitions to plan_review.
+    await t.action(internal.missionOrchestrator.runStage, { missionId: missionId as never });
     const run = await getRun(t, missionId);
-    // stageDone transitions interpret → plan_review; the orchestrator then
+    // stageDone transitions context_check → plan_review; the orchestrator then
     // pauses in waiting so the user can review the plan before searching.
     expect(run?.currentStage).toBe("plan_review");
     expect(run?.status).toBe("waiting");

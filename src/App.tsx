@@ -159,6 +159,7 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
   const approvePlan = useMutation(api.orchestratorStore.approvePlan);
   const continueAfterCheckIn = useMutation(api.orchestratorStore.continueAfterCheckIn);
   const answerClarification = useMutation(api.orchestratorStore.answerClarification);
+  const answerContextCheck = useMutation(api.orchestratorStore.answerContextCheck);
 
   const [activeView, setActiveView] = useState<View>("home");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -166,6 +167,8 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
 
   const [goal, setGoal] = useState("Find growth-stage climate companies in Lagos that need a product-design partner.");
   const [clarifyAnswer, setClarifyAnswer] = useState("");
+  const [contextCheckAnswer, setContextCheckAnswer] = useState("");
+  const [contextCheckKey, setContextCheckKey] = useState("");
   const [editingUnderstanding, setEditingUnderstanding] = useState(false);
   const [understandingDraft, setUnderstandingDraft] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -477,6 +480,19 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
       setPlanNotice("Answer saved to your context — Radar is continuing.");
     } catch (error) {
       setPlanNotice(error instanceof Error ? error.message : "Clarification failed.");
+    } finally { setPlanning(false); }
+  }
+
+  async function onContextCheckSubmit(key: string) {
+    if (!missionId || !contextCheckAnswer.trim()) return;
+    setPlanning(true);
+    try {
+      await answerContextCheck({ workspaceId, missionId, key, answer: contextCheckAnswer.trim() });
+      setContextCheckAnswer("");
+      setContextCheckKey("");
+      setPlanNotice("Answer saved — Radar is re-checking its readiness.");
+    } catch (error) {
+      setPlanNotice(error instanceof Error ? error.message : "Failed to save answer.");
     } finally { setPlanning(false); }
   }
 
@@ -1151,6 +1167,25 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
                         <input value={clarifyAnswer} onChange={(e) => setClarifyAnswer(e.target.value)} placeholder="Answer in one line…" aria-label="Clarification answer" />
                         <button type="button" className="btn" disabled={!clarifyAnswer.trim() || planning} onClick={onClarifySubmit}>Answer</button>
                       </div>
+                    </div>
+                  )}
+                  {/* Context check — Radar asks for missing information */}
+                  {run?.status === "waiting" && run.currentStage === "context_check" && (
+                    <div className="thread-ask">
+                      <p><b>Radar needs a few details before it can plan:</b></p>
+                      <p className="muted">These help Radar understand your situation so it can search effectively.</p>
+                      <div className="control-row">
+                        <input
+                          value={contextCheckKey ? contextCheckAnswer : ""}
+                          onChange={(e) => setContextCheckAnswer(e.target.value)}
+                          placeholder="Your answer…"
+                          aria-label="Context check answer"
+                        />
+                        <button type="button" className="btn" disabled={!contextCheckAnswer.trim() || planning} onClick={() => onContextCheckSubmit(contextCheckKey)}>
+                          {planning ? "Saving…" : "Submit"}
+                        </button>
+                      </div>
+                      <p className="stage-note">Radar will continue automatically after you answer.</p>
                     </div>
                   )}
                   {/* Lifecycle rail — the core visual of what Radar is doing */}
