@@ -18,7 +18,7 @@
 
 ## Log
 
-### 2026-09-18 - d88fafb
+### 2026-09-18 - d370589
 Proved Convex Auth end to end on the production deployment and fixed the two
 production defects the proof exposed. The live run signs up a real account over
 the deployed API, resolves the identity from the issued JWT, provisions exactly
