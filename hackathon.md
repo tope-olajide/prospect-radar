@@ -14,9 +14,35 @@
 - **Auth:** Convex Auth
 - **AI models:** any OpenAI-compatible model via OPENAI_BASE_URL / OPENAI_MODEL (DashScope qwen-max in production; provider recorded on plans and classifications)
 - **Started:** 2026-09-13T00:00:00Z
-- **Last updated:** 2026-09-18T22:05:00Z
+- **Last updated:** 2026-09-18T22:00:07Z
 
 ## Log
+
+### 2026-09-18 - 4861629
+
+Made the approval gate actionable. The orchestrator parks every mission at
+`approval/waiting` and never creates a draft, but the gate rendered its call to
+action only when a draft already existed — so on every mission the stage
+announced that a human decision was next and offered no way to make it.
+
+The gate now always states the next step, and where the user has one, offers the
+click that produces the thing they are there to approve: drafts ready (count plus
+Review and approve), no linked inbox (it asks for the sending address, since
+drafting cannot work without one), or a reachable match named as the strongest
+candidate with a one-click draft. When no match has an established
+`contactRoute`, it says so instead of leaving a layout that merely looks
+finished.
+
+Target selection ranks by match label and keeps only matches whose contact route
+is established in the evidence, which is the same boundary the evaluator already
+enforces with its `research_alt_route` decision. The draft path was extracted
+into one shared helper so the Discover card and the gate report their result
+where the user is looking instead of one printing into the other's panel, and the
+card still renders when drafts exist outside the approval stage
+(`src/App.tsx`, `src/index.css`). Published to the production deployment; the
+live bundle is byte-identical to the local build (sha256 `81105c0b...`), carries
+the new copy, embeds the production backend URL, and contains no localhost
+references.
 
 ### 2026-09-18 - 5ac0510
 
