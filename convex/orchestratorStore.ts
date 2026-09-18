@@ -1,4 +1,5 @@
 import { v } from "convex/values";
+import type { Id } from "./_generated/dataModel";
 import { internalMutation, internalQuery, mutation } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { validateWorkspace } from "./model/auth";
@@ -343,6 +344,83 @@ export const advanceToExecute = internalMutation({
     }
     await ctx.scheduler.runAfter(0, internal.missionOrchestrator.runStage, { missionId: args.missionId });
     return { advanced: true };
+  },
+});
+
+/**
+ * The user's answer to a clarification the classifier asked for.
+ *
+ * This replaces a path that appended the answer to `rawGoal` and had the page
+ * call the classifier directly. Three things were wrong with that: the answer
+ * never became part of the user's context, nothing recorded that Radar had even
+ * asked, and the run was left `active` at `intake` with no scheduled work — so
+ * the only thing that ever moved it again was the reaper.
+ *
+ * Here the answer is a first-class fact: mission-scoped, `user_input`,
+ * `user_confirmed`, so it is both visible to the classifier on the re-run and
+ * usable later when the agent represents the user. The request and the answer
+ * are recorded as run events, and the run is re-scheduled so the mission
+ * continues on its own.
+ */
+export const answerClarification = mutation({
+  args: { workspaceId: v.string(), missionId: v.id("missions"), answer: v.string() },
+  returns: v.object({ factId: v.id("contextFacts"), resumed: v.boolean() }),
+  handler: async (ctx, args): Promise<{ factId: Id<"contextFacts">; resumed: boolean }> => {
+    await validateWorkspace(ctx, args.workspaceId);
+    const mission = await ctx.db.get(args.missionId);
+    if (!mission || mission.workspaceId !== args.workspaceId) {
+      throw new Error("FORBIDDEN_SCOPE: mission is not in this workspace.");
+    }
+    const answer = args.answer.trim().slice(0, 600);
+    if (!answer) throw new Error("INVALID_ARGUMENT: an answer is required.");
+    const now = Date.now();
+    const asked = mission.clarification ?? null;
+
+    const factId = await ctx.db.insert("contextFacts", {
+      workspaceId: args.workspaceId,
+      missionId: args.missionId,
+      category: "clarification",
+      value: answer,
+      sourceType: "user_input",
+      sourceReference: asked,
+      confidence: 1,
+      verificationStatus: "user_confirmed",
+      visibility: "workspace",
+      createdAt: now,
+      updatedAt: now,
+    });
+    // The question is answered, so it must not be asked again on the re-run.
+    await ctx.db.patch(mission._id, { clarification: undefined, updatedAt: now });
+    const run = await ctx.db.query("agentRuns").withIndex("by_missionId", (q) => q.eq("missionId", args.missionId)).first();
+    if (run) {
+      await ctx.db.insert("runEvents", {
+        missionId: args.missionId,
+        runId: run._id,
+        type: "clarification.answered",
+        stage: "intake" as Stage,
+        safeSummary: asked ? `Answered: ${asked}` : "Clarification answered.",
+        createdAt: now,
+      });
+    }
+
+    // Resume: the classifier re-runs from `intake` with the new fact in hand.
+    let resumed = false;
+    if (run) {
+      try {
+        await ctx.runMutation(internal.runs.transition, {
+          missionId: args.missionId, targetStage: "intake", targetStatus: "active",
+          interruption: null, eventType: "clarification.resumed",
+          safeSummary: "Answer recorded as confirmed context — Radar is continuing.",
+        });
+        resumed = true;
+      } catch {
+        resumed = false;
+      }
+      if (resumed) {
+        await ctx.scheduler.runAfter(0, internal.missionOrchestrator.runStage, { missionId: args.missionId });
+      }
+    }
+    return { factId, resumed };
   },
 });
 

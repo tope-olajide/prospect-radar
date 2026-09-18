@@ -158,6 +158,7 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
   const retryRunStage = useMutation(api.orchestratorStore.retryStage);
   const approvePlan = useMutation(api.orchestratorStore.approvePlan);
   const continueAfterCheckIn = useMutation(api.orchestratorStore.continueAfterCheckIn);
+  const answerClarification = useMutation(api.orchestratorStore.answerClarification);
 
   const [activeView, setActiveView] = useState<View>("home");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -459,16 +460,21 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
     }
   }
 
+  /**
+   * Answer a clarification.
+   *
+   * One mutation rather than two calls: the answer becomes a confirmed context
+   * fact, the run is re-scheduled, and Radar continues on its own. Appending the
+   * text to the goal and calling the classifier from here left the run active
+   * with nothing scheduled — it looked busy and was actually stalled.
+   */
   async function onClarifySubmit() {
     if (!missionId || !clarifyAnswer.trim()) return;
     setPlanning(true);
     try {
-      await reviseGoal({ workspaceId, missionId, rawGoal: `${selectedMission?.rawGoal ?? ""}
-
-Clarification: ${clarifyAnswer.trim()}` });
+      await answerClarification({ workspaceId, missionId, answer: clarifyAnswer.trim() });
       setClarifyAnswer("");
-      await classifyIntent({ missionId });
-      setPlanNotice("Radar updated its understanding with your clarification.");
+      setPlanNotice("Answer saved to your context — Radar is continuing.");
     } catch (error) {
       setPlanNotice(error instanceof Error ? error.message : "Clarification failed.");
     } finally { setPlanning(false); }
