@@ -1,9 +1,12 @@
 import { v } from "convex/values";
-import type { Id } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
 import { mutation, query } from "./_generated/server";
 import { boundedText, searchableText } from "./hash";
 import { validateWorkspace } from "./model/auth";
+
+/** Bounded read, so a workspace-wide page costs a fixed number of queries. */
+const SCAN_LIMIT = 300;
 
 const outcomeStatus = v.union(v.literal("open"), v.literal("waiting"), v.literal("replied"), v.literal("positive"), v.literal("negative"), v.literal("closed"), v.literal("unknown"));
 const matchId = v.union(v.id("matches"), v.null());
@@ -36,7 +39,11 @@ export function pipelineStageOf(row: { stage?: PipelineStage; status: string }):
 
 type TimelineEntry = { type: string; summary: string; createdAt: number; reference?: string | null };
 
-const outcomeView = v.object({
+/**
+ * Shared field map, so the workspace-wide view cannot silently drift from the
+ * single-row view as the outcome shape grows.
+ */
+const outcomeFields = {
   _id: v.id("outcomes"),
   workspaceId: v.string(),
   missionId: v.id("missions"),
@@ -53,7 +60,37 @@ const outcomeView = v.object({
   timeline,
   createdAt: v.number(),
   updatedAt: v.number(),
-});
+};
+
+const outcomeView = v.object(outcomeFields);
+
+/** The workspace-wide list adds attribution: which mission opened the relationship. */
+const outcomeWorkspaceView = v.object({ ...outcomeFields, missionTitle: v.string() });
+
+/**
+ * One mapping for every outcome reader, so the contract cannot drift between the
+ * mission-scoped list, the single-row fetch, and the workspace-wide list.
+ */
+function toOutcomeView(row: Doc<"outcomes">) {
+  return {
+    _id: row._id,
+    workspaceId: row.workspaceId,
+    missionId: row.missionId,
+    matchId: row.matchId,
+    actionId: row.actionId,
+    counterpart: row.counterpart,
+    status: row.status,
+    stage: pipelineStageOf(row),
+    latestEvidence: row.latestEvidence,
+    linkedThreadId: row.linkedThreadId,
+    nextAction: row.nextAction,
+    nextStepAt: row.nextStepAt ?? null,
+    completionPredicate: row.completionPredicate,
+    timeline: row.timeline,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  };
+}
 
 function appendTimeline(entries: TimelineEntry[], entry: TimelineEntry) {
   // Dedupe on the reference too, so a replayed webhook cannot duplicate a
@@ -268,24 +305,34 @@ export const listForMission = query({
       .withIndex("by_missionId", (q) => q.eq("missionId", args.missionId))
       .order("desc")
       .take(50);
-    return rows.filter((row) => row.workspaceId === args.workspaceId).map((row) => ({
-      _id: row._id,
-      workspaceId: row.workspaceId,
-      missionId: row.missionId,
-      matchId: row.matchId,
-      actionId: row.actionId,
-      counterpart: row.counterpart,
-      status: row.status,
-      stage: pipelineStageOf(row),
-      latestEvidence: row.latestEvidence,
-      linkedThreadId: row.linkedThreadId,
-      nextAction: row.nextAction,
-      nextStepAt: row.nextStepAt ?? null,
-      completionPredicate: row.completionPredicate,
-      timeline: row.timeline,
-      createdAt: row.createdAt,
-      updatedAt: row.updatedAt,
-    }));
+    return rows.filter((row) => row.workspaceId === args.workspaceId).map(toOutcomeView);
+  },
+});
+
+/**
+ * Every relationship in the workspace, newest activity first, each attributed
+ * to the mission that opened it.
+ *
+ * The Outcomes page answers "what actually happened", which is a question about
+ * the whole workspace, not about whichever mission happens to be selected. The
+ * mission title is resolved from one bounded indexed read into a map rather than
+ * a per-row join, so the cost stays fixed as the workspace grows.
+ */
+export const listForWorkspace = query({
+  args: { workspaceId: v.string(), limit: v.optional(v.number()) },
+  returns: v.array(outcomeWorkspaceView),
+  handler: async (ctx, args) => {
+    await validateWorkspace(ctx, args.workspaceId);
+    const limit = Math.min(Math.max(args.limit ?? 100, 1), 200);
+    const [rows, missions] = await Promise.all([
+      ctx.db.query("outcomes").withIndex("by_workspaceId", (q) => q.eq("workspaceId", args.workspaceId)).take(SCAN_LIMIT),
+      ctx.db.query("missions").withIndex("by_workspaceId", (q) => q.eq("workspaceId", args.workspaceId)).take(SCAN_LIMIT),
+    ]);
+    const titleByMission = new Map(missions.map((mission) => [mission._id as string, mission.title]));
+    return rows
+      .map((row) => ({ ...toOutcomeView(row), missionTitle: titleByMission.get(row.missionId) ?? "Mission" }))
+      .sort((a, b) => b.updatedAt - a.updatedAt)
+      .slice(0, limit);
   },
 });
 
@@ -296,24 +343,7 @@ export const getForMission = query({
     await validateWorkspace(ctx, args.workspaceId);
     const outcome = await ctx.db.get(args.outcomeId);
     if (!outcome || outcome.workspaceId !== args.workspaceId) return null;
-    return {
-      _id: outcome._id,
-      workspaceId: outcome.workspaceId,
-      missionId: outcome.missionId,
-      matchId: outcome.matchId,
-      actionId: outcome.actionId,
-      counterpart: outcome.counterpart,
-      status: outcome.status,
-      stage: pipelineStageOf(outcome),
-      latestEvidence: outcome.latestEvidence,
-      linkedThreadId: outcome.linkedThreadId,
-      nextAction: outcome.nextAction,
-      nextStepAt: outcome.nextStepAt ?? null,
-      completionPredicate: outcome.completionPredicate,
-      timeline: outcome.timeline,
-      createdAt: outcome.createdAt,
-      updatedAt: outcome.updatedAt,
-    };
+    return toOutcomeView(outcome);
   },
 });
 

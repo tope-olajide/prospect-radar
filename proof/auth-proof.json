@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-09-18T19:51:43.213Z",
+  "capturedAt": "2026-09-18T19:58:37.749Z",
   "convexUrl": "https://wry-walrus-528.convex.cloud",
   "steps": [
     {
@@ -8,15 +8,15 @@
     },
     {
       "step": "sign-up",
-      "detail": "issued JWT (3-part) for radar-proof-1789761103213@[redacted]"
+      "detail": "issued JWT (3-part) for radar-proof-1789761517749@[redacted]"
     },
     {
       "step": "identity",
-      "detail": "users.current -> user ps72kjgk… (email present: true)"
+      "detail": "users.current -> user ps7ewgwh… (email present: true)"
     },
     {
       "step": "workspace",
-      "detail": "provisioned once, idempotent re-call -> px7ag2jw…"
+      "detail": "provisioned once, idempotent re-call -> px75stkk…"
     },
     {
       "step": "workspace scope",
@@ -24,19 +24,23 @@
     },
     {
       "step": "scoped write",
-      "detail": "missions.create with own workspaceId -> kd71bkgj…"
+      "detail": "missions.create with own workspaceId -> kd780sfe…"
     },
     {
       "step": "scoped read",
       "detail": "missions.list on own workspace -> 1 mission(s)"
     },
     {
+      "step": "workspace outcomes",
+      "detail": "outcomes.listForWorkspace -> [] on a fresh workspace"
+    },
+    {
       "step": "cross-workspace refusal",
-      "detail": "authenticated caller, foreign workspaceId -> [Request ID: 897dac06e2bf7855] Server Error"
+      "detail": "authenticated caller, foreign workspaceId -> [Request ID: b096453dbd911943] Server Error"
     },
     {
       "step": "anonymous scope refusal",
-      "detail": "anonymous caller, known workspaceId -> [Request ID: 66be0b4fd6dca412] Server Error"
+      "detail": "anonymous caller, known workspaceId -> [Request ID: 293e8be48a745e46] Server Error"
     },
     {
       "step": "sign-out",

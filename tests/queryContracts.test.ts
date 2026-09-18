@@ -215,6 +215,9 @@ describe("public query contracts — every query the app calls", () => {
     // Relationships.
     expect((await t.query(api.outcomes.listForMission, { workspaceId: WORKSPACE, missionId: missionId as never })).length).toBe(1);
     expect(await t.query(api.outcomes.getForMission, { workspaceId: WORKSPACE, outcomeId: outcomeId as never })).not.toBeNull();
+    const workspaceOutcomes = await t.query(api.outcomes.listForWorkspace, { workspaceId: WORKSPACE });
+    expect(workspaceOutcomes.length).toBe(1);
+    expect(workspaceOutcomes[0].missionTitle).toBe("Find companies that need React development.");
     expect((await t.query(api.relationships.followUpsForMission, { workspaceId: WORKSPACE, missionId: missionId as never })).length).toBe(1);
     expect((await t.query(api.relationships.meetingsForMission, { workspaceId: WORKSPACE, missionId: missionId as never })).length).toBe(1);
     expect((await t.query(api.relationships.sequencesForMission, { workspaceId: WORKSPACE, missionId: missionId as never })).length).toBe(1);
@@ -247,6 +250,52 @@ describe("public query contracts — every query the app calls", () => {
     await t.query(api.system.status, {});
 
     void messageId;
+  });
+
+  it("listForWorkspace returns every relationship with its mission, newest first, and only this workspace's", async () => {
+    const t = convexTest(schema, convexModules);
+    const { outcomeId } = await seedWorkspace(t);
+
+    await t.run(async (ctx) => {
+      const now = Date.now();
+      // A second mission in the same workspace, with more recent activity, so
+      // the ordering assertion is meaningful rather than incidental.
+      const otherMission = await ctx.db.insert("missions", {
+        workspaceId: WORKSPACE, title: "Find a technical writer.", rawGoal: "Find a technical writer.",
+        mode: "person", status: "ready", constraints: [], sourceScope: "public-web",
+        completionPredicate: "A user-approved next action exists.", createdAt: now, updatedAt: now,
+      });
+      await ctx.db.insert("outcomes", {
+        workspaceId: WORKSPACE, missionId: otherMission, matchId: null, actionId: null,
+        counterpart: "writer@acme.example.com", status: "waiting", stage: "contacted",
+        latestEvidence: "Intro sent.", linkedThreadId: null, nextAction: "Wait for a reply.",
+        nextStepAt: null, completionPredicate: "A user-approved next action exists.",
+        timeline: [], createdAt: now, updatedAt: now + 10_000,
+      });
+      // A different workspace's relationship must never appear in this list.
+      await ctx.db.insert("outcomes", {
+        workspaceId: "other-workspace", missionId: otherMission, matchId: null, actionId: null,
+        counterpart: "other@acme.example.com", status: "waiting", stage: "contacted",
+        latestEvidence: "Belongs elsewhere.", linkedThreadId: null, nextAction: "n/a",
+        nextStepAt: null, completionPredicate: "n/a", timeline: [], createdAt: now, updatedAt: now + 20_000,
+      });
+    });
+
+    const rows = await t.query(api.outcomes.listForWorkspace, { workspaceId: WORKSPACE });
+    expect(rows.map((row) => row.counterpart)).toEqual(["writer@acme.example.com", "hello@acme.example.com"]);
+    expect(rows.map((row) => row.missionTitle)).toEqual(["Find a technical writer.", "Find companies that need React development."]);
+
+    // Isolation runs both ways: the other workspace sees only its own row.
+    const otherRows = await t.query(api.outcomes.listForWorkspace, { workspaceId: "other-workspace" });
+    expect(otherRows.map((row) => row.counterpart)).toEqual(["other@acme.example.com"]);
+
+    // `limit` is honoured and the default view is bounded.
+    expect((await t.query(api.outcomes.listForWorkspace, { workspaceId: WORKSPACE, limit: 1 })).length).toBe(1);
+    expect((await t.query(api.outcomes.listForWorkspace, { workspaceId: WORKSPACE, limit: 0 })).length).toBe(1);
+
+    // The mission-scoped reader still agrees with the workspace-wide one.
+    const missionScoped = await t.query(api.outcomes.listForMission, { workspaceId: WORKSPACE, missionId: rows[1].missionId });
+    expect(missionScoped.map((row) => row._id)).toEqual([outcomeId as never]);
   });
 
   it("searches across entities, relationships, and messages", async () => {

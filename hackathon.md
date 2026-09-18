@@ -14,9 +14,34 @@
 - **Auth:** Convex Auth
 - **AI models:** any OpenAI-compatible model via OPENAI_BASE_URL / OPENAI_MODEL (DashScope qwen-max in production; provider recorded on plans and classifications)
 - **Started:** 2026-09-13T00:00:00Z
-- **Last updated:** 2026-09-18T20:52:00Z
+- **Last updated:** 2026-09-18T19:58:53Z
 
 ## Log
+
+### 2026-09-18 - working tree
+Made **Outcomes** a workspace-level view instead of a mission-scoped one. "What
+actually happened" is a question about the whole workspace, so the page no longer
+depends on which mission happens to be selected. New `outcomes.listForWorkspace`
+query reads every relationship through the `by_workspaceId` index, resolves each
+row's mission title from one bounded indexed read into a map (no per-row join),
+and orders by most recent activity, so page cost stays fixed as the workspace
+grows. Every row now carries its mission attribution and links straight into that
+relationship. The nav badge counts open relationships workspace-wide to match.
+Also collapsed the three outcome readers onto a single `toOutcomeView` mapper so
+the mission-scoped list, the single-row fetch, and the workspace-wide list cannot
+drift apart, and shared the validator field map between the row view and the
+workspace view (`convex/outcomes.ts`, `src/App.tsx`). New test covers ordering,
+mission attribution, two-way workspace isolation, and `limit` clamping; the auth
+proof harness now also asserts the query is live and returns a valid empty list
+on a fresh workspace. Verified: tsc clean on both configs, 188 tests passing,
+deployed to `wry-walrus-528.convex.site`.
+
+### 2026-09-18 - e458306
+Gave the convex-test suites a timeout that survives parallel load. The
+scheduler-draining cases run across parallel workers and intermittently exceeded
+Vitest's 5s default while perfectly healthy, so a fresh clone could see a red
+suite for no real reason (`vite.config.ts`). Verified: 187 tests passing on
+repeated runs.
 
 ### 2026-09-18 - d370589
 Proved Convex Auth end to end on the production deployment and fixed the two

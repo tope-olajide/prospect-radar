@@ -80,6 +80,14 @@ async function main() {
   const mine = await authed.query(api.missions.list, { workspaceId: workspace._id });
   log("scoped read", `missions.list on own workspace -> ${mine.length} mission(s)`);
 
+  // A brand-new workspace has a valid but empty workspace-wide outcomes view —
+  // proves the query is deployed and its return validator accepts the shape.
+  const emptyOutcomes = await authed.query(api.outcomes.listForWorkspace, { workspaceId: workspace._id });
+  if (!Array.isArray(emptyOutcomes) || emptyOutcomes.length !== 0) {
+    throw new Error(`expected an empty outcomes list, got ${JSON.stringify(emptyOutcomes)}`);
+  }
+  log("workspace outcomes", "outcomes.listForWorkspace -> [] on a fresh workspace");
+
   // 5. The same caller is refused for a workspace it does not own.
   const otherWorkspaceId = "k5712345678901234567890123456789";
   let crossRefused = null;
