@@ -204,6 +204,74 @@ describe("approval resumes the mission (autonomous execution)", () => {
   });
 });
 
+describe("answering a clarification resumes the mission", () => {
+  it("persists the answer as confirmed context and re-schedules the run", async () => {
+    const t = convexTest(schema, convexModules);
+    lastTest = t;
+    const now = Date.now();
+    const missionId = await t.run(async (ctx) => {
+      const id = await ctx.db.insert("missions", {
+        workspaceId: WORKSPACE,
+        title: "Ambiguous mission",
+        rawGoal: "Find customers for my SaaS",
+        mode: "customer" as const,
+        status: "running" as const,
+        constraints: [],
+        sourceScope: "public-web",
+        completionPredicate: "one positive reply",
+        clarification: "Which vertical are you selling into?",
+        createdAt: now,
+        updatedAt: now,
+      });
+      await ctx.db.insert("agentRuns", {
+        missionId: id,
+        status: "waiting" as const,
+        currentStage: "intake" as const,
+        checkpointVersion: 1,
+        activeInterruption: null,
+        nextWakeAt: null,
+        retryCount: 0,
+        startedAt: now,
+        finishedAt: null,
+        createdAt: now,
+        updatedAt: now,
+      });
+      return id;
+    });
+
+    const result = await t.mutation(api.orchestratorStore.answerClarification, {
+      workspaceId: WORKSPACE,
+      missionId,
+      answer: "Veterinary clinics",
+    });
+    expect(result.resumed).toBe(true);
+
+    // The answer is context the agent may use — not a string glued onto the goal.
+    const facts = await t.run(async (ctx) =>
+      ctx.db.query("contextFacts").withIndex("by_missionId", (q) => q.eq("missionId", missionId)).collect(),
+    );
+    expect(facts).toHaveLength(1);
+    expect(facts[0]).toMatchObject({
+      category: "clarification",
+      value: "Veterinary clinics",
+      sourceType: "user_input",
+      verificationStatus: "user_confirmed",
+    });
+
+    // The question is closed, and the mission is running again rather than
+    // sitting `active` with nothing scheduled.
+    const mission = await t.run(async (ctx) => ctx.db.get(missionId));
+    expect(mission?.clarification).toBeUndefined();
+    const run = await runRow(t, missionId);
+    expect({ stage: run?.currentStage, status: run?.status }).toEqual({ stage: "intake", status: "active" });
+
+    const events = await t.run(async (ctx) =>
+      ctx.db.query("runEvents").withIndex("by_missionId", (q) => q.eq("missionId", missionId)).collect(),
+    );
+    expect(events.some((event) => event.type === "clarification.answered")).toBe(true);
+  });
+});
+
 describe("the agent proposes actions on its own terms", () => {
   it("refuses to propose without a sending inbox, and drafts nothing", async () => {
     const t = convexTest(schema, convexModules);

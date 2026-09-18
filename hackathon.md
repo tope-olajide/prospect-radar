@@ -228,11 +228,18 @@ route only*) and drafts the strongest one, so the approval gate opens with real
 drafts instead of asking the user to pick a tool; it refuses with `no_inbox` or
 `no_reachable_match` rather than inventing a recipient. **`nextWakeAt` has a
 reader** and the AgentMail webhook wakes the correct mission through
-observation. `checkCompletion` is now action-generic — form submissions and
+observation. **Clarifications resume instead of stalling**: answering one is now
+a single mutation (`orchestratorStore.answerClarification`) that records the
+answer as a mission-scoped, user-confirmed context fact, logs the question and
+the answer as run events, and re-schedules the run — the old path appended the
+answer to the goal and called the classifier from the page, leaving the run
+`active` at `intake` with nothing scheduled, where only the reaper could touch
+it. `checkCompletion` is now action-generic — form submissions and
 future action types can satisfy the plan's predicate, not just `sent` emails.
-Verified: tsc clean on both configs, **201 tests passing** (16 files), including
+Verified: tsc clean on both configs, **202 tests passing** (16 files), including
 new `tests/autonomy.test.ts` pinning that approval resumes the mission with no
-page calling `send` and that the agent proposes nothing it cannot address.
+page calling `send`, that the agent proposes nothing it cannot address, and that
+a clarification answer becomes confirmed context and re-schedules the run.
 Not yet proven: a live no-scripted-click trace on the deployment, and the
 dev/prod credential separation the PM asked to complete **before** any runtime
 data reset.
