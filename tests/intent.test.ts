@@ -444,6 +444,79 @@ describe("structured output contract — required fields are enforced, not hoped
   });
 });
 
+/**
+ * Crawl targets are handed to the crawler verbatim.
+ *
+ * A live run filled `crawlTargets` with prose — "Check the careers pages of
+ * mid-size startups" — and the whole crawl half of discovery was skipped as an
+ * invalid URL, after the plan had already spent its backlog on it. The field now
+ * has a contract the model is nudged to honour, and anything it still gets wrong
+ * is salvaged into the work it actually described rather than dropped.
+ */
+describe("planMission — crawl targets are URLs or nothing", () => {
+  const basePlan = {
+    normalizedGoal: "Find companies with publicly expressed React/Next.js needs.",
+    mode: "opportunity",
+    mustHave: ["a current dev need"], niceToHave: [], exclusions: [], missingFacts: [],
+    recommendedSources: ["job boards"], proposedSteps: ["Search job boards", "Crawl careers pages"],
+    completionPredicate: "3 sourced matches approved.", strategyNotes: "Following guidance.",
+  };
+
+  async function missionWithIntent(t: TestT) {
+    const missionId = await seedMission(t, "Find companies that need React development.");
+    await t.run((ctx) => ctx.runMutation(internal.missions.applyIntent, {
+      missionId: missionId as never,
+      intent: { primary: "find_opportunity", secondary: null, confidence: 0.9, rationale: "needs" },
+      targetEntity: "organization",
+      relationshipGoal: "become_their_vendor",
+      mode: "opportunity",
+      clarification: null,
+    }));
+    return missionId;
+  }
+
+  it("salvages a non-URL crawl target into the search backlog instead of queueing dead work", async () => {
+    const t = convexTest(schema, convexModules);
+    const missionId = await missionWithIntent(t);
+    stubFetch(() => llmReply({
+      ...basePlan,
+      searchQueries: ["companies hiring React developers"],
+      crawlTargets: ["Check the careers pages of mid-size startups", "https://example.com/careers"],
+    }));
+    expect((await plan(t, missionId)).model).toBeTruthy();
+
+    const queries = await t.run((ctx) => ctx.db.query("missionQueries").collect());
+    const crawls = queries.filter((row) => row.kind === "crawl").map((row) => row.query);
+    const searches = queries.filter((row) => row.kind === "search").map((row) => row.query);
+    // Only the real URL became crawl work...
+    expect(crawls).toEqual(["https://example.com/careers"]);
+    // ...and the prose became the search it actually described, not a skip.
+    expect(searches).toContain("Check the careers pages of mid-size startups");
+    expect(searches).toContain("companies hiring React developers");
+
+    // The plan step says what happened, so it is visible instead of silent.
+    const steps = await t.run(async (ctx) => {
+      const run = await ctx.db.query("agentRuns").withIndex("by_missionId", (q) => q.eq("missionId", missionId as never)).first();
+      return ctx.db.query("runSteps").withIndex("by_runId", (q) => q.eq("runId", run!._id)).collect();
+    });
+    expect(steps.find((step) => step.label === "plan.created")?.summary).toContain("salvaged into searches");
+  });
+
+  it("takes an all-URL crawl backlog as-is, with no repair round-trip", async () => {
+    const t = convexTest(schema, convexModules);
+    const missionId = await missionWithIntent(t);
+    stubFetch(() => llmReply({
+      ...basePlan,
+      searchQueries: ["companies hiring React developers"],
+      crawlTargets: ["https://example.com/careers"],
+    }));
+    await plan(t, missionId);
+    expect(capturedBodies).toHaveLength(1);
+    const queries = await t.run((ctx) => ctx.db.query("missionQueries").collect());
+    expect(queries.filter((row) => row.kind === "crawl").map((row) => row.query)).toEqual(["https://example.com/careers"]);
+  });
+});
+
 describe("reviseGoal — conversational correction re-enters classification", () => {
   it("appends a clarification answer and the mission stays editable", async () => {
     const t = convexTest(schema, convexModules);

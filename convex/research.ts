@@ -327,6 +327,36 @@ const EXTRACTION_PROMPT = [
   "For any contact route you do report, cite the exact URL where it appears on this page.",
 ].join(" ");
 
+/**
+ * Build the extraction prompt for one source, framed by the mission.
+ *
+ * Precision is the point. A mission looking for organizations does not want
+ * whichever job title the page happens to list, so the prompt states the target
+ * entity family, forbids roles/categories/listing sites as entity names, and
+ * tells the extractor to fall back to the page's own publisher when the page is
+ * an aggregator with no specific subject of its own.
+ */
+export function extractionPromptFor(
+  guidance: { goal: string; intent: string | null; targetEntity: string | null; mustHave: string[] } | null,
+  source: { url: string; title: string },
+): string {
+  const target = guidance?.targetEntity ?? null;
+  const family = target === "person" ? "person"
+    : target === "organization" ? "organization"
+    : target === "product_or_service" ? "product"
+    : null;
+  return [
+    EXTRACTION_PROMPT,
+    guidance
+      ? `Mission framing — this page was found for the goal "${bounded(guidance.goal, 300)}" (intent: ${guidance.intent ?? "unspecified"}; the agent is looking for: ${target ?? "unspecified"}).${guidance.mustHave.length ? ` Judge the entity against these must-haves: ${guidance.mustHave.map((entry) => bounded(entry, 160)).join("; ")}.` : ""}`
+      : "",
+    "entityName must be the specific proper noun this page is about: a named organization or person. Never return a job title, role, skill, category, or generic descriptor (for example, never return \"Frontend Developer\").",
+    family ? `This mission targets a ${family}, so when the page is about such an entity, entityType must be \"${family}\".` : "",
+    "If the page is a listing, directory, job board, or aggregator, extract the most specific named organization or person it is about; if it names none, use the page's own publisher as the entity.",
+    `Page: ${bounded(source.title, 200)} — ${bounded(source.url, 300)}`,
+  ].filter(Boolean).join(" ");
+}
+
 type ValidatedExtraction = {
   entityName: string;
   entityType: "person" | "organization" | "product";
@@ -425,11 +455,15 @@ async function extractOne(
     return { entityId: existing._id, status: "extracted" as const, signals: rows };
   }
 
+  // Mission-aware: the same page resolves differently depending on what the
+  // mission is looking for, which is what keeps target-class precision high.
+  const guidance = await ctx.runQuery(internal.researchStore.extractionGuidance, { missionId });
+
   let extraction: ValidatedExtraction | null = null;
   let failureCode: string | null = null;
   try {
     const document = await firecrawl.scrape(ctx, source.url, {
-      formats: [{ type: "json", prompt: EXTRACTION_PROMPT, schema: entityExtractionSchema }],
+      formats: [{ type: "json", prompt: extractionPromptFor(guidance, source), schema: entityExtractionSchema }],
       onlyMainContent: true,
       // Recently scraped pages are cache-served, so extraction rarely triggers
       // a second full fetch — Firecrawl JSON mode over cached content.
