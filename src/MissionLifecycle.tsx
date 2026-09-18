@@ -1,11 +1,12 @@
 /** The lifecycle nodes the run can be in, in agent order. */
-export const RUN_STAGES = ["intake", "interpret", "plan", "plan_review", "discover", "check_in", "evaluate", "approval", "execute", "observe", "complete"] as const;
+export const RUN_STAGES = ["intake", "interpret", "plan", "context_check", "plan_review", "discover", "check_in", "evaluate", "approval", "execute", "observe", "complete"] as const;
 export type RunStageName = (typeof RUN_STAGES)[number];
 
 const STAGE_COPY: Record<RunStageName, { title: string; doing: string }> = {
   intake: { title: "Receiving your request", doing: "Creating a durable run" },
   interpret: { title: "Understanding your request", doing: "Classifying what you're trying to accomplish" },
   plan: { title: "Planning the approach", doing: "Deciding what to hunt, where, and what evidence counts" },
+  context_check: { title: "Checking readiness", doing: "Verifying Radar has enough information to plan" },
   plan_review: { title: "Reviewing the plan", doing: "Waiting for you to approve the plan before searching" },
   discover: { title: "Researching", doing: "Searching and crawling public sources for evidence" },
   check_in: { title: "Showing what Radar found", doing: "Presenting discovery results before evaluating" },
@@ -16,7 +17,7 @@ const STAGE_COPY: Record<RunStageName, { title: string; doing: string }> = {
   complete: { title: "Mission complete", doing: "Outcome recorded; the relationship stays on the radar" },
 };
 
-const STAGE_ORDER: Record<RunStageName, number> = { intake: 0, interpret: 1, plan: 2, plan_review: 3, discover: 4, check_in: 5, evaluate: 6, approval: 7, execute: 8, observe: 9, complete: 10 };
+const STAGE_ORDER: Record<RunStageName, number> = { intake: 0, interpret: 1, plan: 2, context_check: 3, plan_review: 4, discover: 5, check_in: 6, evaluate: 7, approval: 8, execute: 9, observe: 10, complete: 11 };
 
 export type RunView = {
   status: string;
@@ -58,6 +59,7 @@ function activeNote(run: NonNullable<RunView>, latestStep: StepView | null | und
     if (run.currentStage === "plan_review") return "Review the plan, then approve to start searching";
     if (run.currentStage === "check_in") return "Review what Radar found, then continue to evaluation";
     if (run.currentStage === "intake") return "Radar needs a clarification before it can search";
+    if (run.currentStage === "context_check") return "Radar needs a few details before it can plan";
     return "Waiting on the outside world — Radar continues automatically";
   }
   return latestStep ? latestStep.summary : STAGE_COPY[(run.currentStage as RunStageName) in STAGE_ORDER ? (run.currentStage as RunStageName) : "intake"].doing;

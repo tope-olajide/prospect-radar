@@ -37,7 +37,7 @@ function advanceable(status: string, stage: string): boolean {
   return status === "active" || (status === "queued" && stage === "intake");
 }
 
-type Stage = "intake" | "interpret" | "plan" | "plan_review" | "discover" | "check_in" | "evaluate" | "approval" | "execute" | "observe" | "wait" | "complete";
+type Stage = "intake" | "interpret" | "plan" | "context_check" | "plan_review" | "discover" | "check_in" | "evaluate" | "approval" | "execute" | "observe" | "wait" | "complete";
 
 type RunRow = {
   _id: Id<"agentRuns">;
@@ -177,14 +177,46 @@ export const runStage = internalAction({
         }
         case "interpret": {
           // Intent is persisted; produce the strategy-bearing plan. The plan
-          // save materializes the discovery backlog (missionQueries).
+          // save materializes the discovery backlog (missionQueries). Then
+          // check whether Radar has enough trustworthy information about the
+          // user to perform this mission before proceeding.
           await ctx.runAction(api.ai.planMission, { missionId: args.missionId });
           await ctx.runMutation(internal.orchestratorStore.stageDone, {
-            missionId: args.missionId, stage: "interpret", nextStage: "plan_review",
-            eventType: "stage.plan_review.started", summary: "Plan ready — review it before Radar starts searching.",
+            missionId: args.missionId, stage: "interpret", nextStage: "context_check",
+            eventType: "stage.context_check.started", summary: "Plan ready — checking whether Radar has enough information to proceed.",
           });
-          // Pause for user review: transition to waiting so the orchestrator
-          // stops. The user clicks Approve Plan which sets status back to active.
+          await ctx.scheduler.runAfter(0, internal.missionOrchestrator.runStage, { missionId: args.missionId });
+          return null;
+        }
+        case "context_check": {
+          // Readiness check: does the user's profile, confirmed facts, and
+          // mission context satisfy what this intent requires? If not, pause
+          // and ask for exactly what is missing.
+          const readiness = await ctx.runQuery(internal.contextCheck.readinessForMission, { missionId: args.missionId });
+          if (!readiness.ready) {
+            const missingRequired = readiness.missingRequired;
+            const questions = readiness.requirements
+              .filter((r) => !r.satisfied && r.criticality !== "nice_to_have")
+              .map((r) => r.question);
+            const summary = questions.length > 0
+              ? `Radar needs a few details before it can plan: ${questions[0]}`
+              : "Radar needs more information before it can plan.";
+            await ctx.runMutation(internal.orchestratorStore.stageDone, {
+              missionId: args.missionId, stage: "context_check", nextStage: "context_check",
+              eventType: "context_check.waiting", summary,
+            });
+            await ctx.runMutation(internal.runs.transition, {
+              missionId: args.missionId, targetStage: "context_check", targetStatus: "waiting",
+              interruption: null, eventType: "context_check.waiting",
+              safeSummary: summary,
+            });
+            return null;
+          }
+          // All required info is present — proceed to plan review.
+          await ctx.runMutation(internal.orchestratorStore.stageDone, {
+            missionId: args.missionId, stage: "context_check", nextStage: "plan_review",
+            eventType: "stage.plan_review.started", summary: "Radar has enough information — plan ready.",
+          });
           await ctx.runMutation(internal.runs.transition, {
             missionId: args.missionId, targetStage: "plan_review", targetStatus: "waiting",
             interruption: null, eventType: "plan_review.waiting", safeSummary: "Radar is waiting for you to review the plan.",

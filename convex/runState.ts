@@ -1,14 +1,15 @@
 import type { Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
 
-type RunStage = "intake" | "interpret" | "plan" | "plan_review" | "discover" | "check_in" | "evaluate" | "approval" | "execute" | "observe" | "wait" | "complete";
+type RunStage = "intake" | "interpret" | "plan" | "context_check" | "plan_review" | "discover" | "check_in" | "evaluate" | "approval" | "execute" | "observe" | "wait" | "complete";
 type RunStatus = "queued" | "active" | "waiting" | "blocked" | "complete" | "failed" | "cancelled";
 type MissionStatus = "draft" | "ready" | "running" | "waiting" | "blocked" | "complete" | "failed" | "expired" | "cancelled";
 
 const allowedNextStages: Record<RunStage, RunStage[]> = {
-  intake: ["interpret", "plan", "plan_review", "discover", "approval", "wait", "complete"],
-  interpret: ["plan", "plan_review", "discover", "approval", "wait", "complete"],
-  plan: ["plan_review", "discover", "evaluate", "approval", "wait", "complete"],
+  intake: ["interpret", "plan", "context_check", "plan_review", "discover", "approval", "wait", "complete"],
+  interpret: ["plan", "context_check", "plan_review", "discover", "approval", "wait", "complete"],
+  plan: ["context_check", "plan_review", "discover", "evaluate", "approval", "wait", "complete"],
+  context_check: ["plan", "plan_review", "discover", "approval", "wait", "complete"],
   plan_review: ["discover", "evaluate", "approval", "wait", "complete"],
   discover: ["check_in", "evaluate", "approval", "wait", "complete"],
   check_in: ["evaluate", "discover", "approval", "wait", "complete"],
