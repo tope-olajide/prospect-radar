@@ -160,7 +160,17 @@ export const runStage = internalAction({
           // Classify first; the classifier itself transitions the run to
           // interpret on success. Failing here blocks at intake so a retry
           // re-runs classification.
-          await ctx.runAction(api.ai.classifyMissionIntent, { missionId: args.missionId });
+          const classification = await ctx.runAction(api.ai.classifyMissionIntent, { missionId: args.missionId });
+          // If the classifier detected ambiguity it cannot resolve from profile
+          // or sources, pause the run so the user can answer before planning.
+          if (classification.clarificationNeeded && classification.clarificationQuestion) {
+            await ctx.runMutation(internal.runs.transition, {
+              missionId: args.missionId, targetStage: "intake", targetStatus: "waiting",
+              interruption: null, eventType: "clarification.waiting",
+              safeSummary: `Radar needs clarification: ${classification.clarificationQuestion}`,
+            });
+            return null;
+          }
           await ctx.scheduler.runAfter(0, internal.missionOrchestrator.runStage, { missionId: args.missionId });
           return null;
         }
