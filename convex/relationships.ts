@@ -3,6 +3,7 @@ import type { Id } from "./_generated/dataModel";
 import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
 import { boundedText } from "./hash";
 import { applyStage, pipelineStageOf, type PipelineStage } from "./outcomes";
+import { validateWorkspace } from "./model/auth";
 
 const pipelineStage = v.union(
   v.literal("contacted"), v.literal("replied"), v.literal("engaged"),
@@ -146,6 +147,7 @@ export const scheduleFollowUp = mutation({
   },
   returns: v.id("followUps"),
   handler: async (ctx, args) => {
+    await validateWorkspace(ctx, args.workspaceId);
     const mission = await ctx.db.get(args.missionId);
     if (!mission || mission.workspaceId !== args.workspaceId) {
       throw new Error("FORBIDDEN_SCOPE: mission is not in this workspace.");
@@ -190,6 +192,7 @@ export const snoozeFollowUp = mutation({
   args: { workspaceId: v.string(), followUpId: v.id("followUps"), dueAt: v.number() },
   returns: v.id("followUps"),
   handler: async (ctx, args) => {
+    await validateWorkspace(ctx, args.workspaceId);
     const followUp = await ctx.db.get(args.followUpId);
     if (!followUp || followUp.workspaceId !== args.workspaceId) {
       throw new Error("FORBIDDEN_SCOPE: follow-up is not in this workspace.");
@@ -216,6 +219,7 @@ export const completeFollowUp = mutation({
   args: { workspaceId: v.string(), followUpId: v.id("followUps") },
   returns: v.id("followUps"),
   handler: async (ctx, args) => {
+    await validateWorkspace(ctx, args.workspaceId);
     const followUp = await ctx.db.get(args.followUpId);
     if (!followUp || followUp.workspaceId !== args.workspaceId) {
       throw new Error("FORBIDDEN_SCOPE: follow-up is not in this workspace.");
@@ -239,6 +243,7 @@ export const cancelFollowUp = mutation({
   args: { workspaceId: v.string(), followUpId: v.id("followUps") },
   returns: v.id("followUps"),
   handler: async (ctx, args) => {
+    await validateWorkspace(ctx, args.workspaceId);
     const followUp = await ctx.db.get(args.followUpId);
     if (!followUp || followUp.workspaceId !== args.workspaceId) {
       throw new Error("FORBIDDEN_SCOPE: follow-up is not in this workspace.");
@@ -260,6 +265,7 @@ export const recordMeeting = mutation({
   },
   returns: v.id("meetings"),
   handler: async (ctx, args) => {
+    await validateWorkspace(ctx, args.workspaceId);
     const mission = await ctx.db.get(args.missionId);
     if (!mission || mission.workspaceId !== args.workspaceId) {
       throw new Error("FORBIDDEN_SCOPE: mission is not in this workspace.");
@@ -300,6 +306,7 @@ export const setStage = mutation({
   },
   returns: v.id("outcomes"),
   handler: async (ctx, args) => {
+    await validateWorkspace(ctx, args.workspaceId);
     const outcome = await ctx.db.get(args.outcomeId);
     if (!outcome || outcome.workspaceId !== args.workspaceId) {
       throw new Error("FORBIDDEN_SCOPE: outcome is not in this workspace.");
@@ -319,6 +326,7 @@ export const followUpsForMission = query({
   args: { workspaceId: v.string(), missionId: v.id("missions") },
   returns: v.array(followUpView),
   handler: async (ctx, args) => {
+    await validateWorkspace(ctx, args.workspaceId);
     const mission = await ctx.db.get(args.missionId);
     if (!mission || mission.workspaceId !== args.workspaceId) return [];
     const rows = await ctx.db.query("followUps")
@@ -335,6 +343,7 @@ export const meetingsForMission = query({
   args: { workspaceId: v.string(), missionId: v.id("missions") },
   returns: v.array(meetingView),
   handler: async (ctx, args) => {
+    await validateWorkspace(ctx, args.workspaceId);
     const mission = await ctx.db.get(args.missionId);
     if (!mission || mission.workspaceId !== args.workspaceId) return [];
     const rows = await ctx.db.query("meetings")
@@ -351,6 +360,7 @@ export const sequencesForMission = query({
   args: { workspaceId: v.string(), missionId: v.id("missions") },
   returns: v.array(sequenceView),
   handler: async (ctx, args) => {
+    await validateWorkspace(ctx, args.workspaceId);
     const mission = await ctx.db.get(args.missionId);
     if (!mission || mission.workspaceId !== args.workspaceId) return [];
     const rows = await ctx.db.query("outreachSequences")

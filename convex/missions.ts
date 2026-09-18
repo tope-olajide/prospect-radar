@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { internalMutation, mutation, query } from "./_generated/server";
 import { intentLabelUnion, missionModeUnion, modeForIntent, targetEntityUnion } from "./intentStrategy";
 import type { Id } from "./_generated/dataModel";
+import { validateWorkspace } from "./model/auth";
 
 const missionStatus = v.union(v.literal("draft"), v.literal("ready"), v.literal("running"), v.literal("waiting"), v.literal("blocked"), v.literal("complete"), v.literal("failed"), v.literal("expired"), v.literal("cancelled"));
 const intentObject = v.object({
@@ -21,6 +22,7 @@ const summary = v.object({
 export const list = query({
   args: { workspaceId: v.string() }, returns: v.array(summary),
   handler: async (ctx, args) => {
+    await validateWorkspace(ctx, args.workspaceId);
     const rows = await ctx.db.query("missions").withIndex("by_workspaceId", (q) => q.eq("workspaceId", args.workspaceId)).order("desc").take(50);
     return rows.map(({ _id, title, rawGoal, mode, intent, targetEntity, relationshipGoal, clarification, status, constraints, sourceScope, completionPredicate, createdAt, updatedAt }) => ({ _id, title, rawGoal, mode, intent, targetEntity, relationshipGoal, clarification, status, constraints, sourceScope, completionPredicate, createdAt, updatedAt }));
   },
@@ -35,6 +37,7 @@ export const create = mutation({
   args: { workspaceId: v.string(), title: v.string(), rawGoal: v.string(), constraints: v.array(v.string()), sourceScope: v.string(), completionPredicate: v.string() },
   returns: v.object({ missionId: v.id("missions"), runId: v.id("agentRuns") }),
   handler: async (ctx, args) => {
+    await validateWorkspace(ctx, args.workspaceId);
     const now = Date.now();
     const missionId: Id<"missions"> = await ctx.db.insert("missions", {
       workspaceId: args.workspaceId,
@@ -87,6 +90,7 @@ export const reviseGoal = mutation({
   args: { workspaceId: v.string(), missionId: v.id("missions"), rawGoal: v.string() },
   returns: v.null(),
   handler: async (ctx, args) => {
+    await validateWorkspace(ctx, args.workspaceId);
     const mission = await ctx.db.get(args.missionId);
     if (!mission || mission.workspaceId !== args.workspaceId) {
       throw new Error("FORBIDDEN_SCOPE: mission is not in this workspace.");

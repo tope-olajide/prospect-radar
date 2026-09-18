@@ -5,6 +5,7 @@ import { internalMutation, internalQuery, mutation, query } from "./_generated/s
 import { contentHash, boundedText } from "./hash";
 import { transitionRun } from "./runState";
 import { recordOutboundOutcome } from "./outcomes";
+import { validateWorkspace } from "./model/auth";
 
 const actionStatus = v.union(
   v.literal("draft"),
@@ -177,6 +178,7 @@ export const approve = mutation({
   args: { workspaceId: v.string(), actionId: v.id("actionDrafts") },
   returns: v.object({ actionId: v.id("actionDrafts"), status: actionStatus, expiresAt: v.number() }),
   handler: async (ctx, args) => {
+    await validateWorkspace(ctx, args.workspaceId);
     const draftRow = await ctx.db.get(args.actionId);
     if (!draftRow || draftRow.workspaceId !== args.workspaceId) {
       throw new Error("FORBIDDEN_SCOPE: draft is not in this workspace.");
@@ -387,6 +389,7 @@ export const listDrafts = query({
   args: { workspaceId: v.string(), missionId: v.id("missions") },
   returns: v.array(draftView),
   handler: async (ctx, args) => {
+    await validateWorkspace(ctx, args.workspaceId);
     const mission = await ctx.db.get(args.missionId);
     if (!mission || mission.workspaceId !== args.workspaceId) return [];
     const rows = await ctx.db.query("actionDrafts")
@@ -432,6 +435,7 @@ export const linkInbox = mutation({
   },
   returns: v.id("agentInboxes"),
   handler: async (ctx, args) => {
+    await validateWorkspace(ctx, args.workspaceId);
     const inboxId = args.agentmailInboxId.trim();
     const email = args.email.trim().toLowerCase();
     if (!inboxId || inboxId.length > 160) throw new Error("INVALID_ARGUMENT: inbox id is invalid.");
@@ -467,6 +471,7 @@ export const getInbox = query({
     displayName: v.union(v.string(), v.null()),
   }), v.null()),
   handler: async (ctx, args) => {
+    await validateWorkspace(ctx, args.workspaceId);
     const inbox = await ctx.db.query("agentInboxes")
       .withIndex("by_workspaceId", (q) => q.eq("workspaceId", args.workspaceId))
       .first();
@@ -685,6 +690,7 @@ export const listClassifications = query({
     createdAt: v.number(),
   })),
   handler: async (ctx, args) => {
+    await validateWorkspace(ctx, args.workspaceId);
     const rows = args.missionId
       ? await ctx.db.query("replyClassifications")
         .withIndex("by_missionId", (q) => q.eq("missionId", args.missionId))

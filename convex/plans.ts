@@ -3,6 +3,7 @@ import type { Id } from "./_generated/dataModel";
 import { internalMutation, mutation, query } from "./_generated/server";
 import { boundedText } from "./hash";
 import { recordStep } from "./runs";
+import { validateWorkspace } from "./model/auth";
 
 const mode = v.union(v.literal("opportunity"), v.literal("person"), v.literal("customer"), v.literal("solution"), v.literal("collaborator"));
 const provider = v.union(v.literal("openai"), v.literal("dashscope"));
@@ -68,6 +69,7 @@ export const updateBrief = mutation({
   },
   returns: v.object({ planId: v.id("missionPlans"), completionPredicate: v.string() }),
   handler: async (ctx, args) => {
+    await validateWorkspace(ctx, args.workspaceId);
     const mission = await ctx.db.get(args.missionId);
     if (!mission || mission.workspaceId !== args.workspaceId) {
       throw new Error("FORBIDDEN_SCOPE: mission is not in this workspace.");

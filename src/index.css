@@ -657,3 +657,37 @@ label { display: grid; gap: 6px; color: var(--muted); font-size: 10px; font-weig
   .proposal-field { padding: 8px; }
   .budget-control input { min-width: 100%; }
 }
+
+/* ── Auth ─────────────────────────────────────────────────────────── */
+.auth-page {
+  display: flex; align-items: center; justify-content: center;
+  min-height: 100vh; padding: 24px;
+  background: var(--bg);
+}
+.auth-card {
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: 16px; padding: 40px 36px; width: 100%; max-width: 400px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+.auth-brand { text-align: center; margin-bottom: 32px; }
+.auth-brand .brand-mark { font-size: 32px; }
+.auth-brand h1 { font-size: 20px; font-weight: 700; margin: 8px 0 4px; }
+.auth-brand p { color: var(--muted); font-size: 13px; }
+.auth-form { display: flex; flex-direction: column; gap: 16px; }
+.auth-input {
+  width: 100%; padding: 10px 12px; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--input-bg);
+  font-size: 14px; font-family: inherit; color: var(--text);
+  outline: none; transition: border-color 0.15s;
+}
+.auth-input:focus { border-color: var(--accent); }
+.auth-error { color: var(--error); font-size: 13px; margin: 0; }
+.auth-submit { width: 100%; margin-top: 4px; }
+.auth-switch { text-align: center; font-size: 13px; color: var(--muted); margin-top: 20px; }
+.auth-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 12px; margin: 0 12px 12px;
+  background: var(--panel-2); border-radius: 8px; font-size: 12px;
+}
+.auth-user { color: var(--text-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 140px; }
+.auth-signout { font-size: 11px; padding: 2px 8px; }

@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import type { QueryCtx } from "./_generated/server";
 import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
+import { validateWorkspace } from "./model/auth";
 
 /**
  * Provider-credit budget (docs/execution-plan.md Phase 6).
@@ -166,6 +167,7 @@ export const status = query({
     exhausted: v.boolean(),
   }),
   handler: async (ctx, args) => {
+    await validateWorkspace(ctx, args.workspaceId);
     const creditLimit = await limitFor(ctx, args.workspaceId);
     const used = await usedFor(ctx, args.workspaceId);
     const remaining = Math.max(0, creditLimit - used);
@@ -207,6 +209,7 @@ export const setLimit = mutation({
   args: { workspaceId: v.string(), creditLimit: v.number() },
   returns: v.object({ creditLimit: v.number() }),
   handler: async (ctx, args) => {
+    await validateWorkspace(ctx, args.workspaceId);
     const requested = Math.floor(args.creditLimit);
     if (!Number.isFinite(requested) || requested < MIN_CREDIT_LIMIT || requested > MAX_CREDIT_LIMIT) {
       throw new Error(`INVALID_ARGUMENT: the credit cap must be between ${MIN_CREDIT_LIMIT} and ${MAX_CREDIT_LIMIT}.`);
@@ -227,6 +230,7 @@ export const chargesForMission = query({
   args: { workspaceId: v.string(), missionId: v.id("missions") },
   returns: v.array(v.object({ kind: v.string(), amount: v.number(), reference: v.string(), createdAt: v.number() })),
   handler: async (ctx, args) => {
+    await validateWorkspace(ctx, args.workspaceId);
     const rows = await ctx.db.query("creditCharges").withIndex("by_missionId", (q) => q.eq("missionId", args.missionId)).take(200);
     return rows
       .filter((row) => row.workspaceId === args.workspaceId)

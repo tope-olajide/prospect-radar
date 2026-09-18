@@ -3,6 +3,7 @@ import type { Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
 import { mutation, query } from "./_generated/server";
 import { boundedText, searchableText } from "./hash";
+import { validateWorkspace } from "./model/auth";
 
 const outcomeStatus = v.union(v.literal("open"), v.literal("waiting"), v.literal("replied"), v.literal("positive"), v.literal("negative"), v.literal("closed"), v.literal("unknown"));
 const matchId = v.union(v.id("matches"), v.null());
@@ -260,6 +261,7 @@ export const listForMission = query({
   args: { workspaceId: v.string(), missionId: v.id("missions") },
   returns: v.array(outcomeView),
   handler: async (ctx, args) => {
+    await validateWorkspace(ctx, args.workspaceId);
     const mission = await ctx.db.get(args.missionId);
     if (!mission || mission.workspaceId !== args.workspaceId) return [];
     const rows = await ctx.db.query("outcomes")
@@ -291,6 +293,7 @@ export const getForMission = query({
   args: { workspaceId: v.string(), outcomeId: v.id("outcomes") },
   returns: v.union(outcomeView, v.null()),
   handler: async (ctx, args) => {
+    await validateWorkspace(ctx, args.workspaceId);
     const outcome = await ctx.db.get(args.outcomeId);
     if (!outcome || outcome.workspaceId !== args.workspaceId) return null;
     return {
@@ -323,6 +326,7 @@ export const updateStatus = mutation({
   },
   returns: v.id("outcomes"),
   handler: async (ctx, args) => {
+    await validateWorkspace(ctx, args.workspaceId);
     const outcome = await ctx.db.get(args.outcomeId);
     if (!outcome || outcome.workspaceId !== args.workspaceId) throw new Error("FORBIDDEN_SCOPE: outcome is not in this workspace.");
     if (!args.nextAction.trim() || args.nextAction.length > 400) throw new Error("INVALID_ARGUMENT: next action is invalid.");

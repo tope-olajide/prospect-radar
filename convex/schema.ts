@@ -1,5 +1,6 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import { authTables } from "@convex-dev/auth/server";
 
 const missionMode = v.union(v.literal("opportunity"), v.literal("person"), v.literal("customer"), v.literal("solution"), v.literal("collaborator"));
 const intentLabel = v.union(
@@ -87,6 +88,17 @@ const formFieldValue = v.object({
 });
 
 export default defineSchema({
+  // ── Auth (provided by @convex-dev/auth) ───────────────────────────────
+  ...authTables,
+
+  // ── App-specific ─────────────────────────────────────────────────────
+  workspaces: defineTable({
+    ownerId: v.id("users"),
+    name: v.string(),
+    createdAt: v.number(),
+  }).index("by_ownerId", ["ownerId"]),
+
+  // ── Core ──────────────────────────────────────────────────────────────
   missions: defineTable({
     workspaceId: v.string(), title: v.string(), rawGoal: v.string(), mode: missionMode,
     intent: v.optional(intentObject), targetEntity: v.optional(targetEntity),

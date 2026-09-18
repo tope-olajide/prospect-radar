@@ -7,6 +7,7 @@ import { api, components, internal } from "./_generated/api";
 import { action } from "./_generated/server";
 import { contentHash, boundedText } from "./hash";
 import { llmConfig } from "./ai";
+import { validateWorkspace } from "./model/auth";
 
 // Convex's generated ComponentApi labels the functions a parent may call as
 // "internal" — component functions are never exposed to clients — while the

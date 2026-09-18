@@ -9,6 +9,7 @@ import { contentHash, boundedText } from "./hash";
 import { intentLabels, intentStrategy, modeForIntent, type IntentLabel } from "./intentStrategy";
 import { confirmedFactPairs } from "./context";
 import { recordStep } from "./runs";
+import { validateWorkspace } from "./model/auth";
 
 const intentEnumList = intentLabels.join(", ");
 

@@ -7,6 +7,7 @@ import { action } from "./_generated/server";
 import { classifyProviderError } from "./providerErrors";
 import { boundedText } from "./hash";
 import { llmConfig } from "./ai";
+import { validateWorkspace } from "./model/auth";
 
 /**
  * Form flows (docs/execution-plan.md Phase 4): scout a public form, propose a
