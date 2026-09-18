@@ -14,9 +14,46 @@
 - **Auth:** Convex Auth
 - **AI models:** any OpenAI-compatible model via OPENAI_BASE_URL / OPENAI_MODEL (DashScope qwen-max in production; provider recorded on plans and classifications)
 - **Started:** 2026-09-13T00:00:00Z
-- **Last updated:** 2026-09-18T19:58:53Z
+- **Last updated:** 2026-09-18T21:20:00Z
 
 ## Log
+
+### 2026-09-18 - working tree
+Ran a **real mission end to end on the production deployment as a brand-new
+signed-up user**, with per-stage evidence captured at both human gates
+(`proof/live-mission.json`, harness `scripts/liveMissionProof.mjs`). The run
+stages: intake → interpret → plan_review → discover ⇄ evaluate → check_in →
+evaluate → approval. Live results: intent classified `find_opportunity` (0.95,
+targetEntity `organization`) with a written rationale; a 4-query plan approved at
+gate 1; 19 real Firecrawl sources across 4 searches (24 search + 6 extract = 30
+of 400 credits, tracked to the credit); 6 entities resolved; 19 matches labelled
+and explained by qwen-max; the run parked at the `approval` gate with nothing
+sent, so the workspace-wide outcomes view is correctly empty and workspace
+isolation held in both directions. A 19-event trail and 19 step receipts
+reconstruct the run from persisted state.
+Running it live immediately caught two defects that local tests could not:
+**1.** The workspace guard, tightened for anonymous callers in `d370589`, also
+locked out the orchestrator's *own* server-driven reads: `ai.classifyMissionIntent`
+called the public `context.list` from inside Convex, where there is no user
+identity, so every mission blocked at intake with `UNAUTHORIZED`. Fixed by adding
+an internal-only `context.factsForAgent` and using it — machine callers read
+through internal functions, clients read through public ones. **2.** The match
+card rendered the evaluator's sentinel verbatim, so users saw the literal text
+"Next research_alt_route"; sentinels are now translated to prose at the read
+boundary while the stored value keeps the machine decision
+(`convex/model/auth.ts`, `convex/context.ts`, `convex/ai.ts`,
+`convex/researchStore.ts`). Two regression tests now drive a **real** `workspaces`
+row with no identity — the suite previously only ever used synthetic workspace
+strings, which is exactly why both defects escaped it (`tests/trust.test.ts`,
+`tests/entities.test.ts`). Verified: tsc clean on both configs, 190 tests
+passing, deployed and re-run on `wry-walrus-528.convex.site`.
+Open quality findings from the live run, not yet addressed: match explanations
+carry a grounded `explanationSummary` but empty `positiveEvidence`/`unknowns`
+arrays (so the cited-evidence panel renders nothing, including on "promising"
+matches); the planner emits prose `proposedSteps` as crawl targets, so all three
+crawl queries were skipped as invalid URLs and every source is a `search_result`
+with no crawled page; and entity resolution covers 6 of 19 sources, so most
+matches have no linked entity.
 
 ### 2026-09-18 - 46d8875
 Made **Outcomes** a workspace-level view instead of a mission-scoped one. "What

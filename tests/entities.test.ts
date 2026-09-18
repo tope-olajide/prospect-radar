@@ -345,5 +345,17 @@ describe("explainMatches — grounding in extracted entities", () => {
     expect(prompt).toContain("https://acme.example.com/contact");
     // And the rule that matters: no route → research an alternate route.
     expect(prompt).toContain("research_alt_route");
+
+    // The sentinel is a decision, not copy. It may be stored, but it must never
+    // reach a client: the match card renders this string verbatim, so leaking it
+    // showed users the literal text "Next research_alt_route".
+    const matches = await t.query(api.researchStore.listMatches, { missionId: missionId as never });
+    expect(matches).toHaveLength(1);
+    expect(matches[0].recommendedAction).not.toBe("research_alt_route");
+    expect(matches[0].recommendedAction).toMatch(/no public contact channel/i);
+
+    // The stored value keeps the machine decision, so it stays inspectable.
+    const stored = await t.run(async (ctx) => (await ctx.db.query("matches").collect())[0]);
+    expect(stored.recommendedAction).toBe("research_alt_route");
   });
 });
