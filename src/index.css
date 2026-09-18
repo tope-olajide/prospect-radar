@@ -274,6 +274,11 @@ label { display: grid; gap: 6px; color: var(--muted); font-size: 10px; font-weig
 .thread-approval { display: grid; gap: 8px; padding: 10px 12px; border: 1px solid var(--amber-line); border-radius: 10px; background: var(--amber-wash); }
 .thread-approval p { color: var(--text-faint); font-size: 11px; line-height: 1.6; }
 .thread-approval .btn { justify-self: start; }
+/* The gate card carries its own heading and inline actions, so the shared
+   spacing (panel-head margin + inline-actions margin) would double up. */
+.thread-approval .panel-head { margin-bottom: 0; }
+.thread-approval .inline-actions { margin-top: 0; }
+.thread-approval .muted { font-size: 10px; }
 .event-trail.compact { margin: 0; }
 .event-trail.compact li { padding: 7px 0; }
 .event-trail.compact strong { font-size: 10px; }
