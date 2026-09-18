@@ -18,7 +18,7 @@
 
 ## Log
 
-### 2026-09-18 - working tree
+### 2026-09-18 - 8c35677
 Ran a **real mission end to end on the production deployment as a brand-new
 signed-up user**, with per-stage evidence captured at both human gates
 (`proof/live-mission.json`, harness `scripts/liveMissionProof.mjs`). The run
