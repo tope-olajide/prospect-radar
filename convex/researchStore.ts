@@ -7,6 +7,7 @@ import { transitionRun } from "./runState";
 import { confirmedFactPairs } from "./context";
 import { classifyProviderError } from "./providerErrors";
 import { recordStep } from "./runs";
+import { validateWorkspace } from "./model/auth";
 
 const researchOperation = v.union(v.literal("search"), v.literal("scrape"), v.literal("map"), v.literal("crawl"));
 const crawlStatus = v.union(v.literal("scraping"), v.literal("completed"), v.literal("failed"), v.literal("cancelled"));

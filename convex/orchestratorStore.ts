@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { internalMutation, internalQuery, mutation } from "./_generated/server";
 import { internal } from "./_generated/api";
+import { validateWorkspace } from "./model/auth";
 
 /**
  * Transactional bookkeeping for the mission orchestrator. Kept in a
@@ -213,6 +214,7 @@ export const runPipeline = mutation({
   args: { workspaceId: v.string(), missionId: v.id("missions") },
   returns: v.object({ started: v.boolean(), stage: v.string() }),
   handler: async (ctx, args) => {
+    await validateWorkspace(ctx, args.workspaceId);
     const mission = await ctx.db.get(args.missionId);
     if (!mission || mission.workspaceId !== args.workspaceId) {
       throw new Error("FORBIDDEN_SCOPE: mission is not in this workspace.");
@@ -230,6 +232,7 @@ export const stopRun = mutation({
   args: { workspaceId: v.string(), missionId: v.id("missions") },
   returns: v.null(),
   handler: async (ctx, args) => {
+    await validateWorkspace(ctx, args.workspaceId);
     const mission = await ctx.db.get(args.missionId);
     if (!mission || mission.workspaceId !== args.workspaceId) {
       throw new Error("FORBIDDEN_SCOPE: mission is not in this workspace.");
@@ -251,6 +254,7 @@ export const retryStage = mutation({
   args: { workspaceId: v.string(), missionId: v.id("missions") },
   returns: v.null(),
   handler: async (ctx, args) => {
+    await validateWorkspace(ctx, args.workspaceId);
     const mission = await ctx.db.get(args.missionId);
     if (!mission || mission.workspaceId !== args.workspaceId) {
       throw new Error("FORBIDDEN_SCOPE: mission is not in this workspace.");
@@ -272,6 +276,7 @@ export const approvePlan = mutation({
   args: { workspaceId: v.string(), missionId: v.id("missions") },
   returns: v.null(),
   handler: async (ctx, args) => {
+    await validateWorkspace(ctx, args.workspaceId);
     const mission = await ctx.db.get(args.missionId);
     if (!mission || mission.workspaceId !== args.workspaceId) throw new Error("FORBIDDEN_SCOPE");
     const run = await ctx.db.query("agentRuns").withIndex("by_missionId", (q) => q.eq("missionId", args.missionId)).first();
@@ -291,6 +296,7 @@ export const continueAfterCheckIn = mutation({
   args: { workspaceId: v.string(), missionId: v.id("missions") },
   returns: v.null(),
   handler: async (ctx, args) => {
+    await validateWorkspace(ctx, args.workspaceId);
     const mission = await ctx.db.get(args.missionId);
     if (!mission || mission.workspaceId !== args.workspaceId) throw new Error("FORBIDDEN_SCOPE");
     const run = await ctx.db.query("agentRuns").withIndex("by_missionId", (q) => q.eq("missionId", args.missionId)).first();

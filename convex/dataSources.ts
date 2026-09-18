@@ -5,6 +5,7 @@ import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { boundedText } from "./hash";
 import { chunkText, documentSummary, toSearchText } from "./dataSourceText";
+import { validateWorkspace } from "./model/auth";
 
 /**
  * User-supplied data sources: the user's side of the evidence ledger.
@@ -74,6 +75,7 @@ export const list = query({
     createdAt: v.number(),
   })),
   handler: async (ctx, args) => {
+    await validateWorkspace(ctx, args.workspaceId);
     const rows = await ctx.db
       .query("dataSources")
       .withIndex("by_workspaceId", (q) => q.eq("workspaceId", args.workspaceId))
@@ -126,6 +128,7 @@ export const get = query({
     createdAt: v.number(),
   }), v.null()),
   handler: async (ctx, args) => {
+    await validateWorkspace(ctx, args.workspaceId);
     const row = await ctx.db.get(args.sourceId);
     if (!row || row.workspaceId !== args.workspaceId) return null;
     const chunks = await ctx.db
@@ -181,6 +184,7 @@ export const addSnippet = mutation({
   },
   returns: v.id("dataSources"),
   handler: async (ctx, args) => {
+    await validateWorkspace(ctx, args.workspaceId);
     const title = boundedText(args.title, SOURCE_TITLE_MAX) || "Untitled snippet";
     if (args.text.length > SNIPPET_MAX) {
       throw new Error(`INVALID_ARGUMENT: snippets are limited to ${SNIPPET_MAX} characters — this one is ${args.text.length}.`);
@@ -219,6 +223,7 @@ export const addFile = mutation({
   args: { workspaceId: v.string(), title: v.string(), sizeBytes: v.number() },
   returns: v.object({ sourceId: v.id("dataSources"), uploadUrl: v.string() }),
   handler: async (ctx, args) => {
+    await validateWorkspace(ctx, args.workspaceId);
     if (args.sizeBytes <= 0 || args.sizeBytes > 20 * 1024 * 1024) {
       throw new Error("INVALID_ARGUMENT: files must be between 1 byte and 20 MB.");
     }
@@ -250,6 +255,7 @@ export const fileReady = mutation({
   args: { workspaceId: v.string(), sourceId: v.id("dataSources"), storageId: v.id("_storage") },
   returns: v.object({ chunkCount: v.number() }),
   handler: async (ctx, args) => {
+    await validateWorkspace(ctx, args.workspaceId);
     const source = await ctx.db.get(args.sourceId);
     if (!source || source.workspaceId !== args.workspaceId) {
       throw new Error("FORBIDDEN_SCOPE: source is not in this workspace.");
@@ -297,6 +303,7 @@ export const addWebsite = mutation({
   },
   returns: v.object({ sourceId: v.id("dataSources"), started: v.boolean() }),
   handler: async (ctx, args) => {
+    await validateWorkspace(ctx, args.workspaceId);
     const title = boundedText(args.title, SOURCE_TITLE_MAX) || "Untitled site";
     const raw = args.url.trim();
     let parsed: URL;
@@ -476,6 +483,7 @@ export const setStatus = mutation({
   args: { workspaceId: v.string(), sourceId: v.id("dataSources"), status: v.union(v.literal("ready"), v.literal("archived")) },
   returns: v.null(),
   handler: async (ctx, args) => {
+    await validateWorkspace(ctx, args.workspaceId);
     const source = await ctx.db.get(args.sourceId);
     if (!source || source.workspaceId !== args.workspaceId) {
       throw new Error("FORBIDDEN_SCOPE: source is not in this workspace.");
@@ -489,6 +497,7 @@ export const deleteSource = mutation({
   args: { workspaceId: v.string(), sourceId: v.id("dataSources") },
   returns: v.null(),
   handler: async (ctx, args) => {
+    await validateWorkspace(ctx, args.workspaceId);
     const source = await ctx.db.get(args.sourceId);
     if (!source || source.workspaceId !== args.workspaceId) {
       throw new Error("FORBIDDEN_SCOPE: source is not in this workspace.");
@@ -507,6 +516,7 @@ export const progress = query({
   args: { workspaceId: v.string() },
   returns: v.object({ activeCount: v.number() }),
   handler: async (ctx, args) => {
+    await validateWorkspace(ctx, args.workspaceId);
     const rows = await ctx.db
       .query("dataSources")
       .withIndex("by_workspaceId", (q) => q.eq("workspaceId", args.workspaceId))

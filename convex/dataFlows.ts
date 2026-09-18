@@ -6,6 +6,7 @@ import { FirecrawlClient } from "@firecrawl/firecrawl-convex";
 import { components } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { boundedText } from "./hash";
+import { validateWorkspace } from "./model/auth";
 
 /**
  * Data-source ingest actions: the Firecrawl side of user-supplied sources.

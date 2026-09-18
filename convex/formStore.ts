@@ -4,6 +4,7 @@ import type { QueryCtx } from "./_generated/server";
 import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
 import { boundedText, contentHash } from "./hash";
 import { recordStep } from "./runs";
+import { validateWorkspace } from "./model/auth";
 
 /**
  * Form flows: Radar's approval-bound submission path (docs/execution-plan.md
@@ -345,6 +346,7 @@ export const approveProposal = mutation({
   args: { workspaceId: v.string(), proposalId: v.id("formProposals") },
   returns: v.object({ proposalId: v.id("formProposals"), expiresAt: v.number() }),
   handler: async (ctx, args) => {
+    await validateWorkspace(ctx, args.workspaceId);
     const proposal = await ctx.db.get(args.proposalId);
     if (!proposal || proposal.workspaceId !== args.workspaceId) {
       throw new Error("FORBIDDEN_SCOPE: proposal is not in this workspace.");
@@ -417,6 +419,7 @@ export const reviseProposalValues = mutation({
   },
   returns: v.object({ proposalId: v.id("formProposals"), payloadHash: v.string(), unmatchedRequired: v.array(v.string()) }),
   handler: async (ctx, args) => {
+    await validateWorkspace(ctx, args.workspaceId);
     const proposal = await ctx.db.get(args.proposalId);
     if (!proposal || proposal.workspaceId !== args.workspaceId) {
       throw new Error("FORBIDDEN_SCOPE: proposal is not in this workspace.");
@@ -659,6 +662,7 @@ export const listTemplates = query({
   args: { workspaceId: v.string(), missionId: v.id("missions") },
   returns: v.array(templateView),
   handler: async (ctx, args) => {
+    await validateWorkspace(ctx, args.workspaceId);
     const mission = await ctx.db.get(args.missionId);
     if (!mission || mission.workspaceId !== args.workspaceId) return [];
     const rows = await ctx.db.query("formTemplates")
@@ -673,6 +677,7 @@ export const listProposals = query({
   args: { workspaceId: v.string(), missionId: v.id("missions") },
   returns: v.array(proposalView),
   handler: async (ctx, args) => {
+    await validateWorkspace(ctx, args.workspaceId);
     const mission = await ctx.db.get(args.missionId);
     if (!mission || mission.workspaceId !== args.workspaceId) return [];
     const rows = await ctx.db.query("formProposals")
@@ -710,6 +715,7 @@ export const listSubmissions = query({
   args: { workspaceId: v.string(), missionId: v.id("missions") },
   returns: v.array(submissionView),
   handler: async (ctx, args) => {
+    await validateWorkspace(ctx, args.workspaceId);
     const mission = await ctx.db.get(args.missionId);
     if (!mission || mission.workspaceId !== args.workspaceId) return [];
     const rows = await ctx.db.query("formSubmissions")
@@ -743,6 +749,7 @@ export const capStatus = query({
   args: { workspaceId: v.string() },
   returns: v.object({ used: v.number(), cap: v.number() }),
   handler: async (ctx, args) => {
+    await validateWorkspace(ctx, args.workspaceId);
     const rows = await ctx.db.query("formSubmissions")
       .withIndex("by_workspaceId", (q) => q.eq("workspaceId", args.workspaceId))
       .take(200);

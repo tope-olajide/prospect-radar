@@ -9,6 +9,7 @@
  */
 
 import type * as ai from "../ai.js";
+import type * as auth from "../auth.js";
 import type * as budget from "../budget.js";
 import type * as commandCenter from "../commandCenter.js";
 import type * as context from "../context.js";
@@ -27,6 +28,7 @@ import type * as intentStrategy from "../intentStrategy.js";
 import type * as missionOrchestrator from "../missionOrchestrator.js";
 import type * as missions from "../missions.js";
 import type * as missionsInternal from "../missionsInternal.js";
+import type * as model_auth from "../model/auth.js";
 import type * as orchestratorStore from "../orchestratorStore.js";
 import type * as outcomes from "../outcomes.js";
 import type * as outreach from "../outreach.js";
@@ -42,6 +44,7 @@ import type * as runState from "../runState.js";
 import type * as runs from "../runs.js";
 import type * as sequenceRunner from "../sequenceRunner.js";
 import type * as system from "../system.js";
+import type * as users from "../users.js";
 
 import type {
   ApiFromModules,
@@ -51,6 +54,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   ai: typeof ai;
+  auth: typeof auth;
   budget: typeof budget;
   commandCenter: typeof commandCenter;
   context: typeof context;
@@ -69,6 +73,7 @@ declare const fullApi: ApiFromModules<{
   missionOrchestrator: typeof missionOrchestrator;
   missions: typeof missions;
   missionsInternal: typeof missionsInternal;
+  "model/auth": typeof model_auth;
   orchestratorStore: typeof orchestratorStore;
   outcomes: typeof outcomes;
   outreach: typeof outreach;
@@ -84,6 +89,7 @@ declare const fullApi: ApiFromModules<{
   runs: typeof runs;
   sequenceRunner: typeof sequenceRunner;
   system: typeof system;
+  users: typeof users;
 }>;
 
 /**

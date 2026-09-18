@@ -4,6 +4,8 @@ import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
 import { useTheme, type ThemeChoice } from "./useTheme";
 import { MissionLifecycle } from "./MissionLifecycle";
+import { useAuthActions } from "@convex-dev/auth/react";
+import SignIn from "./SignIn";
 
 type MissionMode = "opportunity" | "person" | "customer" | "solution" | "collaborator";
 type View = "home" | "dashboard" | "discover" | "outreach" | "inbox" | "outcomes" | "forms" | "profile";
@@ -70,9 +72,25 @@ function hostLabel(url: string) {
 }
 
 export default function App({ backendConnected }: { backendConnected: boolean }) {
-  const workspaceId = "demo-workspace";
+  const { signOut } = useAuthActions();
+  const user = useQuery(api.users.current);
+  const workspace = useQuery(api.users.workspace);
+  const provisionWorkspace = useMutation(api.users.provisionWorkspace);
 
-  const missions = useQuery(api.missions.list, backendConnected ? { workspaceId } : "skip");
+  // Auth gate
+  if (user === undefined) return null; // loading
+  if (!user) return <SignIn />;
+
+  // Auto-provision workspace on first login
+  useEffect(() => {
+    if (user && workspace === null) {
+      provisionWorkspace().catch(() => {});
+    }
+  }, [user, workspace, provisionWorkspace]);
+
+  const workspaceId: string = workspace?._id ?? "";
+
+  const missions = useQuery(api.missions.list, backendConnected && workspaceId ? { workspaceId } : "skip");
   const createMission = useMutation(api.missions.create);
   const interpretMission = useAction(api.ai.interpretMission);
   const classifyIntent = useAction(api.ai.classifyMissionIntent);
@@ -185,11 +203,11 @@ export default function App({ backendConnected }: { backendConnected: boolean })
   const matches = useQuery(api.researchStore.listMatches, backendConnected && missionId ? { missionId } : "skip");
   const entities = useQuery(api.entityStore.listForMission, backendConnected && missionId ? { missionId } : "skip");
   const missionSignals = useQuery(api.entityStore.listSignalsForMission, backendConnected && missionId ? { missionId } : "skip");
-  const inbox = useQuery(api.outreachStore.getInbox, backendConnected ? { workspaceId } : "skip");
+  const inbox = useQuery(api.outreachStore.getInbox, backendConnected && workspaceId ? { workspaceId } : "skip");
   const drafts = useQuery(api.outreachStore.listDrafts, backendConnected && missionId ? { workspaceId, missionId } : "skip");
-  const threads = useQuery(api.inbox.listThreads, backendConnected ? { workspaceId, missionId: null } : "skip");
+  const threads = useQuery(api.inbox.listThreads, backendConnected && workspaceId ? { workspaceId, missionId: null } : "skip");
   const threadMessages = useQuery(api.inbox.listMessages, backendConnected && selectedThreadId ? { workspaceId, threadId: selectedThreadId } : "skip");
-  const classifications = useQuery(api.outreachStore.listClassifications, backendConnected ? { workspaceId, missionId: null } : "skip");
+  const classifications = useQuery(api.outreachStore.listClassifications, backendConnected && workspaceId ? { workspaceId, missionId: null } : "skip");
   const outcomes = useQuery(api.outcomes.listForMission, backendConnected && missionId ? { workspaceId, missionId } : "skip");
   const followUps = useQuery(api.relationships.followUpsForMission, backendConnected && missionId ? { workspaceId, missionId } : "skip");
   const meetings = useQuery(api.relationships.meetingsForMission, backendConnected && missionId ? { workspaceId, missionId } : "skip");
@@ -197,22 +215,22 @@ export default function App({ backendConnected }: { backendConnected: boolean })
   const formTemplates = useQuery(api.formStore.listTemplates, backendConnected && missionId ? { workspaceId, missionId } : "skip");
   const formProposals = useQuery(api.formStore.listProposals, backendConnected && missionId ? { workspaceId, missionId } : "skip");
   const formSubmissions = useQuery(api.formStore.listSubmissions, backendConnected && missionId ? { workspaceId, missionId } : "skip");
-  const formCap = useQuery(api.formStore.capStatus, backendConnected ? { workspaceId } : "skip");
+  const formCap = useQuery(api.formStore.capStatus, backendConnected && workspaceId ? { workspaceId } : "skip");
   const scoutForm = useAction(api.formFlows.scoutForm);
   const proposeFill = useAction(api.formFlows.proposeFill);
   const approveProposal = useMutation(api.formStore.approveProposal);
   const reviseProposalValues = useMutation(api.formStore.reviseProposalValues);
   const executeFormSubmission = useAction(api.formFlows.executeFormSubmission);
   const crawlProgress = useQuery(api.researchStore.latestCrawlProgress, backendConnected && missionId ? { missionId } : "skip");
-  const contextFacts = useQuery(api.context.list, backendConnected ? { workspaceId, missionId: null } : "skip");
-  const board = useQuery(api.commandCenter.runsBoard, backendConnected ? { workspaceId } : "skip");
-  const dataSources = useQuery(api.dataSources.list, backendConnected ? { workspaceId } : "skip");
-  const dataProgress = useQuery(api.dataSources.progress, backendConnected ? { workspaceId } : "skip");
+  const contextFacts = useQuery(api.context.list, backendConnected && workspaceId ? { workspaceId, missionId: null } : "skip");
+  const board = useQuery(api.commandCenter.runsBoard, backendConnected && workspaceId ? { workspaceId } : "skip");
+  const dataSources = useQuery(api.dataSources.list, backendConnected && workspaceId ? { workspaceId } : "skip");
+  const dataProgress = useQuery(api.dataSources.progress, backendConnected && workspaceId ? { workspaceId } : "skip");
   const addSnippet = useMutation(api.dataSources.addSnippet);
   const removeSource = useMutation(api.dataSources.deleteSource);
   const resyncSource = useAction(api.dataFlows.resyncSource);
-  const overview = useQuery(api.commandCenter.overview, backendConnected ? { workspaceId } : "skip");
-  const budgetStatus = useQuery(api.budget.status, backendConnected ? { workspaceId, missionId } : "skip");
+  const overview = useQuery(api.commandCenter.overview, backendConnected && workspaceId ? { workspaceId } : "skip");
+  const budgetStatus = useQuery(api.budget.status, backendConnected && workspaceId ? { workspaceId, missionId } : "skip");
   const searchResults = useQuery(
     api.commandCenter.search,
     backendConnected && commandTerm.trim().length >= 2 ? { workspaceId, query: commandTerm.trim() } : "skip",
@@ -290,7 +308,7 @@ export default function App({ backendConnected }: { backendConnected: boolean })
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!goal.trim() || !backendConnected) return;
+    if (!goal.trim() || !backendConnected || !workspaceId) return;
     const requested = goal.trim();
     setSubmitting(true);
     setNotice("");
@@ -839,7 +857,7 @@ Clarification: ${clarifyAnswer.trim()}` });
       </div>
       <div className="workspace-switcher">
         <div className="workspace-avatar">PR</div>
-        <div className="workspace-copy"><strong>Demo workspace</strong><span>Judge-friendly scope</span></div>
+        <div className="workspace-copy"><strong>{workspace?.name ?? "Radar"}</strong><span>{user.email ?? "Workspace"}</span></div>
       </div>
       <div className="sidebar-search">
         <input type="text" placeholder="Search missions…" value={sidebarSearch} onChange={(e) => setSidebarSearch(e.target.value)} aria-label="Search missions" />
@@ -898,6 +916,10 @@ Clarification: ${clarifyAnswer.trim()}` });
       <div className="backend-status-card">
         <div className="status-icon"><span className="status-dot" /></div>
         <div><strong>{backendConnected ? "Convex connected" : "Backend setup"}</strong><span>{backendConnected ? "Live subscriptions on" : "Run npx convex dev"}</span></div>
+      </div>
+      <div className="auth-bar">
+        <span className="auth-user">{user.name ?? user.email ?? "Signed in"}</span>
+        <button type="button" className="btn ghost auth-signout" onClick={() => signOut()}>Sign out</button>
       </div>
       {selectedMission && <div className="backend-status-card mission-chip"><div className="status-icon"><span className="status-dot amber-dot" /></div><div><strong>{selectedMission.title.slice(0, 30)}{selectedMission.title.length > 30 ? "…" : ""}</strong><span>{run ? `${run.currentStage} · ${run.status}` : selectedMission.status}</span></div></div>}
     </aside>

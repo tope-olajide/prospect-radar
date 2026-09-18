@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { internalMutation, internalQuery, query } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import { searchableText } from "./hash";
+import { validateWorkspace } from "./model/auth";
 
 /**
  * Entity + signal store.

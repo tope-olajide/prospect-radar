@@ -7,6 +7,7 @@ import { action } from "./_generated/server";
 import type { ActionCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import { classifyProviderError } from "./providerErrors";
+import { validateWorkspace } from "./model/auth";
 
 const firecrawl = new FirecrawlClient(components.firecrawl);
 

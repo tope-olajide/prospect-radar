@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { internalMutation, mutation, query } from "./_generated/server";
 import { boundedText } from "./hash";
+import { validateWorkspace } from "./model/auth";
 
 const factStatus = v.union(v.literal("unreviewed"), v.literal("user_confirmed"), v.literal("user_corrected"), v.literal("user_rejected"));
 const factVisibility = v.union(v.literal("mission"), v.literal("workspace"));
@@ -26,6 +27,7 @@ export const list = query({
   args: { workspaceId: v.string(), missionId: v.union(v.id("missions"), v.null()) },
   returns: v.array(factView),
   handler: async (ctx, args) => {
+    await validateWorkspace(ctx, args.workspaceId);
     const rows = args.missionId
       ? await ctx.db.query("contextFacts")
         .withIndex("by_missionId", (q) => q.eq("missionId", args.missionId))
@@ -52,6 +54,7 @@ export const add = mutation({
   },
   returns: v.id("contextFacts"),
   handler: async (ctx, args) => {
+    await validateWorkspace(ctx, args.workspaceId);
     const category = boundedText(args.category, 60);
     const value = boundedText(args.value, 600);
     if (!category || !value) throw new Error("INVALID_ARGUMENT: fact category and value are required.");
@@ -84,6 +87,7 @@ export const confirm = mutation({
   args: { workspaceId: v.string(), factId: v.id("contextFacts") },
   returns: v.id("contextFacts"),
   handler: async (ctx, args) => {
+    await validateWorkspace(ctx, args.workspaceId);
     const fact = await ctx.db.get(args.factId);
     if (!fact || fact.workspaceId !== args.workspaceId) throw new Error("FORBIDDEN_SCOPE: fact is not in this workspace.");
     await ctx.db.patch(fact._id, { verificationStatus: "user_confirmed", confidence: 1, updatedAt: Date.now() });
@@ -95,6 +99,7 @@ export const correct = mutation({
   args: { workspaceId: v.string(), factId: v.id("contextFacts"), value: v.string() },
   returns: v.id("contextFacts"),
   handler: async (ctx, args) => {
+    await validateWorkspace(ctx, args.workspaceId);
     const fact = await ctx.db.get(args.factId);
     if (!fact || fact.workspaceId !== args.workspaceId) throw new Error("FORBIDDEN_SCOPE: fact is not in this workspace.");
     const value = boundedText(args.value, 600);
@@ -108,6 +113,7 @@ export const reject = mutation({
   args: { workspaceId: v.string(), factId: v.id("contextFacts") },
   returns: v.id("contextFacts"),
   handler: async (ctx, args) => {
+    await validateWorkspace(ctx, args.workspaceId);
     const fact = await ctx.db.get(args.factId);
     if (!fact || fact.workspaceId !== args.workspaceId) throw new Error("FORBIDDEN_SCOPE: fact is not in this workspace.");
     await ctx.db.patch(fact._id, { verificationStatus: "user_rejected", updatedAt: Date.now() });
@@ -119,6 +125,7 @@ export const deleteFact = mutation({
   args: { workspaceId: v.string(), factId: v.id("contextFacts") },
   returns: v.null(),
   handler: async (ctx, args) => {
+    await validateWorkspace(ctx, args.workspaceId);
     const fact = await ctx.db.get(args.factId);
     if (!fact || fact.workspaceId !== args.workspaceId) throw new Error("FORBIDDEN_SCOPE: fact is not in this workspace.");
     await ctx.db.delete(fact._id);

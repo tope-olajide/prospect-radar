@@ -4,6 +4,7 @@ import { internalAction, internalMutation, internalQuery, mutation, query } from
 import { api, internal } from "./_generated/api";
 import { boundedText, searchableText } from "./hash";
 import { recordDeliveryOutcome, recordReplyOutcome } from "./outcomes";
+import { validateWorkspace } from "./model/auth";
 
 const threadView = v.object({
   _id: v.id("inboxThreads"),
@@ -314,6 +315,7 @@ export const listThreads = query({
   args: { workspaceId: v.string(), missionId: v.union(v.id("missions"), v.null()) },
   returns: v.array(threadView),
   handler: async (ctx, args) => {
+    await validateWorkspace(ctx, args.workspaceId);
     const rows = args.missionId
       ? await ctx.db.query("inboxThreads")
         .withIndex("by_missionId", (q) => q.eq("missionId", args.missionId))
@@ -331,6 +333,7 @@ export const listMessages = query({
   args: { workspaceId: v.string(), threadId: v.string() },
   returns: v.array(messageView),
   handler: async (ctx, args) => {
+    await validateWorkspace(ctx, args.workspaceId);
     const rows = await ctx.db.query("inboxMessages")
       .withIndex("by_threadId", (q) => q.eq("threadId", args.threadId))
       .order("asc")
@@ -364,6 +367,7 @@ export const setLabel = mutation({
   args: { workspaceId: v.string(), threadId: v.id("inboxThreads"), label: threadLabel, set: v.boolean() },
   returns: v.array(v.string()),
   handler: async (ctx, args) => {
+    await validateWorkspace(ctx, args.workspaceId);
     const thread = await ctx.db.get(args.threadId);
     if (!thread || thread.workspaceId !== args.workspaceId) {
       throw new Error("FORBIDDEN_SCOPE: thread is not in this workspace.");

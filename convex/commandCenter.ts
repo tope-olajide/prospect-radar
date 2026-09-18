@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { internalMutation, query } from "./_generated/server";
 import { searchableText } from "./hash";
+import { validateWorkspace } from "./model/auth";
 
 /**
  * Command center: the workspace-level aggregates and the cross-everything
@@ -118,6 +119,7 @@ export const runsBoard = query({
     updatedAt: v.number(),
   })),
   handler: async (ctx, args) => {
+    await validateWorkspace(ctx, args.workspaceId);
     const [missions, runs, drafts] = await Promise.all([
       ctx.db.query("missions").withIndex("by_workspaceId", (q) => q.eq("workspaceId", args.workspaceId)).order("desc").take(BOARD_LIMIT),
       ctx.db.query("agentRuns").withIndex("by_workspaceId", (q) => q.eq("workspaceId", args.workspaceId)).take(SCAN_LIMIT),
@@ -164,6 +166,7 @@ export const overview = query({
     pipeline: v.array(v.object({ stage: v.string(), count: v.number() })),
   }),
   handler: async (ctx, args) => {
+    await validateWorkspace(ctx, args.workspaceId);
     const workspaceId = args.workspaceId;
     const now = Date.now();
 
@@ -226,6 +229,7 @@ export const search = query({
   args: { workspaceId: v.string(), query: v.string() },
   returns: v.array(searchResult),
   handler: async (ctx, args) => {
+    await validateWorkspace(ctx, args.workspaceId);
     const term = args.query.trim();
     if (term.length < 2) return [];
     const limit = 5;
