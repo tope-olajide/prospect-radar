@@ -6,7 +6,7 @@ import { useTheme, type ThemeChoice } from "./useTheme";
 import { MissionLifecycle } from "./MissionLifecycle";
 
 type MissionMode = "opportunity" | "person" | "customer" | "solution" | "collaborator";
-type View = "home" | "dashboard" | "discover" | "outreach" | "inbox" | "outcomes" | "forms" | "context" | "sources";
+type View = "home" | "dashboard" | "discover" | "outreach" | "inbox" | "outcomes" | "forms" | "profile";
 type PipelineStageName = "contacted" | "replied" | "engaged" | "meeting" | "proposal" | "won" | "lost" | "dormant";
 
 const PIPELINE_STAGES: PipelineStageName[] = ["contacted", "replied", "engaged", "meeting", "proposal", "won", "lost", "dormant"];
@@ -30,8 +30,7 @@ const navItems: { id: View; label: string; hint: string }[] = [
   { id: "inbox", label: "Inbox", hint: "Live replies and threads" },
   { id: "outcomes", label: "Pipeline", hint: "Relationship stages" },
   { id: "forms", label: "Forms", hint: "Approval-bound submissions" },
-  { id: "sources", label: "Data sources", hint: "Files, sites, and snippets Radar reads" },
-  { id: "context", label: "Context", hint: "Your profile facts Radar may use" },
+  { id: "profile", label: "Profile", hint: "Who you are & what Radar knows" },
 ];
 
 const viewTitles: Record<View, { eyebrow: string; title: string; description: string }> = {
@@ -42,8 +41,7 @@ const viewTitles: Record<View, { eyebrow: string; title: string; description: st
   inbox: { eyebrow: "Agent-owned inbox", title: "Replies arrive live.", description: "Inbound mail is untrusted data: classified, never auto-sent." },
   outcomes: { eyebrow: "Relationship pipeline", title: "Keep the momentum.", description: "Every relationship keeps its stage, evidence, next step, and history — and Radar never closes a loop without you." },
   forms: { eyebrow: "Approval boundary", title: "Paperwork, handled honestly.", description: "Radar reads a public form, fills it from confirmed facts only, and submits one approved payload at a time — with a screenshot as evidence." },
-  sources: { eyebrow: "Your side of the ledger", title: "Give Radar what it cannot find on the web.", description: "Documents, sites, and snippets you add here are chunked, searchable, and pulled into the missions they're relevant to — nothing more." },
-  context: { eyebrow: "Verified profile", title: "You stay the source of truth.", description: "Confirm, correct, or reject every fact before Radar ever uses it in plans, matches, or drafts." },
+  profile: { eyebrow: "Your identity", title: "Who you are to Radar.", description: "Sources, skills, preferences, and what Radar has learned — all in one place." },
 };
 
 const quickPrompts: { label: string; goal: string }[] = [
@@ -245,10 +243,8 @@ export default function App({ backendConnected }: { backendConnected: boolean })
     inbox: threads?.length || null,
     outcomes: openOutcomes.length || null,
     forms: (formProposals ?? []).filter((proposal) => proposal.status === "draft" || proposal.status === "approved" || proposal.status === "blocked" || proposal.status === "failed").length || null,
-    context: null,
-    sources: null,
+    profile: (contextFacts ?? []).filter((f) => f.verificationStatus === "unreviewed").length || null,
     dashboard: null,
-    activity: null,
   };
 
   const attentionItems = useMemo(() => {
@@ -1361,7 +1357,7 @@ Clarification: ${clarifyAnswer.trim()}` });
                         {run && run.status === "waiting" && run.currentStage === "approval" && (
                           <button type="button" className="btn ghost" onClick={() => selectView("outreach")}>Review matches & approvals →</button>
                         )}
-                        <button type="button" className="btn ghost" onClick={() => selectView("activity")}>Live transcript</button>
+                        <button type="button" className="btn ghost" onClick={() => selectView("home")}>Live transcript</button>
                       </div>
                     </>
                   )}
@@ -1902,7 +1898,7 @@ Clarification: ${clarifyAnswer.trim()}` });
                                   <button type="button" className="btn" disabled={!backendConnected || proposal.unmatchedRequired.length > 0 || submittingProposalId === proposal._id} onClick={() => onApproveAndSubmit(proposal)}>
                                     {submittingProposalId === proposal._id ? "Submitting…" : "Approve & submit"}
                                   </button>
-                                  <button type="button" className="btn ghost" onClick={() => selectView("context")}>Add a fact</button>
+                                  <button type="button" className="btn ghost" onClick={() => selectView("profile")}>Add a fact</button>
                                 </div>
                               )}
                             </article>
@@ -1940,10 +1936,59 @@ Clarification: ${clarifyAnswer.trim()}` });
             </div>
           )}
 
-          {activeView === "sources" && (
+          {activeView === "profile" && (
             <div className="view-stack">
-              <section className="panel" aria-label="Add a data source">
-                <div className="panel-head"><p className="eyebrow">ADD A SOURCE</p>{dataProgress && <span className="muted">{dataProgress.activeCount} processing</span>}</div>
+              {/* ── Profile header ── */}
+              <section className="panel profile-header">
+                <div className="panel-head"><p className="eyebrow">YOUR PROFILE</p><span className="muted">what Radar knows about you</span></div>
+                <div className="profile-stats">
+                  <span><strong>{contextFacts?.filter((f) => ["user_confirmed", "user_corrected"].includes(f.verificationStatus) || f.sourceType === "source_extraction").length ?? 0}</strong> trusted facts</span>
+                  <span><strong>{contextFacts?.filter((f) => f.verificationStatus === "unreviewed").length ?? 0}</strong> need review</span>
+                  <span><strong>{(dataSources ?? []).length}</strong> sources</span>
+                </div>
+              </section>
+
+              {/* ── About / Information ── */}
+              <section className="panel" aria-label="About">
+                <div className="panel-head"><p className="eyebrow">ABOUT</p><span className="muted">who you are</span></div>
+                <div className="profile-add-fact">
+                  <input className="composer-input" placeholder="Category (e.g. name, role, location)" value={factCategory} onChange={(e) => setFactCategory(e.target.value)} maxLength={60} />
+                  <input className="composer-input" placeholder="Value (e.g. Temitope, Full-stack Developer, Lagos)" value={factValue} onChange={(e) => setFactValue(e.target.value)} maxLength={240} />
+                  <button type="button" className="btn" disabled={!backendConnected || !factCategory.trim() || !factValue.trim()} onClick={async () => { await addFact({ workspaceId, missionId: null, category: factCategory, value: factValue, sourceType: "user_input", sourceReference: null, confidence: 1, visibility: "workspace" }); setFactCategory(""); setFactValue(""); }}>Add</button>
+                </div>
+                {(contextFacts ?? []).filter((f) => ["user_input", "user_confirmed", "user_corrected"].includes(f.sourceType) || ["user_confirmed", "user_corrected"].includes(f.verificationStatus)).length === 0 ? (
+                  <p className="empty-state">No information yet. Add facts about yourself or upload a source — Radar extracts skills, experience, and preferences automatically.</p>
+                ) : (
+                  <div className="row-list">
+                    {(contextFacts ?? []).filter((f) => ["user_input", "user_confirmed", "user_corrected"].includes(f.sourceType) || ["user_confirmed", "user_corrected"].includes(f.verificationStatus)).slice(0, 10).map((fact) => (
+                      <article className="row-item static profile-fact" key={fact._id}>
+                        <div className="row-copy">
+                          <strong>{fact.category}</strong>
+                          <em>{fact.value}</em>
+                          <span className="muted">
+                            {fact.sourceType === "user_input" ? "added by you" : fact.sourceType === "source_extraction" ? `from ${fact.sourceReference ?? "a source"}` : fact.verificationStatus === "user_corrected" ? "corrected by you" : "confirmed"}
+                          </span>
+                        </div>
+                        <div className="inline-actions">
+                          {editingFactId === fact._id ? (
+                            <>
+                              <input className="composer-input" style={{ maxWidth: 180 }} value={factEditValue} onChange={(e) => setFactEditValue(e.target.value)} maxLength={240} />
+                              <button type="button" className="btn ghost" onClick={async () => { await correctFact({ workspaceId, factId: fact._id, value: factEditValue }); setEditingFactId(null); }}>Save</button>
+                            </>
+                          ) : (
+                            <button type="button" className="btn ghost" onClick={() => { setEditingFactId(fact._id); setFactEditValue(fact.value); }}>Edit</button>
+                          )}
+                          <button type="button" className="btn ghost" onClick={() => deleteFact({ workspaceId, factId: fact._id })}>Remove</button>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              {/* ── Sources ── */}
+              <section className="panel" aria-label="Sources">
+                <div className="panel-head"><p className="eyebrow">SOURCES</p><span className="muted">files, websites, and snippets Radar reads</span></div>
                 <div className="source-tabs" role="tablist" aria-label="Source type">
                   {(["file", "website", "snippet"] as const).map((tab) => (
                     <button key={tab} type="button" role="tab" aria-selected={sourceTab === tab} className={sourceTab === tab ? "active" : ""} onClick={() => setSourceTab(tab)}>
@@ -1951,56 +1996,33 @@ Clarification: ${clarifyAnswer.trim()}` });
                     </button>
                   ))}
                 </div>
-
                 {sourceTab === "file" && (
-                  <div
-                    className={fileDrag ? "drop-zone dragging" : "drop-zone"}
-                    onDragOver={(event) => { event.preventDefault(); setFileDrag(true); }}
-                    onDragLeave={() => setFileDrag(false)}
-                    onDrop={(event) => { event.preventDefault(); setFileDrag(false); void onUploadFile(event.dataTransfer.files); }}
-                  >
-                    <input ref={fileInputRef} id="source-file" type="file" accept=".pdf,.doc,.docx,.txt,.md" onChange={(event) => void onUploadFile(event.target.files)} className="visually-hidden" />
+                  <div className={fileDrag ? "drop-zone dragging" : "drop-zone"} onDragOver={(e) => { e.preventDefault(); setFileDrag(true); }} onDragLeave={() => setFileDrag(false)} onDrop={(e) => { e.preventDefault(); setFileDrag(false); void onUploadFile(e.dataTransfer.files); }}>
+                    <input ref={fileInputRef} type="file" accept=".pdf,.doc,.docx,.txt,.md" onChange={(e) => void onUploadFile(e.target.files)} className="visually-hidden" />
                     <button type="button" className="drop-inner" onClick={() => fileInputRef.current?.click()} disabled={!backendConnected || uploadingFile}>
                       <strong>{uploadingFile ? "Reading your file…" : fileDrag ? "Drop to add it" : "Click to choose a file, or drop it here"}</strong>
-                      <span>PDF, DOC, DOCX, TXT, MD · up to 20 MB · text must be selectable</span>
+                      <span>PDF, DOC, DOCX, TXT, MD · up to 20 MB</span>
                     </button>
                   </div>
                 )}
-
                 {sourceTab === "website" && (
-                  <form
-                    className="source-form"
-                    onSubmit={(event) => { event.preventDefault(); void onAddWebsite(); }}
-                  >
+                  <form className="source-form" onSubmit={(e) => { e.preventDefault(); void onAddWebsite(); }}>
                     <div className="field-pair">
-                      <label>URL<input required type="url" placeholder="https://example.com" value={websiteUrl} onChange={(event) => setWebsiteUrl(event.target.value)} /></label>
-                      <label>Title<input placeholder="Optional — defaults to the domain" value={websiteTitle} onChange={(event) => setWebsiteTitle(event.target.value)} /></label>
+                      <label>URL<input required type="url" placeholder="https://example.com" value={websiteUrl} onChange={(e) => setWebsiteUrl(e.target.value)} /></label>
+                      <label>Title<input placeholder="Optional" value={websiteTitle} onChange={(e) => setWebsiteTitle(e.target.value)} /></label>
                     </div>
                     <div className="field-pair">
-                      <label>How deep
-                        <select value={websiteMode} onChange={(event) => setWebsiteMode(websiteMode as typeof websiteMode)}>
-                          <option value="single">Just this page</option>
-                          <option value="crawl">Crawl linked pages</option>
-                          <option value="sitemap">Follow the sitemap</option>
-                      </select>
-                      </label>
-                      {websiteMode === "crawl" && (
-                        <label>Page limit<input type="number" min={1} max={50} value={websitePageLimit} onChange={(event) => setWebsitePageLimit(Number(event.target.value))} /></label>
-                      )}
-                    </div>
-                    <div className="field-pair">
-                      <label>Only paths starting with<input placeholder="/blog" value={websiteInclude} onChange={(event) => setWebsiteInclude(event.target.value)} /></label>
-                      <label>Skip paths starting with<input placeholder="/tag" value={websiteExclude} onChange={(event) => setWebsiteExclude(event.target.value)} /></label>
+                      <label>How deep<select value={websiteMode} onChange={(e) => setWebsiteMode(websiteMode as typeof websiteMode)}><option value="single">Just this page</option><option value="crawl">Crawl linked pages</option><option value="sitemap">Follow the sitemap</option></select></label>
+                      {websiteMode === "crawl" && <label>Limit<input type="number" min={1} max={50} value={websitePageLimit} onChange={(e) => setWebsitePageLimit(Number(e.target.value))} /></label>}
                     </div>
                     <button type="submit" className="btn" disabled={!backendConnected || addingWebsite}>{addingWebsite ? "Starting…" : "Add website"}</button>
                     {websiteNotice && <p className="stage-note" role="status">{websiteNotice}</p>}
                   </form>
                 )}
-
                 {sourceTab === "snippet" && (
-                  <form className="source-form" onSubmit={(event) => { event.preventDefault(); void onAddSnippet(); }}>
-                    <label>Title<input required value={snippetTitle} onChange={(event) => setSnippetTitle(event.target.value)} placeholder="e.g. Services I offer" /></label>
-                    <label>Text<textarea required rows={5} value={snippetText} onChange={(event) => setSnippetText(event.target.value)} placeholder="Paste anything Radar should know — an offer, a bio, a product one-pager." /></label>
+                  <form className="source-form" onSubmit={(e) => { e.preventDefault(); void onAddSnippet(); }}>
+                    <label>Title<input required value={snippetTitle} onChange={(e) => setSnippetTitle(e.target.value)} placeholder="e.g. Services I offer" /></label>
+                    <label>Text<textarea required rows={3} value={snippetText} onChange={(e) => setSnippetText(e.target.value)} placeholder="Paste anything Radar should know." /></label>
                     <div className="inline-actions">
                       <button type="submit" className="btn" disabled={!backendConnected || addingSnippet}>{addingSnippet ? "Saving…" : "Add snippet"}</button>
                       <span className="muted">{snippetText.length}/20,000</span>
@@ -2008,29 +2030,18 @@ Clarification: ${clarifyAnswer.trim()}` });
                     {snippetNotice && <p className="stage-note" role="status">{snippetNotice}</p>}
                   </form>
                 )}
-              </section>
-
-              <section aria-label="Your sources">
-                <div className="panel-head"><p className="eyebrow">YOUR SOURCES</p><span className="muted">{(dataSources ?? []).length} · retrieved into missions by relevance, not everything every time</span></div>
-                {(dataSources ?? []).length === 0 ? (
-                  <div className="panel"><p className="empty-state">No sources yet. A portfolio, a product page, a bio — Radar reads these the way it reads the web: chunked, bounded, and only when relevant to a mission.</p></div>
-                ) : (
-                  <div className="row-list">
+                {(dataSources ?? []).length > 0 && (
+                  <div className="row-list" style={{ marginTop: 12 }}>
                     {(dataSources ?? []).map((source) => (
                       <article className="row-item static" key={source._id}>
                         <div className="row-copy">
                           <strong><span className={`kind-pill kind-${source.kind}`}>{source.kind}</span> {source.title}</strong>
                           <em>{source.summary || source.url || ""}</em>
-                          <span className="muted">{source.chunkCount} chunks · {source.pageCount} pages · added {shortDate(source.createdAt)}{source.lastSyncedAt ? ` · synced ${shortDate(source.lastSyncedAt)}` : ""}</span>
-                          {source.syncError && <span className="stage-note error">{source.syncError}</span>}
+                          <span className="muted">{source.chunkCount} chunks · {source.pageCount} pages</span>
                         </div>
                         <div className="inline-actions">
                           <span className={`status-pill status-${source.status}`}>{source.status}</span>
-                          {source.kind === "website" && source.status !== "syncing" && (
-                            <button type="button" className="btn ghost" disabled={!backendConnected || resyncingId === source._id} onClick={() => void onResync(source._id)}>
-                              {resyncingId === source._id ? "Resyncing…" : "Resync"}
-                            </button>
-                          )}
+                          {source.kind === "website" && source.status !== "syncing" && <button type="button" className="btn ghost" disabled={!backendConnected || resyncingId === source._id} onClick={() => void onResync(source._id)}>{resyncingId === source._id ? "Syncing…" : "Resync"}</button>}
                           {source.url && <a className="source-link" href={source.url} target="_blank" rel="noreferrer">Open</a>}
                           <button type="button" className="btn ghost" onClick={() => void onRemoveSource(source._id, source.title)}>Remove</button>
                         </div>
@@ -2039,66 +2050,87 @@ Clarification: ${clarifyAnswer.trim()}` });
                   </div>
                 )}
               </section>
-            </div>
-          )}
 
-          {activeView === "context" && (
-            <div className="view-stack">
-              <section className="panel" aria-label="Why context matters">
-                <div className="panel-head"><p className="eyebrow">RADAR USES THIS WHEN IT THINKS</p><span className="muted">{contextFacts?.filter((fact) => ["user_confirmed", "user_corrected"].includes(fact.verificationStatus)).length ?? 0} confirmed · {contextFacts?.filter((fact) => fact.verificationStatus === "unreviewed").length ?? 0} awaiting your review</span></div>
-                <p className="stage-note">Confirmed facts shape what Radar hunts for, how it judges matches, and what it says about you in drafts and replies. Anything you have not confirmed is never used.</p>
-                <div className="control-row">
-                  <input className="composer-input" style={{ flex: "0 0 220px" }} placeholder="Category (e.g. my services)" value={factCategory} onChange={(e) => setFactCategory(e.target.value)} aria-label="Fact category" maxLength={60} />
-                  <input className="composer-input" placeholder="Value (e.g. React, TypeScript, product design)" value={factValue} onChange={(e) => setFactValue(e.target.value)} aria-label="Fact value" maxLength={240} />
-                  <button type="button" className="btn" disabled={!backendConnected || !factCategory.trim() || !factValue.trim()} onClick={async () => { await addFact({ workspaceId, missionId: null, category: factCategory, value: factValue, sourceType: "user_input", sourceReference: null, confidence: 1, visibility: "workspace" }); setFactCategory(""); setFactValue(""); }}>Add fact</button>
-                </div>
-              </section>
+              {/* ── AI Context: trusted facts ── */}
+              {(contextFacts ?? []).filter((f) => f.sourceType === "source_extraction" && f.verificationStatus !== "user_rejected").length > 0 && (
+                <section className="panel" aria-label="Source-backed facts">
+                  <div className="panel-head"><p className="eyebrow">SOURCE-BACKED</p><span className="muted">extracted from your sources — Radar uses these automatically</span></div>
+                  <div className="row-list">
+                    {(contextFacts ?? []).filter((f) => f.sourceType === "source_extraction" && f.verificationStatus !== "user_rejected").map((fact) => (
+                      <article className="row-item static profile-fact" key={fact._id}>
+                        <div className="row-copy">
+                          <strong>{fact.category}</strong>
+                          <em>{fact.value}</em>
+                          <span className="muted">from {fact.sourceReference ?? "a source"}</span>
+                        </div>
+                        <div className="inline-actions">
+                          {editingFactId === fact._id ? (
+                            <>
+                              <input className="composer-input" style={{ maxWidth: 180 }} value={factEditValue} onChange={(e) => setFactEditValue(e.target.value)} maxLength={240} />
+                              <button type="button" className="btn ghost" onClick={async () => { await correctFact({ workspaceId, factId: fact._id, value: factEditValue }); setEditingFactId(null); }}>Save</button>
+                            </>
+                          ) : (
+                            <button type="button" className="btn ghost" onClick={() => { setEditingFactId(fact._id); setFactEditValue(fact.value); }}>Correct</button>
+                          )}
+                          <button type="button" className="btn ghost" onClick={() => rejectFact({ workspaceId, factId: fact._id })}>Reject</button>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                </section>
+              )}
 
-              {(["user_confirmed", "user_corrected", "unreviewed", "user_rejected"] as const).map((group) => {
-                const facts = (contextFacts ?? []).filter((fact) => fact.verificationStatus === group);
-                if (group !== "unreviewed" && facts.length === 0) return null;
-                const groupCopy: Record<string, { title: string; note: string }> = {
-                  user_confirmed: { title: "CONFIRMED — RADAR USES THESE", note: "You entered or approved these. They are already steering plans, matches, and drafts." },
-                  user_corrected: { title: "CORRECTED — RADAR USES THESE", note: "Your corrected wording replaced the original everywhere." },
-                  unreviewed: { title: "AWAITING YOUR REVIEW", note: facts.length === 0 ? "Nothing inferred is waiting. When Radar proposes a fact, it lands here and stays unused until you confirm it." : "Radar inferred these but will not use them until you confirm." },
-                  user_rejected: { title: "REJECTED", note: "Marked not-true by you; Radar excludes them from every prompt." },
-                };
-                return (
-                  <section className="panel" aria-label={groupCopy[group].title} key={group}>
-                    <div className="panel-head"><p className="eyebrow">{groupCopy[group].title}</p><span className="muted">{facts.length}</span></div>
-                    <p className="stage-note">{groupCopy[group].note}</p>
-                    {facts.length === 0 ? null : (
-                      <div className="row-list">
-                        {facts.map((fact) => (
-                          <article className="row-item static" key={fact._id}>
-                            <div className="row-copy">
-                              <strong>{fact.category}</strong>
-                              <em>{fact.value}</em>
-                              <span className="muted">
-                                {fact.sourceType === "user_input" ? "added by you" : fact.sourceType === "plan_extraction" ? "from a mission plan" : fact.sourceType === "source_extraction" ? "from a researched source" : "inferred by Radar"}
-                                · added {shortDate(fact.createdAt)}
-                              </span>
-                            </div>
-                            <div className="inline-actions">
-                              {fact.verificationStatus !== "user_confirmed" && <button type="button" className="btn ghost" onClick={() => confirmFact({ workspaceId, factId: fact._id })}>Confirm</button>}
-                              {editingFactId === fact._id ? (
-                                <>
-                                  <input className="composer-input" style={{ maxWidth: 220 }} value={factEditValue} onChange={(e) => setFactEditValue(e.target.value)} aria-label="Corrected value" maxLength={240} />
-                                  <button type="button" className="btn ghost" onClick={async () => { await correctFact({ workspaceId, factId: fact._id, value: factEditValue }); setEditingFactId(null); }}>Save</button>
-                                </>
-                              ) : (
-                                <button type="button" className="btn ghost" onClick={() => { setEditingFactId(fact._id); setFactEditValue(fact.value); }}>Correct</button>
-                              )}
-                              {fact.verificationStatus !== "user_rejected" && <button type="button" className="btn ghost" onClick={() => rejectFact({ workspaceId, factId: fact._id })}>Reject</button>}
-                              <button type="button" className="btn ghost" onClick={() => deleteFact({ workspaceId, factId: fact._id })}>Delete</button>
-                            </div>
-                          </article>
-                        ))}
-                      </div>
-                    )}
-                  </section>
-                );
-              })}
+              {/* ── AI Context: inferences needing review ── */}
+              {(contextFacts ?? []).filter((f) => f.verificationStatus === "unreviewed").length > 0 && (
+                <section className="panel" aria-label="AI inferences">
+                  <div className="panel-head"><p className="eyebrow">AI INFERENCES</p><span className="muted">Radar inferred these — confirm, correct, or reject</span></div>
+                  <div className="row-list">
+                    {(contextFacts ?? []).filter((f) => f.verificationStatus === "unreviewed").map((fact) => (
+                      <article className="row-item static profile-fact profile-fact-inferred" key={fact._id}>
+                        <div className="row-copy">
+                          <strong>{fact.category}</strong>
+                          <em>{fact.value}</em>
+                          <span className="muted">inferred by Radar · confidence {Math.round(fact.confidence * 100)}%</span>
+                        </div>
+                        <div className="inline-actions">
+                          <button type="button" className="btn" onClick={() => confirmFact({ workspaceId, factId: fact._id })}>Confirm</button>
+                          {editingFactId === fact._id ? (
+                            <>
+                              <input className="composer-input" style={{ maxWidth: 180 }} value={factEditValue} onChange={(e) => setFactEditValue(e.target.value)} maxLength={240} />
+                              <button type="button" className="btn ghost" onClick={async () => { await correctFact({ workspaceId, factId: fact._id, value: factEditValue }); setEditingFactId(null); }}>Save</button>
+                            </>
+                          ) : (
+                            <button type="button" className="btn ghost" onClick={() => { setEditingFactId(fact._id); setFactEditValue(fact.value); }}>Correct</button>
+                          )}
+                          <button type="button" className="btn ghost" onClick={() => rejectFact({ workspaceId, factId: fact._id })}>Reject</button>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {/* ── AI Context: rejected ── */}
+              {(contextFacts ?? []).filter((f) => f.verificationStatus === "user_rejected").length > 0 && (
+                <section className="panel" aria-label="Rejected facts">
+                  <div className="panel-head"><p className="eyebrow">REJECTED</p><span className="muted">excluded from all agent reasoning</span></div>
+                  <div className="row-list">
+                    {(contextFacts ?? []).filter((f) => f.verificationStatus === "user_rejected").map((fact) => (
+                      <article className="row-item static profile-fact" key={fact._id} style={{ opacity: 0.5 }}>
+                        <div className="row-copy">
+                          <strong>{fact.category}</strong>
+                          <em>{fact.value}</em>
+                          <span className="muted">rejected · {shortDate(fact.updatedAt)}</span>
+                        </div>
+                        <div className="inline-actions">
+                          <button type="button" className="btn ghost" onClick={() => confirmFact({ workspaceId, factId: fact._id })}>Restore</button>
+                          <button type="button" className="btn ghost" onClick={() => deleteFact({ workspaceId, factId: fact._id })}>Delete</button>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                </section>
+              )}
             </div>
           )}
 
