@@ -18,7 +18,7 @@
 
 ## Log
 
-### 2026-09-18 - working tree
+### 2026-09-18 - 46d8875
 Made **Outcomes** a workspace-level view instead of a mission-scoped one. "What
 actually happened" is a question about the whole workspace, so the page no longer
 depends on which mission happens to be selected. New `outcomes.listForWorkspace`
