@@ -37,7 +37,7 @@ function advanceable(status: string, stage: string): boolean {
   return status === "active" || (status === "queued" && stage === "intake");
 }
 
-type Stage = "intake" | "interpret" | "plan" | "plan_review" | "discover" | "check_in" | "evaluate" | "approval" | "execute" | "wait" | "complete";
+type Stage = "intake" | "interpret" | "plan" | "plan_review" | "discover" | "check_in" | "evaluate" | "approval" | "execute" | "observe" | "wait" | "complete";
 
 type RunRow = {
   _id: Id<"agentRuns">;
@@ -371,16 +371,108 @@ export const runStage = internalAction({
           return null;
         }
         case "approval": {
+          // Propose before opening the gate. The mission decides which match is
+          // worth contacting; without this the gate opened with nothing to
+          // approve and the run could only advance if the user picked a tool.
+          // A failure here is recorded and the gate still opens — a proposal the
+          // agent could not prepare is a reason to ask, not to stall. If the
+          // workspace has no sending inbox, this is a genuine human gate: the
+          // user must link one before any draft can leave.
+          let proposed = 0;
+          let reason: string | null = null;
+          try {
+            const result = await ctx.runAction(internal.outreach.proposeForMission, {
+              missionId: args.missionId,
+              limit: 1,
+            });
+            proposed = result.proposed;
+            reason = result.reason;
+          } catch (error) {
+            reason = error instanceof Error ? error.message : "proposal failed";
+          }
           // Hard stop: open the gate, then wait for the human.
           await ctx.runMutation(internal.runs.transition, {
             missionId: args.missionId, targetStage: "approval", targetStatus: "waiting",
-            interruption: null, eventType: "approval.awaiting", safeSummary: "Awaiting your approval: nothing is sent until you approve a draft.",
+            interruption: null, eventType: "approval.awaiting",
+            safeSummary: proposed > 0
+              ? `${proposed} action(s) prepared and awaiting your approval. Nothing sends until you approve the exact content.`
+              : reason === "no_inbox"
+                ? "Awaiting your approval, but no inbox is linked — link one and the mission can prepare the first message."
+                : "Awaiting your approval: no counterpart with a verified contact route was reached, so nothing has been drafted.",
+          });
+          return null;
+        }
+        case "execute": {
+          // The approved actions are executed by the agent, not by a page. Nothing
+          // leaves that the user did not approve: `send` re-checks the approval
+          // and recomputes the content hash per draft, and fails closed.
+          const result = await ctx.runAction(internal.outreach.sendApprovedForMission, { missionId: args.missionId });
+          if (result.attempted === 0) {
+            // The gate is open but nothing is approved any more (expired or
+            // revoked). Re-open the gate rather than report progress that did
+            // not happen.
+            await ctx.runMutation(internal.runs.recordStepForAction, {
+              missionId: args.missionId, stage: "execute", label: "execute.nothing_approved",
+              summary: "No action is currently approved — re-opening the gate instead of executing nothing.",
+              reference: null, errorCode: null, tool: "orchestrator",
+            });
+            await ctx.runMutation(internal.orchestratorStore.stageDone, {
+              missionId: args.missionId, stage: "execute", nextStage: "approval",
+              eventType: "stage.approval.reopened", summary: "Nothing is approved — the approval gate is open again.",
+            });
+            return null;
+          }
+          await ctx.runMutation(internal.runs.recordStepForAction, {
+            missionId: args.missionId, stage: "execute", label: "execute.approved_actions",
+            summary: result.failures.length
+              ? `Executed ${result.sent} of ${result.attempted} approved action(s); ${result.failures.length} failed — ${result.failures[0]}`
+              : `Executed all ${result.sent} approved action(s).`,
+            reference: null, errorCode: result.failures.length ? "ACTION_PARTIAL_FAILURE" : null, tool: "agentmail.send",
+          });
+          await ctx.runMutation(internal.orchestratorStore.stageDone, {
+            missionId: args.missionId, stage: "execute", nextStage: "observe",
+            eventType: "stage.observe.started", summary: "Approved actions executed — observing what happens next.",
+          });
+          return null;
+        }
+        case "observe": {
+          // Observation comes first and decides last. Everything below reads
+          // persisted counts, so the decision is reproducible from the database.
+          const complete = await ctx.runMutation(internal.orchestratorStore.checkCompletion, { missionId: args.missionId });
+          if (complete) return null;
+          const observed = await ctx.runQuery(internal.orchestratorStore.observationFor, { missionId: args.missionId });
+          await ctx.runMutation(internal.runs.recordStepForAction, {
+            missionId: args.missionId, stage: "observe", label: "observe.decided",
+            summary: `Observed ${observed.sent} sent, ${observed.engaged} engaged, ${observed.pendingApproval} awaiting approval, ${observed.failed} failed.`,
+            reference: null, errorCode: null, tool: "orchestrator",
+          });
+          if (observed.pendingApproval > 0 || observed.approvedPending > 0) {
+            await ctx.runMutation(internal.orchestratorStore.stageDone, {
+              missionId: args.missionId, stage: "observe", nextStage: "approval",
+              eventType: "stage.approval.started", summary: "An action is ready for your approval.",
+            });
+            return null;
+          }
+          if (observed.sent > 0 && observed.engaged === 0) {
+            // Nothing needs a human and no reply has arrived: wait on a scheduled
+            // wake instead of polling or looking busy. A reply wakes it sooner.
+            await ctx.runMutation(internal.orchestratorStore.parkWaiting, {
+              missionId: args.missionId, reason: `${observed.sent} action(s) awaiting a response; no reply yet.`,
+              // Six hours: reply windows are measured in days, so waking faster
+              // would only burn budget without learning anything.
+              horizonMs: 6 * 60 * 60 * 1000,
+            });
+            return null;
+          }
+          // Nothing outstanding, so the next move is a human one.
+          await ctx.runMutation(internal.orchestratorStore.stageDone, {
+            missionId: args.missionId, stage: "observe", nextStage: "approval",
+            eventType: "stage.approval.started", summary: "Nothing outstanding — your call on what happens next.",
           });
           return null;
         }
         case "plan":
         case "wait":
-        case "execute":
         case "complete": {
           return null; // planning happens inside interpret; these are never auto-driven
         }
