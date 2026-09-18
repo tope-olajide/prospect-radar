@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { convexTest } from "convex-test";
 import { api, internal } from "../convex/_generated/api";
 import schema from "../convex/schema";
-import { snippetExtraction, validateExtraction } from "../convex/research";
+import { extractionPromptFor, snippetExtraction, validateExtraction } from "../convex/research";
 import { normalizeEntityName } from "../convex/entityStore";
 
 const convexModules = import.meta.glob("../convex/**/*.*s");
@@ -357,5 +357,166 @@ describe("explainMatches — grounding in extracted entities", () => {
     // The stored value keeps the machine decision, so it stays inspectable.
     const stored = await t.run(async (ctx) => (await ctx.db.query("matches").collect())[0]);
     expect(stored.recommendedAction).toBe("research_alt_route");
+  });
+});
+
+/** One chat/completions reply body. */
+function llmResponse(body: unknown) {
+  return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(body) } }] }), { status: 200 });
+}
+
+/** Reads the prompt the last LLM request carried. */
+function promptOf(init?: { body?: string }) {
+  const body = JSON.parse(init?.body ?? "{}") as { messages?: Array<{ content?: string }> };
+  return (body.messages ?? []).map((message) => message.content ?? "").join("\n");
+}
+
+/** Seeds the match, plan, and run state `explainMatches` reads. */
+async function seedExplainable(t: TestT, missionId: string, sourceId: string) {
+  await t.run(async (ctx) => {
+    const run = await ctx.db.query("agentRuns").withIndex("by_missionId", (q) => q.eq("missionId", missionId as never)).first();
+    const now = Date.now();
+    const discoveryId = await ctx.db.insert("discoveries", { missionId: missionId as never, sourceId: sourceId as never, subject: "Acme Corp", signal: "s", publishedAt: null, extractedFields: [], createdAt: now, updatedAt: now });
+    // Matches are created with the citation they were retrieved on, as the
+    // research store does; an explanation adds to it, never replaces it.
+    await ctx.db.insert("matches", { missionId: missionId as never, discoveryId, sourceId: sourceId as never, label: "uncertain", positiveEvidence: ["Acme builds climate analytics dashboards."], unknowns: [], risks: [], freshness: "fresh", recommendedAction: "review", createdAt: now, updatedAt: now });
+    await ctx.db.insert("missionPlans", { missionId: missionId as never, normalizedGoal: "Find companies needing React work.", mode: "opportunity", mustHave: ["needs React"], niceToHave: [], exclusions: [], missingFacts: [], recommendedSources: [], proposedSteps: [], completionPredicate: "one send", provider: "openai", model: "test", createdAt: now });
+    await ctx.db.patch(run!._id, { currentStage: "evaluate", status: "active" });
+  });
+}
+
+function stepsFor(t: TestT, missionId: string) {
+  return t.run(async (ctx) => {
+    const run = await ctx.db.query("agentRuns").withIndex("by_missionId", (q) => q.eq("missionId", missionId as never)).first();
+    if (!run) return [];
+    return ctx.db.query("runSteps").withIndex("by_runId", (q) => q.eq("runId", run._id)).collect();
+  });
+}
+
+describe("extractFromSource — the prompt is framed by the mission", () => {
+  it("carries the mission goal, its must-haves, and the target-class rules", async () => {
+    let prompt = "";
+    scrapeImpl = async (_url, options) => {
+      prompt = ((options as { formats?: Array<{ prompt?: string }> } | undefined)?.formats?.[0]?.prompt) ?? "";
+      return { json: validExtraction() };
+    };
+    const t = convexTest(schema, convexModules);
+    const { missionId, sourceId } = await seedSource(t);
+    await t.run(async (ctx) => {
+      await ctx.db.insert("missionPlans", { missionId: missionId as never, normalizedGoal: "Find companies needing React work.", mode: "opportunity", mustHave: ["evidence of a current React need"], niceToHave: [], exclusions: [], missingFacts: [], recommendedSources: [], proposedSteps: [], completionPredicate: "one send", provider: "openai", model: "test", createdAt: Date.now() });
+    });
+    await t.action(api.research.extractFromSource, { missionId: missionId as never, sourceId: sourceId as never, requestId: "r1" });
+
+    expect(prompt).toContain("Find companies needing React work.");
+    expect(prompt).toContain("evidence of a current React need");
+    // The rules that stop a listing page resolving to a role instead of a company.
+    expect(prompt).toContain("Never return a job title");
+    expect(prompt).toContain("listing, directory, job board");
+  });
+
+  it("states the target entity family the mission classified", () => {
+    const person = extractionPromptFor(
+      { goal: "Find a React developer.", intent: "find_person", targetEntity: "person", mustHave: ["React"] },
+      { url: "https://example.com", title: "Example" },
+    );
+    expect(person).toContain("targets a person");
+    expect(person).toContain('entityType must be "person"');
+    // Without mission framing the prompt is still the full base contract.
+    const bare = extractionPromptFor(null, { url: "https://example.com", title: "Example" });
+    expect(bare).toContain("never invent names");
+    expect(bare).not.toContain("targets a");
+  });
+});
+
+describe("explainMatches — a label without a citation is not a claim", () => {
+  it("nudges the model once when a labelled match carries no evidence", async () => {
+    const prompts: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (_url: unknown, init?: { body?: string }) => {
+      const prompt = promptOf(init);
+      prompts.push(prompt);
+      const matchId = /"matchId\\?":\s*"([^"]+)"/.exec(prompt)?.[1] ?? "missing";
+      // The exact shape a live run produced: every required key present, every
+      // evidence array empty.
+      if (prompts.length === 1) {
+        return llmResponse({ explanations: [{ matchId, label: "promising", positiveEvidence: [], unknowns: [], risks: [], recommendedAction: "research_alt_route", summary: "s" }] });
+      }
+      return llmResponse({ explanations: [{ matchId, label: "promising", positiveEvidence: ["Acme Corp is hiring a frontend engineer."], unknowns: ["Budget is unverified."], risks: [], recommendedAction: "research_alt_route", summary: "s" }] });
+    }));
+    const t = convexTest(schema, convexModules);
+    const { missionId, sourceId } = await seedSource(t);
+    await t.action(api.research.extractFromSource, { missionId: missionId as never, sourceId: sourceId as never, requestId: "r1" });
+    await seedExplainable(t, missionId, sourceId);
+    await t.action(api.ai.explainMatches, { missionId: missionId as never });
+
+    // One repair round-trip, and it named the field that was missing.
+    expect(prompts).toHaveLength(2);
+    expect(prompts[1]).toContain("positiveEvidence");
+    const stored = await t.run(async (ctx) => (await ctx.db.query("matches").collect())[0]);
+    expect(stored.label).toBe("promising");
+    expect(stored.positiveEvidence).toEqual(["Acme Corp is hiring a frontend engineer."]);
+    expect(stored.unknowns).toEqual(["Budget is unverified."]);
+  });
+
+  it("withdraws an unsupported ranking instead of blocking the mission", async () => {
+    let calls = 0;
+    vi.stubGlobal("fetch", vi.fn(async (_url: unknown, init?: { body?: string }) => {
+      calls += 1;
+      const matchId = /"matchId\\?":\s*"([^"]+)"/.exec(promptOf(init))?.[1] ?? "missing";
+      // A model that will not cite anything, even after being asked.
+      return llmResponse({ explanations: [{ matchId, label: "stronger", positiveEvidence: [], unknowns: [], risks: [], recommendedAction: "research_alt_route", summary: "s" }] });
+    }));
+    const t = convexTest(schema, convexModules);
+    const { missionId, sourceId } = await seedSource(t);
+    await t.action(api.research.extractFromSource, { missionId: missionId as never, sourceId: sourceId as never, requestId: "r1" });
+    await seedExplainable(t, missionId, sourceId);
+
+    // The stage completes rather than failing the run...
+    await t.action(api.ai.explainMatches, { missionId: missionId as never });
+    expect(calls).toBe(2);
+    const stored = await t.run(async (ctx) => (await ctx.db.query("matches").collect())[0]);
+    // ...but the ungrounded "stronger" claim is withdrawn and says why...
+    expect(stored.label).toBe("uncertain");
+    expect(stored.unknowns.join(" ")).toMatch(/could not confirm the fit/i);
+    // ...and the citation the match was found on survives, so the evidence panel
+    // still renders something real instead of nothing.
+    expect(stored.positiveEvidence).toEqual(["Acme builds climate analytics dashboards."]);
+  });
+});
+
+describe("evaluate — entity resolution covers the whole discovery, not one batch", () => {
+  it("re-enters the stage until every scraped source has an entity", async () => {
+    // Distinct hostnames so the entities do not merge into one record.
+    scrapeImpl = async (url) => ({ json: validExtraction({ entityName: new URL(url).hostname, contactRoute: null }) });
+    vi.stubGlobal("fetch", vi.fn(async (_url: unknown, init?: { body?: string }) => {
+      const matchId = /"matchId\\?":\s*"([^"]+)"/.exec(promptOf(init))?.[1] ?? "missing";
+      return llmResponse({ explanations: [{ matchId, label: "promising", positiveEvidence: ["e"], unknowns: [], risks: [], recommendedAction: "research_alt_route", summary: "s" }] });
+    }));
+    const t = convexTest(schema, convexModules);
+    const { missionId } = await seedSource(t);
+    // Nine scraped sources — more than one extraction batch.
+    await t.run(async (ctx) => {
+      const job = await ctx.db.query("researchJobs").withIndex("by_missionId", (q) => q.eq("missionId", missionId as never)).first();
+      const now = Date.now();
+      for (let index = 2; index <= 9; index += 1) {
+        await ctx.db.insert("sourceRecords", {
+          missionId: missionId as never, jobId: job!._id, url: `https://acme${index}.example.com/about`, title: `Acme ${index}`,
+          sourceType: "scraped_page", excerpt: "e", content: "c", fetchedAt: now, freshness: "fresh",
+          firecrawlRequestId: null, firecrawlPageId: null, processingStatus: "scraped", errorSummary: null, createdAt: now, updatedAt: now,
+        });
+      }
+    });
+    await seedExplainable(t, missionId, (await t.run(async (ctx) => (await ctx.db.query("sourceRecords").first())!._id)) as unknown as string);
+
+    // One pass is bounded, hands the remainder back to the scheduler, and says so.
+    await t.action(internal.missionOrchestrator.runStage, { missionId: missionId as never });
+    expect(await entitiesFor(t, missionId)).toHaveLength(6);
+    const steps = await stepsFor(t, missionId);
+    expect(steps.some((step) => step.label === "entity.extraction_continues")).toBe(true);
+
+    // The next pass finishes the work the first one paid for, then evaluates.
+    await t.action(internal.missionOrchestrator.runStage, { missionId: missionId as never });
+    expect(await entitiesFor(t, missionId)).toHaveLength(9);
+    const run = await t.run(async (ctx) => ctx.db.query("agentRuns").withIndex("by_missionId", (q) => q.eq("missionId", missionId as never)).first());
+    expect(run?.currentStage).toBe("approval");
   });
 });

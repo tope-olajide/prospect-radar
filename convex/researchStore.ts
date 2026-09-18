@@ -631,6 +631,42 @@ export const sourceForScrape = internalQuery({
   },
 });
 
+/**
+ * Mission framing for structured extraction.
+ *
+ * The extractor used to run with a static prompt that knew nothing about the
+ * mission, so it resolved whichever named thing a page mentioned first — on a
+ * live run that meant a job-board listing resolving to "Frontend Developer" as
+ * a product. Passing the mission's goal, intent, and target entity family lets
+ * the same page resolve to the entity the mission is actually about.
+ *
+ * Two indexed reads, deliberately light: this runs once per source, next to a
+ * provider scrape that costs far more.
+ */
+export const extractionGuidance = internalQuery({
+  args: { missionId: v.id("missions") },
+  returns: v.union(v.object({
+    goal: v.string(),
+    intent: v.union(v.null(), v.string()),
+    targetEntity: v.union(v.null(), v.string()),
+    mustHave: v.array(v.string()),
+  }), v.null()),
+  handler: async (ctx, args) => {
+    const mission = await ctx.db.get(args.missionId);
+    if (!mission) return null;
+    const plan = await ctx.db.query("missionPlans")
+      .withIndex("by_missionId", (q) => q.eq("missionId", args.missionId))
+      .order("desc")
+      .first();
+    return {
+      goal: plan?.normalizedGoal ?? mission.rawGoal,
+      intent: mission.intent?.primary ?? null,
+      targetEntity: mission.targetEntity ?? null,
+      mustHave: plan?.mustHave ?? [],
+    };
+  },
+});
+
 export const markSourceScraping = internalMutation({
   args: { sourceId: v.id("sourceRecords") },
   returns: v.id("sourceRecords"),
@@ -757,7 +793,14 @@ export const saveExplanations = internalMutation({
       if (!match) continue;
       await ctx.db.patch(match._id, {
         label: item.label,
-        positiveEvidence: item.positiveEvidence.map((line) => bounded(line, 300)).slice(0, 8),
+        // The model's quotes when it supplies them, otherwise the citation the
+        // match was retrieved on (the discovery signal or source excerpt). A
+        // live run returned the required keys with empty arrays, and overwriting
+        // real evidence with nothing is what left the cited-evidence panel blank
+        // on every explained match. An explanation may add evidence; it may not
+        // erase it.
+        positiveEvidence: (item.positiveEvidence.length > 0 ? item.positiveEvidence : match.positiveEvidence)
+          .map((line) => bounded(line, 300)).slice(0, 8),
         unknowns: item.unknowns.map((line) => bounded(line, 300)).slice(0, 8),
         risks: item.risks.map((line) => bounded(line, 300)).slice(0, 8),
         recommendedAction: bounded(item.recommendedAction, 300),
@@ -841,7 +884,7 @@ export const evidenceForExplanation = internalQuery({
   handler: async (ctx, args) => {
     const matches = await ctx.db.query("matches")
       .withIndex("by_missionId", (q) => q.eq("missionId", args.missionId))
-      .take(20);
+      .take(30);
     const result = [];
     for (const match of matches) {
       const [discovery, source] = await Promise.all([ctx.db.get(match.discoveryId), ctx.db.get(match.sourceId)]);
@@ -875,7 +918,11 @@ export const evidenceForExplanation = internalQuery({
         sourceType: source.sourceType,
         currentLabel: match.label,
         excerpt: bounded(discovery.signal || source.excerpt, 500),
-        content: source.content ? bounded(source.content, 4000) : null,
+        // Bounded per match because the payload carries every match: at 4000
+        // chars each, a 24-match mission sent a prompt large enough that the
+        // model answered for only 5 of them. The retrieval excerpt above already
+        // carries the matched signal, so a shorter window costs no grounding.
+        content: source.content ? bounded(source.content, 2000) : null,
         fetchedAt: source.fetchedAt,
         entity,
       });

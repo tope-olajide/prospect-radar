@@ -7,6 +7,7 @@ import type { ActionCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import {
   ORCHESTRATOR_CRAWL_LIMIT,
+  ORCHESTRATOR_EXTRACT_LIMIT,
   ORCHESTRATOR_SEARCH_LIMIT,
   estimateCrawl,
   estimateExtraction,
@@ -309,19 +310,57 @@ export const runStage = internalAction({
           if (mission) {
             const budget = await guardBudget(ctx, {
               missionId: args.missionId,
-              estimate: estimateExtraction(1),
+              estimate: estimateExtraction(ORCHESTRATOR_EXTRACT_LIMIT),
               label: "resolving sources into entities",
             });
+            let resolved = 0;
             if (budget.allowed) {
               try {
-                await ctx.runAction(api.research.resolveEntities, {
+                const result = await ctx.runAction(api.research.resolveEntities, {
                   workspaceId: mission.workspaceId,
                   missionId: args.missionId,
-                  limit: 6,
+                  limit: ORCHESTRATOR_EXTRACT_LIMIT,
                 });
+                resolved = result.resolved;
               } catch {
                 // Fallback entities (or provider trouble) must not stop evaluation.
               }
+            }
+            // Extraction is bounded per invocation because each source can sit
+            // at the provider for up to a minute, so the stage resolves one
+            // batch and re-enters itself while scraped sources remain. Without
+            // this, evaluation silently ignored sources discovery had already
+            // paid to fetch — a live run explained matches off 6 of 19 sources.
+            // Termination is structural: every resolved source gets an entity,
+            // `unextractedSources` only returns sources that have none, so the
+            // loop continues only while it is making progress.
+            const remaining = await ctx.runQuery(internal.entityStore.unextractedSources, {
+              missionId: args.missionId,
+              limit: 1,
+            });
+            if (budget.allowed && resolved > 0 && remaining.length > 0) {
+              await ctx.runMutation(internal.runs.recordStepForAction, {
+                missionId: args.missionId,
+                stage: "evaluate",
+                label: "entity.extraction_continues",
+                summary: `Resolved ${resolved} source${resolved === 1 ? "" : "s"} into entities; more scraped sources remain, so entity resolution continues before matches are explained.`,
+                reference: null,
+                errorCode: null,
+                tool: "firecrawl.extract",
+              });
+              await ctx.scheduler.runAfter(0, internal.missionOrchestrator.runStage, { missionId: args.missionId });
+              return null;
+            }
+            if (remaining.length > 0) {
+              await ctx.runMutation(internal.runs.recordStepForAction, {
+                missionId: args.missionId,
+                stage: "evaluate",
+                label: "entity.extraction_stopped",
+                summary: `${remaining.length} scraped source${remaining.length === 1 ? "" : "s"} could not be resolved into entities (${budget.allowed ? "extraction made no progress" : "the mission budget is spent"}); matches are explained from the sources that resolved.`,
+                reference: null,
+                errorCode: null,
+                tool: "firecrawl.extract",
+              });
             }
           }
           await ctx.runAction(api.ai.explainMatches, { missionId: args.missionId });
