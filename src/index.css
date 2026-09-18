@@ -139,6 +139,26 @@ h1, h2, h3, p { margin: 0; }
 .nav-count { display: grid; place-items: center; min-width: 19px; height: 19px; border-radius: 6px; color: var(--accent-ink); background: var(--accent); font-size: 10px; font-weight: 800; }
 .sidebar-spacer { flex: 1; min-height: 30px; }
 
+/* Sidebar search */
+.sidebar-search { position: relative; margin: 0 2px 10px; }
+.sidebar-search input { width: 100%; padding: 8px 28px 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--hover-wash); color: var(--text); font-size: 11px; }
+.sidebar-search input::placeholder { color: var(--muted-2); }
+.sidebar-search input:focus { outline: none; border-color: var(--cyan-line); background: var(--cyan-wash); }
+.sidebar-search-clear { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--muted-2); font-size: 11px; cursor: pointer; padding: 2px; }
+
+/* Mission history */
+.nav-section-toggle { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 4px 10px; margin: 0 2px; background: none; border: none; color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; cursor: pointer; }
+.nav-section-toggle:hover { color: var(--text); }
+.nav-section-toggle span:last-child { font-size: 10px; font-weight: 400; letter-spacing: 0; text-transform: none; }
+.mission-history { display: grid; gap: 2px; margin: 4px 2px 10px; max-height: 240px; overflow-y: auto; }
+.mission-history-item { display: flex; flex-direction: column; gap: 3px; padding: 7px 10px; border-radius: 8px; text-align: left; background: none; border: none; width: 100%; cursor: pointer; transition: .15s ease; }
+.mission-history-item:hover { background: var(--hover-wash); }
+.mission-history-item.selected { background: var(--accent-wash); border-left: 2px solid var(--accent); }
+.mission-history-title { color: var(--text-soft); font-size: 11px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mission-history-item.selected .mission-history-title { color: var(--text); }
+.mission-history-meta { display: flex; align-items: center; gap: 6px; }
+.mission-history-meta .muted { font-size: 9px; }
+
 /* Theme switch */
 .theme-switch { display: flex; gap: 4px; padding: 4px; margin: 0 2px 10px; border: 1px solid var(--line); border-radius: 11px; background: var(--hover-wash); }
 .theme-switch button { flex: 1; display: flex; align-items: center; justify-content: center; gap: 5px; padding: 7px 4px; border-radius: 8px; color: var(--muted); font-size: 10px; font-weight: 700; transition: .18s ease; }
