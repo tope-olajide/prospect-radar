@@ -200,7 +200,7 @@ export const runStage = internalAction({
               parsed = new URL(next.query);
             } catch {
               await ctx.runMutation(internal.orchestratorStore.skipQuery, { queryId: next._id, missionId: args.missionId, reason: "The planner produced an invalid crawl URL." });
-              await ctx.scheduler.runAfter(0, internal.missionOrchestrator.runStage, { missionId: args.missionId });
+              await ctx.scheduler.runAfter(2000, internal.missionOrchestrator.runStage, { missionId: args.missionId });
               return null;
             }
             const budget = await guardBudget(ctx, {
@@ -229,7 +229,7 @@ export const runStage = internalAction({
                 reason: `${classified.summary} Radar skipped the crawl of ${parsed.hostname} and continued with the rest of the plan.`,
                 errorCode: classified.code, tool: "firecrawl.crawl",
               });
-              await ctx.scheduler.runAfter(0, internal.missionOrchestrator.runStage, { missionId: args.missionId });
+              await ctx.scheduler.runAfter(2000, internal.missionOrchestrator.runStage, { missionId: args.missionId });
               return null;
             }
             await ctx.runMutation(internal.orchestratorStore.awaitCrawl, {
@@ -259,13 +259,13 @@ export const runStage = internalAction({
               reason: `${classified.summary} Radar skipped this discovery query and continued with the rest of the plan.`,
               errorCode: classified.code, tool: "firecrawl.search",
             });
-            await ctx.scheduler.runAfter(0, internal.missionOrchestrator.runStage, { missionId: args.missionId });
+            await ctx.scheduler.runAfter(2000, internal.missionOrchestrator.runStage, { missionId: args.missionId });
             return null;
           }
           await ctx.runMutation(internal.orchestratorStore.completeQuery, {
             queryId: next._id, missionId: args.missionId, resultCount,
           });
-          await ctx.scheduler.runAfter(0, internal.missionOrchestrator.runStage, { missionId: args.missionId });
+          await ctx.scheduler.runAfter(2000, internal.missionOrchestrator.runStage, { missionId: args.missionId });
           return null;
         }
         case "plan_review": {

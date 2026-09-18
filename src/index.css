@@ -215,7 +215,7 @@ label { display: grid; gap: 6px; color: var(--muted); font-size: 10px; font-weig
 .draft-form { display: grid; gap: 12px; }
 
 /* ---------- Composer ---------- */
-.composer-panel { border-color: var(--accent-line); background: radial-gradient(circle at 90% 0%, var(--accent-wash), transparent 40%), var(--panel-grad); }
+.composer-panel { border-color: var(--accent-line); background: var(--panel-grad); }
 .composer-copy h2 { margin: 6px 0 6px; font-size: 20px; letter-spacing: -.03em; color: var(--text); }
 .composer-copy p { margin-bottom: 14px; color: var(--muted); font-size: 11px; line-height: 1.7; }
 .composer-input { margin-top: 2px; font-size: 13px; line-height: 1.6; resize: vertical; }
@@ -312,7 +312,7 @@ label { display: grid; gap: 6px; color: var(--muted); font-size: 10px; font-weig
 .followup-pill { padding: 6px 12px; border: 1px solid var(--accent-line); border-radius: 8px; background: var(--accent-wash); color: var(--accent-ink); font-size: 11px; font-weight: 600; cursor: pointer; transition: .15s ease; }
 .followup-pill:hover { background: var(--accent); color: #fff; }
 @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
-.composer-panel { position: sticky; bottom: 0; z-index: 5; }
+.composer-panel { position: sticky; bottom: 0; z-index: 5; background: var(--panel); }
 .composer-panel form { display: grid; gap: 0; }
 .attention-card { display: grid; gap: 6px; padding: 16px; border-radius: 13px; text-align: left; transition: .2s ease; }
 .attention-card:hover { transform: translateY(-1px); }
@@ -552,9 +552,12 @@ label { display: grid; gap: 6px; color: var(--muted); font-size: 10px; font-weig
 .lifecycle-node.done::before { background: var(--accent-line); }
 .lifecycle-marker { position: relative; z-index: 1; width: 14px; height: 14px; flex: 0 0 14px; margin-top: 2px; border-radius: 50%; border: 2px solid var(--line-strong); background: var(--panel); transition: .2s ease; }
 .lifecycle-node.done .lifecycle-marker { border-color: var(--accent); background: var(--accent); }
-.lifecycle-node.active .lifecycle-marker { border-color: var(--cyan); background: var(--cyan); box-shadow: 0 0 0 4px var(--cyan-wash); }
-.lifecycle-node.active.waiting .lifecycle-marker { border-color: var(--amber); background: var(--amber); box-shadow: 0 0 0 4px var(--amber-wash); }
-.lifecycle-node.active.blocked .lifecycle-marker { border-color: var(--red); background: var(--red); box-shadow: 0 0 0 4px var(--red-wash); }
+.lifecycle-node.active .lifecycle-marker { border-color: var(--cyan); background: var(--cyan); box-shadow: 0 0 0 4px var(--cyan-wash); animation: spinner-pulse 1.2s ease-in-out infinite; }
+.lifecycle-node.active.waiting .lifecycle-marker { border-color: var(--amber); background: var(--amber); box-shadow: 0 0 0 4px var(--amber-wash); animation: none; }
+.lifecycle-node.active.blocked .lifecycle-marker { border-color: var(--red); background: var(--red); box-shadow: 0 0 0 4px var(--red-wash); animation: none; }
+@keyframes spinner-pulse { 0%, 100% { box-shadow: 0 0 0 4px var(--cyan-wash); } 50% { box-shadow: 0 0 0 8px transparent; } }
+.lifecycle-spinner { display: inline-block; margin-right: 5px; animation: spin 1s linear infinite; }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 .lifecycle-node.failed .lifecycle-marker { border-color: var(--red); background: var(--red); }
 .lifecycle-copy strong { display: block; color: var(--muted); font-size: 12px; font-weight: 600; line-height: 1.35; }
 .lifecycle-node.done .lifecycle-copy strong { color: var(--text-faint); }

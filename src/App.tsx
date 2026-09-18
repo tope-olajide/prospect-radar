@@ -969,24 +969,30 @@ Clarification: ${clarifyAnswer.trim()}` });
                   />
 
                   {/* ── GAP 1: Plan review card ── */}
-                  {run?.status === "waiting" && run.currentStage === "plan_review" && plan && (
+                  {run?.status === "waiting" && run.currentStage === "plan_review" && (
                     <div className="plan-review-card">
                       <div className="panel-head"><p className="eyebrow">RADAR'S PLAN</p><span className="muted">review before searching</span></div>
-                      <div className="plan-goal"><strong>Goal:</strong> {plan.normalizedGoal}</div>
-                      {plan.mustHave.length > 0 && (
-                        <div className="plan-section"><strong>Must find:</strong> {plan.mustHave.join(", ")}</div>
-                      )}
-                      {plan.niceToHave.length > 0 && (
-                        <div className="plan-section"><strong>Nice to have:</strong> {plan.niceToHave.join(", ")}</div>
-                      )}
-                      {plan.exclusions && (
-                        <div className="plan-section"><strong>Exclusions:</strong> {plan.exclusions}</div>
-                      )}
-                      {plan.recommendedSources && (
-                        <div className="plan-section"><strong>Sources:</strong> {plan.recommendedSources}</div>
-                      )}
-                      {plan.strategyNotes && (
-                        <div className="plan-section"><strong>Strategy:</strong> {plan.strategyNotes}</div>
+                      {plan ? (
+                        <>
+                          <div className="plan-goal"><strong>Goal:</strong> {plan.normalizedGoal}</div>
+                          {plan.mustHave.length > 0 && (
+                            <div className="plan-section"><strong>Must find:</strong> {plan.mustHave.join(", ")}</div>
+                          )}
+                          {plan.niceToHave.length > 0 && (
+                            <div className="plan-section"><strong>Nice to have:</strong> {plan.niceToHave.join(", ")}</div>
+                          )}
+                          {plan.exclusions && (
+                            <div className="plan-section"><strong>Exclusions:</strong> {plan.exclusions}</div>
+                          )}
+                          {plan.recommendedSources && (
+                            <div className="plan-section"><strong>Sources:</strong> {plan.recommendedSources}</div>
+                          )}
+                          {plan.strategyNotes && (
+                            <div className="plan-section"><strong>Strategy:</strong> {plan.strategyNotes}</div>
+                          )}
+                        </>
+                      ) : (
+                        <p className="stage-note">Loading plan…</p>
                       )}
                       <div className="inline-actions">
                         <button type="button" className="btn" onClick={onApprovePlan} disabled={planning}>{planning ? "Approving…" : "✓ Approve plan"}</button>
