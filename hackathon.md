@@ -11,12 +11,43 @@
 - **Convex deployment:** wry-walrus-528 (production, team tope-olajide, project prospect-radar)
 - **Components:** @firecrawl/firecrawl-convex, @agentmail/convex (vendored as a local component under `convex/agentmail/` — the published build declares its app-facing functions `internal*`, which are invisible to the parent; see `convex/agentmail/README.md`), @convex-dev/static-hosting, @convex-dev/workpool
 - **Convex features:** schema, indexes, queries, mutations, actions, scheduler, HTTP webhooks, reactive subscriptions, function handles
-- **Auth:** none (demo workspace scope)
+- **Auth:** Convex Auth
 - **AI models:** any OpenAI-compatible model via OPENAI_BASE_URL / OPENAI_MODEL (DashScope qwen-max in production; provider recorded on plans and classifications)
 - **Started:** 2026-09-13T00:00:00Z
-- **Last updated:** 2026-09-18T14:45:00Z
+- **Last updated:** 2026-09-18T19:43:00Z
 
 ## Log
+
+### 2026-09-18 - working tree
+Restructured the sidebar around the user's mental model of an agent instead of
+implementation modules: **RADAR** (Home, Dashboard), **WORK** (Discover, Actions,
+Inbox, Relationships, Outcomes), **KNOWLEDGE** (Profile), **SYSTEM** (Activity).
+Outreach and Forms merged into one **Actions** destination because both are the
+same concept — a side effect that needs an exact approval; the nav badge sums
+both queues. **Pipeline** became **Relationships** (relationship memory: stages,
+sequences, follow-ups, meetings, timelines) and a separate **Outcomes** page now
+answers "what actually happened" from persisted counts and stage distribution.
+A new **Activity** page renders the real execution trail: one row per mission
+from the runs board plus the durable `runEvents` and `runSteps` for whichever run
+the user inspects — it cannot display work that did not happen
+(`convex/runs.ts`, `convex/commandCenter.ts`, `src/App.tsx`, `src/index.css`).
+Also fixed a React rules-of-hooks violation in the app shell: the auth gate now
+renders a thin wrapper component so the workspace shell's hooks are unconditional
+(`src/App.tsx`). Verified: tsc clean on both configs, 187 tests passing, build
+passing.
+
+### 2026-09-18 - 7effc21
+Added Convex Auth (`@convex-dev/auth`, password provider) with workspace
+ownership: `auth.config.ts`, `auth.ts`, `users` + `workspaces` tables (1:1),
+`users.current` / `users.workspace` / `users.provisionWorkspace`, a server-side
+`validateWorkspace` scope guard now run by every public query, mutation, and
+action, a sign-in screen, a sign-out control, and a workspace derived from the
+authenticated user instead of a hardcoded string. Started from a clean data
+state: a one-off internal wipe mutation cleared development/test rows while
+leaving schema, indexes, component configuration, webhook routes, and provider
+event dedup intact. Verified: tsc clean, 187 tests passing. Auth: Convex Auth
+(`convex/auth.ts`, `convex/auth.config.ts`, `convex/model/auth.ts`,
+`convex/users.ts`, `src/SignIn.tsx`, `src/main.tsx`).
 
 ### 2026-09-18 - 43a68b0
 Six agent UX gaps fixed after comparing Radar against ChatGPT Agent, Devin, Manus, Perplexity, and Cursor. **Plan preview**: new `plan_review` durable run stage pauses after planning so the user approves the plan before searching (`approvePlan` mutation in `convex/orchestratorStore.ts`). **Check-in**: new `check_in` stage pauses after discovery to show a summary card before evaluation (`continueAfterCheckIn` mutation). **Inline tool cards**: expandable step cards replace the flat transcript, each showing stage dot + tool chip + summary. **Source chips**: match cards carry inline hostname pills linking to crawled evidence. **Follow-up suggestions**: completion row with contextual next-action pills (draft outreach, review entities, find similar). **Parallel job visibility**: live Firecrawl job pills during the discover stage. All stages wired through `runState.ts`, `runs.ts`, `schema.ts`, `MissionLifecycle.tsx`. 187 tests pass.

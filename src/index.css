@@ -691,3 +691,39 @@ label { display: grid; gap: 6px; color: var(--muted); font-size: 10px; font-weig
 }
 .auth-user { color: var(--text-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 140px; }
 .auth-signout { font-size: 11px; padding: 2px 8px; }
+.auth-splash { text-align: center; }
+.auth-splash .brand-mark { font-size: 30px; margin-bottom: 8px; }
+
+/* ── Navigation groups ───────────────────────────────────────────── */
+.nav-group { display: contents; }
+.main-nav { display: flex; flex-direction: column; }
+.nav-group > .nav-section-label:not(:first-child) { padding-top: 14px; }
+.mobile-drawer .main-nav { display: flex; flex-direction: column; }
+
+/* ── Actions page divider ────────────────────────────────────────── */
+.actions-divider {
+  display: flex; align-items: center; gap: 12px;
+  margin: 4px 0 2px; color: var(--muted-2);
+  font-family: 'DM Mono', monospace; font-size: 9px;
+  letter-spacing: .16em; text-transform: uppercase;
+}
+.actions-divider::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+
+/* ── Activity log ────────────────────────────────────────────────── */
+.metric-tile.static { cursor: default; }
+.metric-tile.static:hover { transform: none; border-color: var(--line); }
+.activity-log { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
+.activity-log li {
+  display: grid; grid-template-columns: 120px 96px 1fr; align-items: baseline; gap: 12px;
+  padding: 9px 12px; border-radius: 9px; background: var(--panel-2);
+}
+.activity-time {
+  color: var(--muted-2); font-family: 'DM Mono', monospace; font-size: 10px;
+  letter-spacing: .04em; white-space: nowrap;
+}
+.activity-copy { color: var(--text-soft); font-size: 11px; line-height: 1.5; min-width: 0; }
+.activity-copy strong { color: var(--text); font-weight: 700; }
+
+@media (max-width: 720px) {
+  .activity-log li { grid-template-columns: 1fr; gap: 4px; }
+}
