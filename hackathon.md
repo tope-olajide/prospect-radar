@@ -14,9 +14,59 @@
 - **Auth:** Convex Auth
 - **AI models:** any OpenAI-compatible model via OPENAI_BASE_URL / OPENAI_MODEL (DashScope qwen-max in production; provider recorded on plans and classifications)
 - **Started:** 2026-09-13T00:00:00Z
-- **Last updated:** 2026-09-18T21:20:00Z
+- **Last updated:** 2026-09-18T22:05:00Z
 
 ## Log
+
+### 2026-09-18 - 5ac0510
+
+Closed the three quality findings from the previous live run, and re-proved them
+live rather than in tests (`proof/live-mission.json`, harness
+`scripts/liveMissionProof.mjs`).
+
+**Crawl targets are URLs or nothing.** The planner had been putting prose
+"proposed steps" into `crawlTargets`, so all three crawl queries were skipped as
+invalid URLs — after the plan had already spent its backlog on them. The field now
+has a stated contract in both the schema and the prompt, is nudged through the
+existing repair turn when it holds anything that is not an http(s) URL, and a
+non-URL entry is salvaged into the search backlog instead of becoming dead work
+(`convex/ai.ts`). Live: the plan queues 5 searches, 0 crawls and 0 skipped
+queries — correct, because no specific site was known.
+
+**Entity resolution now covers the discovery it paid for.** The evaluate stage
+resolved 6 of 19 sources and then explained matches from that subset. It resolves
+one bounded batch and re-enters itself while scraped sources remain, terminating
+only while it is making progress, so it cannot spin
+(`convex/missionOrchestrator.ts`). Live: extraction went from 6 sources to 15
+across 4 continuations on the first re-run, and the entities are real
+organizations (Paystack, OPay, Vendease, Awarri, ChipMango) rather than job
+titles. Structured extraction is now mission-framed: the prompt carries the
+mission goal, intent, target entity family and must-haves, and forbids roles,
+categories and listing sites as entity names (`convex/researchStore.ts`,
+`convex/research.ts`).
+
+**A label with no citation is not a claim.** The evaluator returned the required
+keys with empty `positiveEvidence`/`unknowns` arrays, which left the
+cited-evidence panel blank and — worse — `saveExplanations` overwrote the citation
+a match was retrieved on with that empty array. Grounding is now checked with a
+repair turn through a new `soft` rule on `chatJson` (worth a nudge, never worth
+failing the stage), and when it is still absent the claim is downgraded to
+`uncertain` with the gap named; the unknown says which of the two gaps it is
+(no evidence, or evidence but no verified fit). An explanation may add evidence —
+it may never erase it. Live: **21 of 21 matches now carry grounded evidence**, up
+from 5 explained of 24 with every array empty.
+
+7 new tests (197 passing, tsc clean on both configs). Two of them failed on the
+first run and caught a real crash: the soft rule read `crawlTargets` on a reply
+the shape check had already rejected.
+
+**Still open, with numbers from this run.** The model explains ~6 of 21 matches,
+so the rest keep the deterministic label even though each now has a citation. And
+6 extractions hit `FIRECRAWL_RATE_LIMITED`, falling back to snippet-only entities
+(8 of 24 on the earlier run) — the batch's per-source catch is silent, so those
+failures leave no receipt at all, which is why this run had to be diagnosed by
+hand. Adding a receipt there, and spacing extraction passes so the loop stops
+saturating the provider, is the next fix.
 
 ### 2026-09-18 - 8c35677
 Ran a **real mission end to end on the production deployment as a brand-new
@@ -47,13 +97,13 @@ row with no identity — the suite previously only ever used synthetic workspace
 strings, which is exactly why both defects escaped it (`tests/trust.test.ts`,
 `tests/entities.test.ts`). Verified: tsc clean on both configs, 190 tests
 passing, deployed and re-run on `wry-walrus-528.convex.site`.
-Open quality findings from the live run, not yet addressed: match explanations
-carry a grounded `explanationSummary` but empty `positiveEvidence`/`unknowns`
-arrays (so the cited-evidence panel renders nothing, including on "promising"
-matches); the planner emits prose `proposedSteps` as crawl targets, so all three
-crawl queries were skipped as invalid URLs and every source is a `search_result`
-with no crawled page; and entity resolution covers 6 of 19 sources, so most
-matches have no linked entity.
+Open quality findings from the live run — all three addressed in `5ac0510`
+above: match explanations carried a grounded `explanationSummary` but empty
+`positiveEvidence`/`unknowns` arrays (so the cited-evidence panel rendered
+nothing, including on "promising" matches); the planner emitted prose
+`proposedSteps` as crawl targets, so all three crawl queries were skipped as
+invalid URLs and every source was a `search_result` with no crawled page; and
+entity resolution covered 6 of 19 sources, so most matches had no linked entity.
 
 ### 2026-09-18 - 46d8875
 Made **Outcomes** a workspace-level view instead of a mission-scoped one. "What
