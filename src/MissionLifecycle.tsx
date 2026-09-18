@@ -56,6 +56,7 @@ function activeNote(run: NonNullable<RunView>, latestStep: StepView | null | und
     if (run.currentStage === "approval") return "Your approval is the next step";
     if (run.currentStage === "plan_review") return "Review the plan, then approve to start searching";
     if (run.currentStage === "check_in") return "Review what Radar found, then continue to evaluation";
+    if (run.currentStage === "intake") return "Radar needs a clarification before it can search";
     return "Waiting on the outside world — Radar continues automatically";
   }
   return latestStep ? latestStep.summary : STAGE_COPY[(run.currentStage as RunStageName) in STAGE_ORDER ? (run.currentStage as RunStageName) : "intake"].doing;
@@ -96,7 +97,7 @@ export function MissionLifecycle({
           >
             <span className="lifecycle-marker" aria-hidden="true" />
             <div className="lifecycle-copy">
-              <strong>{isActive && !waitingHere && !blockedHere && <span className="lifecycle-spinner" aria-hidden="true">⟳</span>}{copy.title}</strong>
+              <strong>{copy.title}</strong>
               {state === "active" && (
                 <em>{activeNote(run!, latestStep)}{latestStep && run?.status === "active" && latestStep.tool ? ` · ${latestStep.tool}` : ""}</em>
               )}
