@@ -55,11 +55,20 @@ const viewTitles: Record<View, { eyebrow: string; title: string; description: st
   activity: { eyebrow: "Agent timeline", title: "What Radar did.", description: "Real run events from real execution — nothing animated, nothing invented." },
 };
 
+/**
+ * Starting points that mirror what Radar is actually for.
+ *
+ * One per side of the network — work to win, expertise to hire, a vendor to
+ * fulfil a need, and buyers for your own product — deliberately spread across
+ * industries, because a set of engineering examples reads as a tool for
+ * engineers. Each goal is concrete enough to research well (a market, a
+ * deliverable, a geography, a qualifying signal) instead of a topic to browse.
+ */
 const quickPrompts: { label: string; goal: string }[] = [
   { label: "Find clients", goal: "Find growth-stage climate companies in Lagos that need a product-design partner." },
-  { label: "Find talent", goal: "Find a senior Rust engineer in open-source infrastructure who is open to contract work." },
-  { label: "Find a solution", goal: "Find vendors that migrate legacy Postgres clusters under 48-hour windows." },
-  { label: "Find customers for my SaaS", goal: "Find potential customers for my SaaS." },
+  { label: "Find talent", goal: "Find a video editor who can turn our launch demos into five short films." },
+  { label: "Find a solution", goal: "Find firms that run SOC 2 readiness audits for a 40-person startup." },
+  { label: "Find customers", goal: "Find US veterinary clinics that could use my scheduling software." },
 ];
 
 const themeOptions: { value: ThemeChoice; label: string; glyph: string }[] = [
