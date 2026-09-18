@@ -256,6 +256,7 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
   const threadMessages = useQuery(api.inbox.listMessages, backendConnected && selectedThreadId ? { workspaceId, threadId: selectedThreadId } : "skip");
   const classifications = useQuery(api.outreachStore.listClassifications, backendConnected && workspaceId ? { workspaceId, missionId: null } : "skip");
   const outcomes = useQuery(api.outcomes.listForMission, backendConnected && missionId ? { workspaceId, missionId } : "skip");
+  const readiness = useQuery(api.contextCheckQuery.readiness, backendConnected && missionId && run?.status === "waiting" && run.currentStage === "context_check" ? { missionId } : "skip");
   // Outcomes is a workspace-level question ("what actually happened"), so it
   // reads every relationship rather than only the selected mission's.
   const workspaceOutcomes = useQuery(api.outcomes.listForWorkspace, backendConnected && workspaceId ? { workspaceId } : "skip");
@@ -1170,21 +1171,37 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
                     </div>
                   )}
                   {/* Context check — Radar asks for missing information */}
-                  {run?.status === "waiting" && run.currentStage === "context_check" && (
+                  {run?.status === "waiting" && run.currentStage === "context_check" && readiness && (
                     <div className="thread-ask">
-                      <p><b>Radar needs a few details before it can plan:</b></p>
-                      <p className="muted">These help Radar understand your situation so it can search effectively.</p>
-                      <div className="control-row">
-                        <input
-                          value={contextCheckKey ? contextCheckAnswer : ""}
-                          onChange={(e) => setContextCheckAnswer(e.target.value)}
-                          placeholder="Your answer…"
-                          aria-label="Context check answer"
-                        />
-                        <button type="button" className="btn" disabled={!contextCheckAnswer.trim() || planning} onClick={() => onContextCheckSubmit(contextCheckKey)}>
-                          {planning ? "Saving…" : "Submit"}
-                        </button>
-                      </div>
+                      {readiness.missingRequired.length > 0 && (
+                        <>
+                          <p><b>Radar needs {readiness.missingRequired.length} detail{readiness.missingRequired.length > 1 ? "s" : ""} before it can plan:</b></p>
+                          <p className="muted">These help Radar understand your situation so it can search effectively.</p>
+                        </>
+                      )}
+                      {readiness.missingRequired.length === 0 && readiness.missingImportant.length > 0 && (
+                        <p><b>Radar could use one more detail to search better (optional):</b></p>
+                      )}
+                      {/* Show each missing requirement */}
+                      {readiness.requirements.filter((r) => !r.satisfied && r.criticality !== "nice_to_have").map((req) => (
+                        <div key={req.key} style={{ marginBottom: "0.75rem" }}>
+                          <p style={{ marginBottom: "0.25rem" }}><b>{req.question}</b></p>
+                          {req.evidence && (
+                            <p className="stage-note" style={{ marginBottom: "0.25rem" }}>Radar found related info in: {req.evidence}</p>
+                          )}
+                          <div className="control-row">
+                            <input
+                              value={contextCheckKey === req.key ? contextCheckAnswer : ""}
+                              onChange={(e) => { setContextCheckKey(req.key); setContextCheckAnswer(e.target.value); }}
+                              placeholder="Your answer…"
+                              aria-label={req.question}
+                            />
+                            <button type="button" className="btn" disabled={!contextCheckAnswer.trim() || contextCheckKey !== req.key || planning} onClick={() => onContextCheckSubmit(req.key)}>
+                              {planning ? "Saving…" : "Submit"}
+                            </button>
+                          </div>
+                        </div>
+                      ))}
                       <p className="stage-note">Radar will continue automatically after you answer.</p>
                     </div>
                   )}

@@ -18,6 +18,19 @@
 
 ## Log
 
+### 2026-09-18 - working tree — Phase 3: Context + Artifact Intelligence
+Extended the readiness check into a full Context Resolver that reads three
+sources: workspace-level confirmed facts, mission-scoped facts, and source
+evidence from uploaded files, websites, and snippets. Each requirement is now
+classified as `confirmed` (user-confirmed fact), `source_backed` (evidence in
+user sources — usable for discovery/matching, not for outreach), `missing` (no
+evidence found), or `conflict` (facts and sources disagree). The no-over-
+questioning principle is enforced: `required` blocks, `important` continues if
+the mission can be meaningfully pursued, `nice_to_have` never blocks. The
+frontend now shows each missing requirement with its question and any related
+evidence Radar found. The resolver lives in `convex/contextCheck.ts` (internal)
+and `convex/contextCheckQuery.ts` (public wrapper). 202 tests passing.
+
 ### 2026-09-18 - working tree — Phase 2: Context Readiness
 New `context_check` stage between `interpret` and `plan_review`: the agent now
 verifies it has enough trustworthy information about the user before searching,
