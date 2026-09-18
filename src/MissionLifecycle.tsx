@@ -96,7 +96,7 @@ export function MissionLifecycle({
           >
             <span className="lifecycle-marker" aria-hidden="true" />
             <div className="lifecycle-copy">
-              <strong>{copy.title}</strong>
+              <strong>{isActive && !waitingHere && !blockedHere && <span className="lifecycle-spinner" aria-hidden="true">⟳</span>}{copy.title}</strong>
               {state === "active" && (
                 <em>{activeNote(run!, latestStep)}{latestStep && run?.status === "active" && latestStep.tool ? ` · ${latestStep.tool}` : ""}</em>
               )}
