@@ -198,6 +198,7 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
   const [editingFactId, setEditingFactId] = useState<Id<"contextFacts"> | null>(null);
   const [factEditValue, setFactEditValue] = useState("");
   const [aiDraftingMatchId, setAiDraftingMatchId] = useState<Id<"matches"> | null>(null);
+  const [approvalNotice, setApprovalNotice] = useState("");
   const [meetingFor, setMeetingFor] = useState<Id<"outcomes"> | null>(null);
   const [meetingAt, setMeetingAt] = useState("");
   const [meetingNotes, setMeetingNotes] = useState("");
@@ -305,6 +306,25 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
   const followUpForOutcome = (outcomeId: Id<"outcomes">) => (followUps ?? []).find((item) => item.outcomeId === outcomeId);
 
   const pendingFormWork = (formProposals ?? []).filter((proposal) => proposal.status === "draft" || proposal.status === "approved" || proposal.status === "blocked" || proposal.status === "failed").length;
+
+  // The approval gate.
+  //
+  // The orchestrator parks every mission at `approval/waiting` and never creates
+  // a draft, so "waiting for you" was previously a dead end: the gate rendered a
+  // CTA only when a draft already existed, which could not happen on its own.
+  // The card below now always says what the next step is and, when the user has
+  // one, offers the click that produces the thing they are there to approve.
+  const atApprovalGate = run?.status === "waiting" && run.currentStage === "approval";
+  const draftsOnGate = (drafts ?? []).filter((draft) => ["awaiting_approval", "approved"].includes(draft.status));
+  // Strongest label first, and only matches whose contact channel is actually
+  // established in the evidence — Radar never proposes outreach to someone it
+  // has no way to reach.
+  const draftTarget = (() => {
+    const rank: Record<string, number> = { stronger: 0, promising: 1, uncertain: 2 };
+    const reachable = (matches ?? []).filter((match) => match.label !== "insufficient" && Boolean(match.entity?.contactRoute?.value));
+    if (reachable.length === 0) return null;
+    return reachable.slice().sort((a, b) => (rank[a.label] ?? 9) - (rank[b.label] ?? 9))[0] ?? null;
+  })();
 
   const navCounts: Record<View, number | null> = {
     home: null,
@@ -683,29 +703,51 @@ Clarification: ${clarifyAnswer.trim()}` });
     } catch (error) {
       setResearchNotice(error instanceof Error ? error.message : "Match explanation failed.");
     } finally { setResearching(false); }
+  }  /**
+   * Ask the agent to draft the first message for a match.
+   *
+   * Shared by the Discover card and the approval gate, so it returns its message
+   * instead of writing to a notice: each surface reports it where the user is
+   * actually looking, rather than one of them printing into the other's panel.
+   */
+  async function proposeDraftFor(matchId: Id<"matches">): Promise<string> {
+    if (!missionId || !inbox) throw new Error("Link an AgentMail inbox first — Radar needs somewhere to send from.");
+    const result = await aiDraftMessage({
+      workspaceId,
+      missionId,
+      matchId,
+      agentmailInboxId: inbox.agentmailInboxId,
+      clientRequestId: `ai-draft-${matchId}-${Date.now()}`,
+    });
+    setLinkedMatchId(matchId);
+    if (result.actionId) return `Draft created for ${result.recipient}. Nothing sends until you approve the exact content.`;
+    // No verified recipient in the evidence: hand back the prose for review
+    // instead of pretending a draft exists that Radar cannot address.
+    setSubject(result.subject); setBody(result.body);
+    return "The model wrote a subject and body, but found no verified recipient email in the evidence — review it in Actions.";
   }
 
   async function onAiDraft(matchId: Id<"matches">) {
-    if (!missionId || !inbox) { setResearchNotice("Link an AgentMail inbox first (Outreach view)." ); return; }
     setAiDraftingMatchId(matchId); setResearchNotice("");
     try {
-      const result = await aiDraftMessage({
-        workspaceId,
-        missionId,
-        matchId,
-        agentmailInboxId: inbox.agentmailInboxId,
-        clientRequestId: `ai-draft-${matchId}-${Date.now()}`,
-      });
-      if (result.actionId) {
-        setResearchNotice(`AI draft created for ${result.recipient}. Approve it in Outreach.`);
-        setLinkedMatchId(matchId);
-      } else {
-        setResearchNotice(`The model drafted a subject and body, but no verified recipient email exists in the evidence. Review it in Outreach.`);
-        setSubject(result.subject); setBody(result.body); setLinkedMatchId(matchId);
-      }
+      setResearchNotice(await proposeDraftFor(matchId));
     } catch (error) {
       setResearchNotice(error instanceof Error ? error.message : "AI drafting failed.");
-    } finally { setAiDraftingMatchId(null); }
+    } finally {
+      setAiDraftingMatchId(null);
+    }
+  }
+
+  /** The approval gate's one-click path: draft the strongest reachable match. */
+  async function onDraftTopMatch(matchId: Id<"matches">) {
+    setAiDraftingMatchId(matchId); setApprovalNotice("");
+    try {
+      setApprovalNotice(await proposeDraftFor(matchId));
+    } catch (error) {
+      setApprovalNotice(error instanceof Error ? error.message : "AI drafting failed.");
+    } finally {
+      setAiDraftingMatchId(null);
+    }
   }
 
   async function onProvisionInbox() {
@@ -1217,11 +1259,46 @@ Clarification: ${clarifyAnswer.trim()}` });
                       </div>
                     </div>
                   )}
-                  {/* Pending approvals */}
-                  {drafts && drafts.filter((d) => ["awaiting_approval", "approved"].includes(d.status)).length > 0 && (
+                  {/* ── Approval gate: always actionable ── */}
+                  {(atApprovalGate || draftsOnGate.length > 0) && (
                     <div className="thread-approval">
-                      <p><b>Waiting for you</b> — {drafts.filter((d) => ["awaiting_approval", "approved"].includes(d.status)).length} draft{drafts.filter((d) => ["awaiting_approval", "approved"].includes(d.status)).length === 1 ? "" : "s"} ready for review.</p>
-                      <button type="button" className="btn" onClick={() => selectView("actions")}>Review & approve →</button>
+                      <div className="panel-head">
+                        <p className="eyebrow">WAITING FOR YOU</p>
+                        <span className="muted">nothing has been sent</span>
+                      </div>
+                      {draftsOnGate.length > 0 ? (
+                        <>
+                          <p><b>{draftsOnGate.length} draft{draftsOnGate.length === 1 ? "" : "s"} ready for review.</b> Each one is approved as its own exact recipient, subject, and body.</p>
+                          <div className="inline-actions">
+                            <button type="button" className="btn" onClick={() => selectView("actions")}>Review &amp; approve →</button>
+                          </div>
+                        </>
+                      ) : !inbox ? (
+                        <>
+                          <p><b>Nowhere to send from yet.</b> Radar finished researching ahead of the gate; link an AgentMail inbox and it can draft the first message.</p>
+                          <div className="inline-actions">
+                            <button type="button" className="btn" onClick={() => selectView("actions")}>Link an inbox →</button>
+                          </div>
+                        </>
+                      ) : draftTarget ? (
+                        <>
+                          <p><b>Nothing to approve yet.</b> Radar's strongest reachable match is {draftTarget.entity?.name ?? draftTarget.subject}. Ask it to draft the first message and it will appear here for your approval.</p>
+                          <div className="inline-actions">
+                            <button type="button" className="btn" onClick={() => onDraftTopMatch(draftTarget._id)} disabled={aiDraftingMatchId === draftTarget._id}>
+                              {aiDraftingMatchId === draftTarget._id ? "Drafting…" : "Draft outreach for the top match"}
+                            </button>
+                            <button type="button" className="btn ghost" onClick={() => selectView("discover")}>Choose another match →</button>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <p><b>Nothing to approve yet.</b> No match has a public contact route established, so Radar will not propose outreach — pick a target and it will look for a way in.</p>
+                          <div className="inline-actions">
+                            <button type="button" className="btn ghost" onClick={() => selectView("discover")}>Review matches →</button>
+                          </div>
+                        </>
+                      )}
+                      {approvalNotice && <p className="stage-note">{approvalNotice}</p>}
                     </div>
                   )}
                   {/* Terminal state */}
