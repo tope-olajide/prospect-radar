@@ -6,6 +6,7 @@ import { contentHash, boundedText } from "./hash";
 import { transitionRun } from "./runState";
 import { recordOutboundOutcome } from "./outcomes";
 import { validateWorkspace } from "./model/auth";
+import { internal } from "./_generated/api";
 
 const actionStatus = v.union(
   v.literal("draft"),
@@ -214,24 +215,39 @@ export const approve = mutation({
       });
     }
     await ctx.db.patch(draftRow._id, { status: "approved", errorSummary: null, updatedAt: now });
-    const run = await ctx.db.query("agentRuns")
-      .withIndex("by_missionId", (q) => q.eq("missionId", draftRow.missionId))
-      .first();
-    if (run && !["complete", "failed", "cancelled"].includes(run.status)) {
-      try {
-        await transitionRun(ctx, {
-          missionId: draftRow.missionId,
-          targetStage: "approval",
-          targetStatus: "active",
-          interruption: null,
-          eventType: "action.approved",
-          safeSummary: "User approved the exact recipient, subject, and body.",
-        });
-      } catch {
-        // Stage transitions are advisory here; approval is the source of truth.
-      }
+    // Approval is the gate the whole loop hangs on, so it resumes the mission.
+    // This used to transition the run to `approval`/`active` without scheduling
+    // anything, which left the agent looking busy at a stage it was not working
+    // in; the page had to call `send` for the approved action to be executed at
+    // all. `advanceToExecute` only moves a run that is parked on the gate.
+    try {
+      await ctx.runMutation(internal.orchestratorStore.advanceToExecute, { missionId: draftRow.missionId });
+    } catch {
+      // Advisory: approval is the source of truth even if the run cannot advance.
     }
     return { actionId: draftRow._id, status: "approved" as const, expiresAt };
+  },
+});
+
+/**
+ * Every draft on a mission that the user has approved but that has not left yet.
+ *
+ * Only `approved` is selected: an `executing` draft is already in flight, and
+ * `send`'s own contract requires the approved status, so selecting it here would
+ * only produce a guaranteed APPROVAL_REQUIRED failure.
+ */
+export const approvedDraftsForMission = internalQuery({
+  args: { missionId: v.id("missions") },
+  returns: v.array(v.object({ _id: v.id("actionDrafts"), recipient: v.string() })),
+  handler: async (ctx, args) => {
+    const rows = await ctx.db
+      .query("actionDrafts")
+      .withIndex("by_missionId", (q) => q.eq("missionId", args.missionId))
+      .collect();
+    return rows
+      .filter((row) => row.status === "approved")
+      .sort((a, b) => a.createdAt - b.createdAt)
+      .map((row) => ({ _id: row._id, recipient: row.recipient }));
   },
 });
 
@@ -478,6 +494,43 @@ export const getInbox = query({
     return inbox
       ? { _id: inbox._id, agentmailInboxId: inbox.agentmailInboxId, email: inbox.email, displayName: inbox.displayName }
       : null;
+  },
+});
+
+/**
+ * The workspace's linked inbox, resolved without a client identity.
+ *
+ * `getInbox` is the user-facing read and asserts workspace authority from the
+ * caller; the orchestrator has no caller identity, so it needs its own door.
+ */
+export const inboxForWorkspace = internalQuery({
+  args: { workspaceId: v.string() },
+  returns: v.union(v.object({ agentmailInboxId: v.string(), email: v.string() }), v.null()),
+  handler: async (ctx, args) => {
+    const inbox = await ctx.db.query("agentInboxes")
+      .withIndex("by_workspaceId", (q) => q.eq("workspaceId", args.workspaceId))
+      .first();
+    return inbox ? { agentmailInboxId: inbox.agentmailInboxId, email: inbox.email } : null;
+  },
+});
+
+/**
+ * Matches that already have a draft, so a proposal is never prepared twice.
+ *
+ * The approval gate can be re-entered (a rejected draft, a reply that needs a
+ * new proposal), and `prepareDraft` is keyed on `clientRequestId` — but this
+ * read is what keeps the agent from re-drafting the same counterpart at all.
+ */
+export const draftMatchIdsForMission = internalQuery({
+  args: { missionId: v.id("missions") },
+  returns: v.array(v.id("matches")),
+  handler: async (ctx, args) => {
+    const drafts = await ctx.db.query("actionDrafts")
+      .withIndex("by_missionId", (q) => q.eq("missionId", args.missionId))
+      .collect();
+    return drafts
+      .map((draft) => draft.matchId)
+      .filter((id): id is Id<"matches"> => id !== null);
   },
 });
 

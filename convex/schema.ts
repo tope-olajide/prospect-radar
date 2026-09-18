@@ -17,7 +17,7 @@ const intentObject = v.object({
 });
 const missionStatus = v.union(v.literal("draft"), v.literal("ready"), v.literal("running"), v.literal("waiting"), v.literal("blocked"), v.literal("complete"), v.literal("failed"), v.literal("expired"), v.literal("cancelled"));
 const runStatus = v.union(v.literal("queued"), v.literal("active"), v.literal("waiting"), v.literal("blocked"), v.literal("complete"), v.literal("failed"), v.literal("cancelled"));
-const runStage = v.union(v.literal("intake"), v.literal("interpret"), v.literal("plan"), v.literal("plan_review"), v.literal("discover"), v.literal("check_in"), v.literal("evaluate"), v.literal("approval"), v.literal("execute"), v.literal("wait"), v.literal("complete"));
+const runStage = v.union(v.literal("intake"), v.literal("interpret"), v.literal("plan"), v.literal("plan_review"), v.literal("discover"), v.literal("check_in"), v.literal("evaluate"), v.literal("approval"), v.literal("execute"), v.literal("observe"), v.literal("wait"), v.literal("complete"));
 const sourceType = v.union(v.literal("search_result"), v.literal("scraped_page"), v.literal("crawled_page"), v.literal("mapped_site"));
 const dataSourceKind = v.union(v.literal("file"), v.literal("website"), v.literal("snippet"));
 const dataSourceCrawlMode = v.union(v.literal("crawl"), v.literal("sitemap"), v.literal("single"));

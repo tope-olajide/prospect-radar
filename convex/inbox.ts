@@ -245,15 +245,16 @@ export const recordInboundMessage = internalMutation({
     }
 
     if (missionId) {
-      const run = await ctx.db.query("agentRuns")
-        .withIndex("by_missionId", (q) => q.eq("missionId", missionId))
-        .first();
-      if (run && !["complete", "failed", "cancelled"].includes(run.status)) {
-        const stageOrder = ["intake", "interpret", "plan", "discover", "evaluate", "approval", "execute", "wait", "complete"];
-        if (stageOrder.indexOf(run.currentStage) < stageOrder.indexOf("wait")) {
-          await ctx.db.patch(run._id, { nextWakeAt: now, updatedAt: now });
-        }
-      }
+      // A reply is an external event, so it wakes the mission and lets the agent
+      // decide the next step from what actually happened. Before this, the reply
+      // was recorded and a `nextWakeAt` nobody read was stamped, so the event sat
+      // in the inbox until a human happened to notice it. `wakeForEvent` is a
+      // no-op for a run that is mid-stage, because that run already owns its own
+      // continuation and waking it would race the stage in flight.
+      await ctx.runMutation(internal.orchestratorStore.wakeForEvent, {
+        missionId,
+        reason: `Reply received from ${sender}.`,
+      });
     }
     return messageId;
   },

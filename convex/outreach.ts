@@ -4,7 +4,8 @@ import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { AgentMail, type AgentMailComponent } from "@agentmail/convex";
 import { api, components, internal } from "./_generated/api";
-import { action } from "./_generated/server";
+import { action, internalAction } from "./_generated/server";
+import type { ActionCtx } from "./_generated/server";
 import { contentHash, boundedText } from "./hash";
 import { llmConfig } from "./ai";
 import { validateWorkspace } from "./model/auth";
@@ -123,18 +124,34 @@ export const draft = action({
   },
 });
 
-export const send = action({
-  args: { workspaceId: v.string(), actionId: v.id("actionDrafts") },
-  returns: v.object({
-    actionId: v.id("actionDrafts"),
-    status: actionStatus,
-    outboundId: v.union(v.string(), v.null()),
-    providerMessageId: v.union(v.string(), v.null()),
-    threadId: v.union(v.string(), v.null()),
-  }),
-  handler: async (ctx, args): Promise<{ actionId: any; status: ActionStatus; outboundId: string | null; providerMessageId: string | null; threadId: string | null }> => {
+type SendResult = {
+  actionId: Id<"actionDrafts">;
+  status: ActionStatus;
+  outboundId: string | null;
+  providerMessageId: string | null;
+  threadId: string | null;
+};
+
+/**
+ * The single send path.
+ *
+ * Shared by the public action (a person pressing Send) and the orchestrator's
+ * `execute` stage (the agent executing what was already approved). Both go
+ * through the same approval lookup, the same recomputed-hash comparison, and the
+ * same fail-closed errors — so an autonomous send can never be weaker than a
+ * manual one, and there is only one place where the approval contract lives.
+ *
+ * `expectedWorkspaceId` is supplied by the public action, where the caller's
+ * workspace is client-supplied and must be asserted. The orchestrator passes
+ * `null`: it selects drafts by mission through an internal query, so there is no
+ * client-supplied scope to check, and inventing one would assert nothing.
+ */
+async function performSend(
+  ctx: ActionCtx,
+  args: { actionId: Id<"actionDrafts">; expectedWorkspaceId: string | null },
+): Promise<SendResult> {
     const draftRow = await ctx.runQuery(internal.outreachStore.draftForSend, { actionId: args.actionId });
-    if (!draftRow || draftRow.workspaceId !== args.workspaceId) {
+    if (!draftRow || (args.expectedWorkspaceId !== null && draftRow.workspaceId !== args.expectedWorkspaceId)) {
       throw new Error("FORBIDDEN_SCOPE: draft is not in this workspace.");
     }
     if (draftRow.providerMessageId && draftRow.threadId) {
@@ -211,6 +228,126 @@ export const send = action({
       });
       throw error;
     }
+}
+
+/**
+ * Server-driven action proposal — the agent's own choice of who to contact.
+ *
+ * This is the hop that previously only existed as a button: the run reached the
+ * approval gate with nothing to approve, so the user had to pick a tool before
+ * anything could be sent. Here the mission decides for itself, from its own
+ * ranked matches and a verified contact route, which counterpart is worth
+ * proposing an action for.
+ *
+ * It proposes; it never sends. Every proposal lands as a draft that still has to
+ * pass the same approval gate and content-hash check as a hand-written one.
+ */
+export const proposeForMission = internalAction({
+  args: { missionId: v.id("missions"), limit: v.optional(v.number()) },
+  returns: v.object({
+    proposed: v.number(),
+    reason: v.union(v.string(), v.null()),
+  }),
+  handler: async (ctx, args): Promise<{ proposed: number; reason: string | null }> => {
+    const mission = await ctx.runQuery(internal.missionsInternal.get, { missionId: args.missionId });
+    if (!mission) return { proposed: 0, reason: "mission_unavailable" };
+
+    // Without somewhere to send from, an outreach draft is not a real option.
+    // Say so plainly rather than producing a draft that could never leave.
+    const inbox = await ctx.runQuery(internal.outreachStore.inboxForWorkspace, {
+      workspaceId: mission.workspaceId,
+    });
+    if (!inbox) return { proposed: 0, reason: "no_inbox" };
+
+    const alreadyDrafted = await ctx.runQuery(internal.outreachStore.draftMatchIdsForMission, {
+      missionId: args.missionId,
+    });
+    const drafted = new Set<string>(alreadyDrafted);
+    const candidates = await ctx.runQuery(internal.researchStore.actionableMatches, {
+      missionId: args.missionId,
+    });
+
+    const limit = Math.max(1, Math.min(args.limit ?? 1, 3));
+    let proposed = 0;
+    for (const candidate of candidates) {
+      if (proposed >= limit) break;
+      if (drafted.has(candidate.matchId)) continue;
+      try {
+        const result = await ctx.runAction(api.ai.draftMessage, {
+          workspaceId: mission.workspaceId,
+          missionId: args.missionId,
+          matchId: candidate.matchId,
+          agentmailInboxId: inbox.agentmailInboxId,
+          // Deterministic: re-entering the gate cannot produce a second draft
+          // for the same counterpart.
+          clientRequestId: `mission-${args.missionId}-match-${candidate.matchId}`,
+        });
+        if (!result.actionId) continue;
+        proposed += 1;
+        await ctx.runMutation(internal.runs.recordStepForAction, {
+          missionId: args.missionId,
+          stage: "approval",
+          label: "action.proposed",
+          summary: `Proposed outreach to ${result.recipient} for a ${candidate.label} match. Drafted from cited evidence; nothing sends until you approve the exact content.`,
+          reference: result.subject,
+          errorCode: null,
+          tool: "openai.draft",
+        });
+      } catch (error) {
+        // One unreachable counterpart must not stop the others being proposed.
+        await ctx.runMutation(internal.runs.recordStepForAction, {
+          missionId: args.missionId,
+          stage: "approval",
+          label: "action.proposal_failed",
+          summary: `Could not prepare outreach for a ${candidate.label} match: ${error instanceof Error ? error.message : "drafting failed"}.`,
+          reference: null,
+          errorCode: "ACTION_PROPOSAL_FAILED",
+          tool: "openai.draft",
+        });
+      }
+    }
+    return proposed > 0 ? { proposed, reason: null } : { proposed: 0, reason: "no_reachable_match" };
+  },
+});
+
+export const send = action({
+  args: { workspaceId: v.string(), actionId: v.id("actionDrafts") },
+  returns: v.object({
+    actionId: v.id("actionDrafts"),
+    status: actionStatus,
+    outboundId: v.union(v.string(), v.null()),
+    providerMessageId: v.union(v.string(), v.null()),
+    threadId: v.union(v.string(), v.null()),
+  }),
+  handler: async (ctx, args): Promise<SendResult> =>
+    performSend(ctx, { actionId: args.actionId, expectedWorkspaceId: args.workspaceId }),
+});
+
+/**
+ * Executes every approved draft on a mission. This is what makes an approval
+ * actually resume the loop: the agent executes what the user authorised, without
+ * a page having to call `send` for it.
+ *
+ * One draft failing must not strand the others, so each is attempted
+ * independently and the failures are returned rather than thrown — the
+ * orchestrator records them on the run instead of losing the whole stage.
+ */
+export const sendApprovedForMission = internalAction({
+  args: { missionId: v.id("missions") },
+  returns: v.object({ attempted: v.number(), sent: v.number(), failures: v.array(v.string()) }),
+  handler: async (ctx, args): Promise<{ attempted: number; sent: number; failures: string[] }> => {
+    const drafts = await ctx.runQuery(internal.outreachStore.approvedDraftsForMission, { missionId: args.missionId });
+    let sent = 0;
+    const failures: string[] = [];
+    for (const draft of drafts) {
+      try {
+        const result = await performSend(ctx, { actionId: draft._id, expectedWorkspaceId: null });
+        if (result.status === "sent" || result.status === "delivered") sent += 1;
+      } catch (error) {
+        failures.push(`${draft.recipient}: ${error instanceof Error ? error.message : "send failed"}`);
+      }
+    }
+    return { attempted: drafts.length, sent, failures };
   },
 });
 

@@ -5,7 +5,7 @@ import { internalMutation, query } from "./_generated/server";
 import { transitionRun } from "./runState";
 
 const runStatus = v.union(v.literal("queued"), v.literal("active"), v.literal("waiting"), v.literal("blocked"), v.literal("complete"), v.literal("failed"), v.literal("cancelled"));
-const runStage = v.union(v.literal("intake"), v.literal("interpret"), v.literal("plan"), v.literal("plan_review"), v.literal("discover"), v.literal("check_in"), v.literal("evaluate"), v.literal("approval"), v.literal("execute"), v.literal("wait"), v.literal("complete"));
+const runStage = v.union(v.literal("intake"), v.literal("interpret"), v.literal("plan"), v.literal("plan_review"), v.literal("discover"), v.literal("check_in"), v.literal("evaluate"), v.literal("approval"), v.literal("execute"), v.literal("observe"), v.literal("wait"), v.literal("complete"));
 const run = v.object({ _id: v.id("agentRuns"), status: runStatus, currentStage: runStage, checkpointVersion: v.number(), activeInterruption: v.union(v.string(), v.null()), nextWakeAt: v.union(v.number(), v.null()), retryCount: v.number(), startedAt: v.union(v.number(), v.null()), finishedAt: v.union(v.number(), v.null()), createdAt: v.number(), updatedAt: v.number() });
 const event = v.object({ _id: v.id("runEvents"), missionId: v.id("missions"), runId: v.id("agentRuns"), type: v.string(), stage: runStage, safeSummary: v.string(), createdAt: v.number() });
 
@@ -57,7 +57,7 @@ export async function recordStep(
   ctx: MutationCtx,
   args: {
     missionId: Id<"missions">;
-    stage: "intake" | "interpret" | "plan" | "plan_review" | "discover" | "check_in" | "evaluate" | "approval" | "execute" | "wait" | "complete";
+    stage: "intake" | "interpret" | "plan" | "plan_review" | "discover" | "check_in" | "evaluate" | "approval" | "execute" | "observe" | "wait" | "complete";
     label: string;
     summary: string;
     reference?: string | null;

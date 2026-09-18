@@ -750,13 +750,36 @@ Clarification: ${clarifyAnswer.trim()}` });
     }
   }
 
+  /**
+   * Create the workspace's sending inbox.
+   *
+   * Shared by the Actions page and the approval gate, so it returns its message
+   * instead of writing to a notice: provisioning can fail (AgentMail caps the
+   * account's inboxes), and a failure the user cannot see is worse than no
+   * button at all. `clientRequestId` is derived from the workspace, so a second
+   * click returns the existing inbox rather than creating another one.
+   */
+  async function provisionSendingInbox(): Promise<string> {
+    const result = await provisionInbox({ workspaceId, clientRequestId: `inbox-${workspaceId}`, displayName: "Prospect Radar" });
+    return `AgentMail inbox ready: ${result.email}`;
+  }
+
   async function onProvisionInbox() {
     setProvisioning(true); setOutreachNotice("");
     try {
-      const result = await provisionInbox({ workspaceId, clientRequestId: `inbox-${workspaceId}`, displayName: "Prospect Radar" });
-      setOutreachNotice(`AgentMail inbox ready: ${result.email}`);
+      setOutreachNotice(await provisionSendingInbox());
     } catch (error) {
       setOutreachNotice(error instanceof Error ? error.message : "AgentMail inbox provisioning failed.");
+    } finally { setProvisioning(false); }
+  }
+
+  /** The gate's inline path: provision without sending the user to another page. */
+  async function onProvisionInboxFromGate() {
+    setProvisioning(true); setApprovalNotice("");
+    try {
+      setApprovalNotice(await provisionSendingInbox());
+    } catch (error) {
+      setApprovalNotice(error instanceof Error ? error.message : "AgentMail inbox provisioning failed.");
     } finally { setProvisioning(false); }
   }
 
@@ -1275,9 +1298,11 @@ Clarification: ${clarifyAnswer.trim()}` });
                         </>
                       ) : !inbox ? (
                         <>
-                          <p><b>Nowhere to send from yet.</b> Radar finished researching ahead of the gate; link an AgentMail inbox and it can draft the first message.</p>
+                          <p><b>Nowhere to send from yet.</b> Radar finished researching ahead of the gate. Create a sending inbox and it can draft the first message here.</p>
                           <div className="inline-actions">
-                            <button type="button" className="btn" onClick={() => selectView("actions")}>Link an inbox →</button>
+                            <button type="button" className="btn" onClick={onProvisionInboxFromGate} disabled={!backendConnected || provisioning}>
+                              {provisioning ? "Creating inbox…" : "Create sending inbox"}
+                            </button>
                           </div>
                         </>
                       ) : draftTarget ? (

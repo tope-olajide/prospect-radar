@@ -1,5 +1,5 @@
 /** The lifecycle nodes the run can be in, in agent order. */
-export const RUN_STAGES = ["intake", "interpret", "plan", "plan_review", "discover", "check_in", "evaluate", "approval", "execute", "complete"] as const;
+export const RUN_STAGES = ["intake", "interpret", "plan", "plan_review", "discover", "check_in", "evaluate", "approval", "execute", "observe", "complete"] as const;
 export type RunStageName = (typeof RUN_STAGES)[number];
 
 const STAGE_COPY: Record<RunStageName, { title: string; doing: string }> = {
@@ -12,10 +12,11 @@ const STAGE_COPY: Record<RunStageName, { title: string; doing: string }> = {
   evaluate: { title: "Evaluating matches", doing: "Scoring what it found against your must-haves" },
   approval: { title: "Waiting for you", doing: "Nothing sends until you approve the exact content" },
   execute: { title: "Acting on your approval", doing: "Sending only what you approved" },
+  observe: { title: "Watching for responses", doing: "Waiting on the outside world; replies wake this mission" },
   complete: { title: "Mission complete", doing: "Outcome recorded; the relationship stays on the radar" },
 };
 
-const STAGE_ORDER: Record<RunStageName, number> = { intake: 0, interpret: 1, plan: 2, plan_review: 3, discover: 4, check_in: 5, evaluate: 6, approval: 7, execute: 8, complete: 9 };
+const STAGE_ORDER: Record<RunStageName, number> = { intake: 0, interpret: 1, plan: 2, plan_review: 3, discover: 4, check_in: 5, evaluate: 6, approval: 7, execute: 8, observe: 9, complete: 10 };
 
 export type RunView = {
   status: string;

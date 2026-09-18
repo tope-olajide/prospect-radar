@@ -1,7 +1,7 @@
 import type { Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
 
-type RunStage = "intake" | "interpret" | "plan" | "plan_review" | "discover" | "check_in" | "evaluate" | "approval" | "execute" | "wait" | "complete";
+type RunStage = "intake" | "interpret" | "plan" | "plan_review" | "discover" | "check_in" | "evaluate" | "approval" | "execute" | "observe" | "wait" | "complete";
 type RunStatus = "queued" | "active" | "waiting" | "blocked" | "complete" | "failed" | "cancelled";
 type MissionStatus = "draft" | "ready" | "running" | "waiting" | "blocked" | "complete" | "failed" | "expired" | "cancelled";
 
@@ -12,10 +12,15 @@ const allowedNextStages: Record<RunStage, RunStage[]> = {
   plan_review: ["discover", "evaluate", "approval", "wait", "complete"],
   discover: ["check_in", "evaluate", "approval", "wait", "complete"],
   check_in: ["evaluate", "discover", "approval", "wait", "complete"],
-  evaluate: ["discover", "check_in", "approval", "execute", "wait", "complete"],
-  approval: ["execute", "wait", "complete"],
-  execute: ["approval", "wait", "complete"],
-  wait: ["discover", "evaluate", "approval", "execute", "complete"],
+  evaluate: ["discover", "check_in", "approval", "execute", "observe", "wait", "complete"],
+  // `observe` is reachable from `approval` because a parked gate is where an
+  // external event (a reply) lands: the wake routes through observation rather
+  // than straight to a new action, so the next step is decided from what
+  // actually happened.
+  approval: ["execute", "observe", "wait", "complete"],
+  execute: ["observe", "approval", "wait", "complete"],
+  observe: ["approval", "execute", "discover", "wait", "complete"],
+  wait: ["discover", "evaluate", "approval", "execute", "observe", "complete"],
   complete: [],
 };
 

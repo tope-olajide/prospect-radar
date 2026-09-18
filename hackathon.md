@@ -211,6 +211,32 @@ event dedup intact. Verified: tsc clean, 187 tests passing. Auth: Convex Auth
 (`convex/auth.ts`, `convex/auth.config.ts`, `convex/model/auth.ts`,
 `convex/users.ts`, `src/SignIn.tsx`, `src/main.tsx`).
 
+### 2026-09-18 - working tree — mission loop made self-driving
+Closed the four breaks that kept Radar a durable workflow engine rather than a
+background agent. **`execute` is reachable and automatic**: approving a draft
+now moves a parked run onto `execute` (`orchestratorStore.advanceToExecute`,
+called from `outreachStore.approve`), and one shared `performSend` serves both
+the public `outreach.send` action and the orchestrator's
+`internal.outreach.sendApprovedForMission`, so an autonomous send can never be
+weaker than a manual one. **`observe` is a real stage**: it reads persisted
+counts (sent / engaged / awaiting approval / failed), then decides — complete,
+re-open the gate, or park on a scheduled wake (`parkWaiting`, six-hour horizon, a
+reply interrupts it early). **The agent proposes its own actions**: new
+`internal.outreach.proposeForMission` ranks the mission's matches
+(`researchStore.actionableMatches`, explanation-label order, *verified email
+route only*) and drafts the strongest one, so the approval gate opens with real
+drafts instead of asking the user to pick a tool; it refuses with `no_inbox` or
+`no_reachable_match` rather than inventing a recipient. **`nextWakeAt` has a
+reader** and the AgentMail webhook wakes the correct mission through
+observation. `checkCompletion` is now action-generic — form submissions and
+future action types can satisfy the plan's predicate, not just `sent` emails.
+Verified: tsc clean on both configs, **201 tests passing** (16 files), including
+new `tests/autonomy.test.ts` pinning that approval resumes the mission with no
+page calling `send` and that the agent proposes nothing it cannot address.
+Not yet proven: a live no-scripted-click trace on the deployment, and the
+dev/prod credential separation the PM asked to complete **before** any runtime
+data reset.
+
 ### 2026-09-18 - 43a68b0
 Six agent UX gaps fixed after comparing Radar against ChatGPT Agent, Devin, Manus, Perplexity, and Cursor. **Plan preview**: new `plan_review` durable run stage pauses after planning so the user approves the plan before searching (`approvePlan` mutation in `convex/orchestratorStore.ts`). **Check-in**: new `check_in` stage pauses after discovery to show a summary card before evaluation (`continueAfterCheckIn` mutation). **Inline tool cards**: expandable step cards replace the flat transcript, each showing stage dot + tool chip + summary. **Source chips**: match cards carry inline hostname pills linking to crawled evidence. **Follow-up suggestions**: completion row with contextual next-action pills (draft outreach, review entities, find similar). **Parallel job visibility**: live Firecrawl job pills during the discover stage. All stages wired through `runState.ts`, `runs.ts`, `schema.ts`, `MissionLifecycle.tsx`. 187 tests pass.
 

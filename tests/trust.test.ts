@@ -41,8 +41,16 @@ function sentCalls() {
   return (globalThis as Record<string, unknown>).__agentmailSent as Array<{ to: string; subject: string; text: string }>;
 }
 
+// Approval resumes the mission, so an approved draft can be executed by a
+// scheduled function rather than by a page calling `send`. convex-test leaves
+// that function queued unless it is drained, which would let one test's send
+// land while the next test is running. Tracking the instance lets each test
+// finish its own scheduled work before the file moves on.
+let lastTest: TestT | null = null;
+
 /** Seeds a mission + inbox + draft whose stored hash is the real content hash. */
 async function seedDraft(t: TestT, opts?: { workspace?: string }) {
+  lastTest = t;
   const workspace = opts?.workspace ?? WORKSPACE;
   return t.run(async (ctx) => {
     const now = Date.now();
@@ -109,9 +117,21 @@ async function seedDraft(t: TestT, opts?: { workspace?: string }) {
 
 beforeEach(() => {
   process.env.OPENAI_API_KEY = "test-key";
+  // The AgentMail double records into a module-level array that lives for the
+  // whole file. A send scheduled by one test (approval now resumes the mission,
+  // so an approved draft can execute without a page calling `send`) would
+  // otherwise be counted as a side effect of the next test. Each test must
+  // observe only its own sends.
+  // The mock factory runs lazily, so the array may not exist until the first
+  // test imports the mocked module.
+  const sent = sentCalls();
+  if (Array.isArray(sent)) sent.length = 0;
 });
 
-afterEach(() => {
+afterEach(async () => {
+  // Drain whatever the test scheduled, inside the test that caused it.
+  await lastTest?.finishInProgressScheduledFunctions();
+  lastTest = null;
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
   delete process.env.OPENAI_API_KEY;

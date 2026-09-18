@@ -185,9 +185,14 @@ export const checkCompletion = internalMutation({
     if (!mission || ["complete", "cancelled"].includes(mission.status)) return false;
     const run = await ctx.db.query("agentRuns").withIndex("by_missionId", (q) => q.eq("missionId", args.missionId)).first();
     if (!run || run.status === "cancelled") return false;
+    // A mission is satisfied by any executed action, not only an email. Checking
+    // actionDrafts alone made a form-only mission impossible to complete: the
+    // form path calls this on success, but no draft ever exists for it.
     const drafts = await ctx.db.query("actionDrafts").withIndex("by_missionId", (q) => q.eq("missionId", args.missionId)).collect();
-    const hasSent = drafts.some((draft) => ["sent", "delivered"].includes(draft.status));
-    if (!hasSent) return false;
+    const hasSentDraft = drafts.some((draft) => ["sent", "delivered"].includes(draft.status));
+    const submissions = await ctx.db.query("formSubmissions").withIndex("by_missionId", (q) => q.eq("missionId", args.missionId)).collect();
+    const hasSubmittedForm = submissions.some((row) => row.status === "submitted");
+    if (!hasSentDraft && !hasSubmittedForm) return false;
     const matches = await ctx.db.query("matches").withIndex("by_missionId", (q) => q.eq("missionId", args.missionId)).collect();
     if (matches.length === 0) return false;
     const now = Date.now();
@@ -195,12 +200,149 @@ export const checkCompletion = internalMutation({
     if (run.status !== "complete") {
       await ctx.db.patch(run._id, { status: "complete", currentStage: "complete", finishedAt: now, updatedAt: now });
       await ctx.db.insert("runEvents", {
-        missionId: args.missionId, runId: run._id, type: "mission.complete", stage: "complete",
-        safeSummary: "Completion predicate satisfied: a sourced match was approved and sent.",
+        missionId: args.missionId, runId: run._id,        type: "mission.complete", stage: "complete",
+        safeSummary: "Completion predicate satisfied: an approved action was executed against a sourced match.",
         createdAt: now,
       });
     }
     return true;
+  },
+});
+
+/**
+ * What actually happened on a mission, as counts.
+ *
+ * The `observe` stage decides from this and nothing else, so the decision stays
+ * inspectable: whoever is reading the run can read the same numbers the agent
+ * read, rather than being told a conclusion.
+ */
+export const observationFor = internalQuery({
+  args: { missionId: v.id("missions") },
+  returns: v.object({
+    pendingApproval: v.number(), approvedPending: v.number(),
+    sent: v.number(), failed: v.number(), engaged: v.number(),
+  }),
+  handler: async (ctx, args) => {
+    const drafts = await ctx.db.query("actionDrafts").withIndex("by_missionId", (q) => q.eq("missionId", args.missionId)).collect();
+    const outcomes = await ctx.db.query("outcomes").withIndex("by_missionId", (q) => q.eq("missionId", args.missionId)).collect();
+    return {
+      pendingApproval: drafts.filter((draft) => draft.status === "awaiting_approval").length,
+      approvedPending: drafts.filter((draft) => draft.status === "approved").length,
+      sent: drafts.filter((draft) => ["sent", "delivered"].includes(draft.status)).length,
+      failed: drafts.filter((draft) => draft.status === "failed").length,
+      engaged: outcomes.filter((outcome) => ["replied", "positive"].includes(outcome.status)).length,
+    };
+  },
+});
+
+/**
+ * Parks a finished stage in `wait`, scheduling the wake that will read
+ * `nextWakeAt`.
+ *
+ * `nextWakeAt` previously had three writers and no reader, so a mission that
+ * reported itself as waiting was waiting for nothing. Parking now schedules its
+ * own wake, which gives the field its first real consumer.
+ */
+export const parkWaiting = internalMutation({
+  args: { missionId: v.id("missions"), reason: v.string(), horizonMs: v.number() },
+  returns: v.object({ parked: v.boolean(), wakeAt: v.union(v.number(), v.null()) }),
+  handler: async (ctx, args) => {
+    const run = await ctx.db.query("agentRuns").withIndex("by_missionId", (q) => q.eq("missionId", args.missionId)).first();
+    // Only an active run parks. A run the user stopped, or one another
+    // invocation already parked, must not be stolen.
+    if (!run || run.status !== "active") return { parked: false, wakeAt: null };
+    await ctx.runMutation(internal.runs.transition, {
+      missionId: args.missionId, targetStage: "wait" as Stage, targetStatus: "waiting",
+      interruption: null, eventType: "mission.waiting", safeSummary: args.reason,
+    });
+    const wakeAt = args.horizonMs > 0 ? Date.now() + args.horizonMs : null;
+    if (wakeAt) {
+      await ctx.db.patch(run._id, { nextWakeAt: wakeAt, updatedAt: Date.now() });
+      await ctx.scheduler.runAt(wakeAt, internal.orchestratorStore.wakeScheduled, { missionId: args.missionId });
+    }
+    return { parked: true, wakeAt };
+  },
+});
+
+/**
+ * The reader for `nextWakeAt`: resumes a parked mission whose horizon has passed.
+ *
+ * The guard is on the exact parked state, so a timeout wake that was scheduled
+ * before an event-driven wake arrived is a no-op instead of a second resume.
+ */
+export const wakeScheduled = internalMutation({
+  args: { missionId: v.id("missions") },
+  returns: v.object({ woken: v.boolean() }),
+  handler: async (ctx, args) => {
+    const run = await ctx.db.query("agentRuns").withIndex("by_missionId", (q) => q.eq("missionId", args.missionId)).first();
+    if (!run || run.status !== "waiting" || run.currentStage !== "wait") return { woken: false };
+    if (run.nextWakeAt === null || run.nextWakeAt > Date.now()) return { woken: false };
+    await ctx.runMutation(internal.runs.transition, {
+      missionId: args.missionId, targetStage: "observe" as Stage, targetStatus: "active",
+      interruption: null, eventType: "mission.woken",
+      safeSummary: "The wait horizon passed — checking for new external activity.",
+    });
+    await ctx.scheduler.runAfter(0, internal.missionOrchestrator.runStage, { missionId: args.missionId });
+    return { woken: true };
+  },
+});
+
+/**
+ * Resumes a parked mission because something happened outside it.
+ *
+ * Only a `waiting` run is woken. A run that is mid-stage already owns its own
+ * continuation, and resuming it here would race the stage in flight. Both parked
+ * stages are eligible, because a reply usually arrives while the mission is
+ * sitting on the approval gate — the most likely place for it to be parked.
+ */
+export const wakeForEvent = internalMutation({
+  args: { missionId: v.id("missions"), reason: v.string() },
+  returns: v.object({ woken: v.boolean() }),
+  handler: async (ctx, args) => {
+    const run = await ctx.db.query("agentRuns").withIndex("by_missionId", (q) => q.eq("missionId", args.missionId)).first();
+    if (!run || run.status !== "waiting") return { woken: false };
+    await ctx.runMutation(internal.runs.transition, {
+      missionId: args.missionId, targetStage: "observe" as Stage, targetStatus: "active",
+      interruption: null, eventType: "mission.woken", safeSummary: args.reason,
+    });
+    await ctx.scheduler.runAfter(0, internal.missionOrchestrator.runStage, { missionId: args.missionId });
+    return { woken: true };
+  },
+});
+
+/**
+ * Resumes the mission because the user approved an action.
+ *
+ * Without this the gate had no exit: approving a draft left the run parked at
+ * `approval`, and the approved action was only ever executed if a page called
+ * `send` — which is the difference between an agent and a dashboard. Deliberately
+ * narrow: it only moves a run that is actually parked on `approval`, so approving
+ * an action while a stage is mid-flight cannot yank the run out of its work.
+ */
+export const advanceToExecute = internalMutation({
+  args: { missionId: v.id("missions") },
+  returns: v.object({ advanced: v.boolean() }),
+  handler: async (ctx, args) => {
+    const run = await ctx.db.query("agentRuns").withIndex("by_missionId", (q) => q.eq("missionId", args.missionId)).first();
+    if (!run) return { advanced: false };
+    if (run.currentStage !== "approval") return { advanced: false };
+    if (run.status !== "waiting" && run.status !== "active") return { advanced: false };
+    // Only advance when something is genuinely approved and unsent. A gate that
+    // was reopened with nothing actionable stays open rather than cycling
+    // through execute and back.
+    const drafts = await ctx.db.query("actionDrafts").withIndex("by_missionId", (q) => q.eq("missionId", args.missionId)).collect();
+    if (!drafts.some((draft) => draft.status === "approved")) return { advanced: false };
+    try {
+      await ctx.runMutation(internal.runs.transition, {
+        missionId: args.missionId, targetStage: "execute" as Stage, targetStatus: "active",
+        interruption: null, eventType: "action.approved.executing",
+        safeSummary: "User approved the exact content — the agent is executing it.",
+      });
+    } catch {
+      return { advanced: false };
+    }
+    await ctx.scheduler.runAfter(0, internal.missionOrchestrator.runStage, { missionId: args.missionId });
+    return { advanced: true };
   },
 });
 
