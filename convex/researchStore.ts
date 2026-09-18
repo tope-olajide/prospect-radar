@@ -693,6 +693,25 @@ const sourceView = v.object({
   updatedAt: v.number(),
 });
 
+/**
+ * Machine sentinels the evaluator returns for `recommendedAction`.
+ *
+ * The prompt tells the model to return the literal `research_alt_route` when a
+ * match has no established contact channel — a *decision* ("do not propose
+ * outreach yet"), not copy. It is stored verbatim so the decision stays
+ * inspectable in the database, and translated here so the raw token can never
+ * reach a client: without this, the match card literally read
+ * "Next research_alt_route".
+ */
+const ACTION_SENTINELS: Record<string, string> = {
+  research_alt_route: "Find another route to reach them — no public contact channel is established yet.",
+};
+
+/** Prose for a stored action, so no read path can leak an enum-shaped token. */
+function readableAction(value: string): string {
+  return ACTION_SENTINELS[value] ?? value;
+}
+
 const matchView = v.object({
   _id: v.id("matches"),
   missionId: v.id("missions"),
@@ -702,8 +721,8 @@ const matchView = v.object({
   positiveEvidence: v.array(v.string()),
   unknowns: v.array(v.string()),
   risks: v.array(v.string()),        freshness: v.string(),
-        recommendedAction: v.string(),
-        explanationSummary: v.union(v.string(), v.null()),
+  recommendedAction: v.string(),
+  explanationSummary: v.union(v.string(), v.null()),
         explanationModel: v.union(v.string(), v.null()),
         subject: v.string(),
   signal: v.string(),
@@ -1054,7 +1073,7 @@ export const listMatches = query({
         unknowns: match.unknowns,
         risks: match.risks,
         freshness: match.freshness,
-        recommendedAction: match.recommendedAction,
+        recommendedAction: readableAction(match.recommendedAction),
         explanationSummary: match.explanationSummary ?? null,
         explanationModel: match.explanationModel ?? null,
         subject: discovery.subject,

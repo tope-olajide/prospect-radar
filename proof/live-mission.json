@@ -1,0 +1,1046 @@
+{
+  "capturedAt": "2026-09-18T20:12:13.757Z",
+  "convexUrl": "https://wry-walrus-528.convex.cloud",
+  "goal": "Find seed-stage fintech companies in Lagos that need a React frontend developer.",
+  "identity": {
+    "provider": "password",
+    "email": "radar-mission-1789762333757@[redacted]"
+  },
+  "stageTimeline": [
+    {
+      "at": "2026-09-18T20:12:21.815Z",
+      "status": "queued",
+      "stage": "intake",
+      "interruption": null
+    },
+    {
+      "at": "2026-09-18T20:12:28.929Z",
+      "status": "active",
+      "stage": "interpret",
+      "interruption": null
+    },
+    {
+      "at": "2026-09-18T20:12:40.620Z",
+      "status": "waiting",
+      "stage": "plan_review",
+      "interruption": null
+    },
+    {
+      "at": "2026-09-18T20:12:44.833Z",
+      "status": "active",
+      "stage": "discover",
+      "interruption": null
+    },
+    {
+      "at": "2026-09-18T20:12:59.445Z",
+      "status": "active",
+      "stage": "evaluate",
+      "interruption": null
+    },
+    {
+      "at": "2026-09-18T20:13:03.328Z",
+      "status": "active",
+      "stage": "discover",
+      "interruption": null
+    },
+    {
+      "at": "2026-09-18T20:13:14.908Z",
+      "status": "active",
+      "stage": "evaluate",
+      "interruption": null
+    },
+    {
+      "at": "2026-09-18T20:13:19.581Z",
+      "status": "active",
+      "stage": "discover",
+      "interruption": null
+    },
+    {
+      "at": "2026-09-18T20:13:23.524Z",
+      "status": "waiting",
+      "stage": "check_in",
+      "interruption": null
+    },
+    {
+      "at": "2026-09-18T20:13:25.955Z",
+      "status": "active",
+      "stage": "evaluate",
+      "interruption": null
+    },
+    {
+      "at": "2026-09-18T20:15:28.240Z",
+      "status": "waiting",
+      "stage": "approval",
+      "interruption": null
+    }
+  ],
+  "gates": [
+    {
+      "gate": "plan_review",
+      "plan": {
+        "normalizedGoal": "Identify seed-stage fintech companies in Lagos that are currently seeking a React frontend developer.",
+        "mode": "opportunity",
+        "mustHave": [
+          "The company must be in the fintech sector and at the seed stage.",
+          "The company must be located in Lagos, Nigeria.",
+          "There must be a specific stated need for a React frontend developer."
+        ],
+        "niceToHave": [
+          "Recency of the job posting or need (within the last 3 months).",
+          "Information on the decision-maker or a clear contact route.",
+          "Indication of budget or scale of the project."
+        ],
+        "exclusions": [
+          "Companies not in the fintech sector.",
+          "Companies not at the seed stage.",
+          "Companies outside of Lagos, Nigeria.",
+          "Job postings or needs that are older than 3 months."
+        ],
+        "recommendedSources": [
+          "job boards and company career pages",
+          "company news/blogs about growth or new projects",
+          "community posts asking for recommendations",
+          "freelance/contract marketplaces"
+        ],
+        "proposedSteps": [
+          "Search job boards and company career pages for React frontend developer positions in fintech companies in Lagos.",
+          "Review recent company news and blogs for any announcements regarding new projects or growth that may require a React frontend developer.",
+          "Check community forums and social media groups related to the Nigerian tech scene for any recommendations or discussions about hiring a React frontend developer.",
+          "Explore freelance and contract marketplaces for project listings from seed-stage fintech companies in Lagos."
+        ],
+        "provider": "dashscope",
+        "model": "qwen-max"
+      },
+      "missionIntent": {
+        "confidence": 0.95,
+        "primary": "find_opportunity",
+        "rationale": "The user is looking for specific companies (seed-stage fintech in Lagos) that have a need for a particular service (React frontend development), which aligns with finding an opportunity to offer this service.",
+        "secondary": null
+      },
+      "targetEntity": "organization"
+    },
+    {
+      "gate": "check_in",
+      "discovered": {
+        "jobs": 4,
+        "sources": 19,
+        "entities": 0,
+        "signals": 0,
+        "budgetUsed": 24
+      }
+    }
+  ],
+  "perStage": {
+    "run": {
+      "status": "waiting",
+      "currentStage": "approval",
+      "retryCount": 0,
+      "activeInterruption": null
+    },
+    "plan": {
+      "mode": "opportunity",
+      "mustHave": [
+        "The company must be in the fintech sector and at the seed stage.",
+        "The company must be located in Lagos, Nigeria.",
+        "There must be a specific stated need for a React frontend developer."
+      ],
+      "recommendedSources": [
+        "job boards and company career pages",
+        "company news/blogs about growth or new projects",
+        "community posts asking for recommendations",
+        "freelance/contract marketplaces"
+      ],
+      "proposedSteps": [
+        "Search job boards and company career pages for React frontend developer positions in fintech companies in Lagos.",
+        "Review recent company news and blogs for any announcements regarding new projects or growth that may require a React frontend developer.",
+        "Check community forums and social media groups related to the Nigerian tech scene for any recommendations or discussions about hiring a React frontend developer.",
+        "Explore freelance and contract marketplaces for project listings from seed-stage fintech companies in Lagos."
+      ],
+      "model": "qwen-max",
+      "provider": "dashscope"
+    },
+    "research": {
+      "jobs": [
+        {
+          "operation": "search",
+          "status": "complete",
+          "query": "React developer needed for fintech projects in Lagos",
+          "resultCount": 6,
+          "crawlStatus": null,
+          "errorCode": null
+        },
+        {
+          "operation": "search",
+          "status": "complete",
+          "query": "Lagos fintech startups looking for React developers",
+          "resultCount": 6,
+          "crawlStatus": null,
+          "errorCode": null
+        },
+        {
+          "operation": "search",
+          "status": "complete",
+          "query": "seed-stage fintech companies hiring in Lagos",
+          "resultCount": 6,
+          "crawlStatus": null,
+          "errorCode": null
+        },
+        {
+          "operation": "search",
+          "status": "complete",
+          "query": "React frontend developer jobs in Lagos fintech",
+          "resultCount": 6,
+          "crawlStatus": null,
+          "errorCode": null
+        }
+      ],
+      "sources": [
+        {
+          "url": "https://www.crossover.com/jobs/react-js-developer/ng/lg/lagos",
+          "title": "Remote React JS Developer Jobs in Lagos, Nigeria - Crossover",
+          "sourceType": "search_result",
+          "freshness": "truncated",
+          "processingStatus": "scraped",
+          "hasContent": true,
+          "chars": 12000
+        },
+        {
+          "url": "https://www.mctaba.com/learn/nigeria/tech-jobs-lagos",
+          "title": "Tech Jobs Lagos 2026 | Where to Find Them, Salaries & How to Stand Out",
+          "sourceType": "search_result",
+          "freshness": "truncated",
+          "processingStatus": "scraped",
+          "hasContent": true,
+          "chars": 12000
+        },
+        {
+          "url": "https://ng.linkedin.com/in/joshua-oni-1b633a244",
+          "title": "Joshua Oni - Frontend Developer | React.js, Next.js & TypeScript",
+          "sourceType": "search_result",
+          "freshness": "fresh",
+          "processingStatus": "discovered",
+          "hasContent": false,
+          "chars": 0
+        },
+        {
+          "url": "https://www.profolio.ng/frontend-developer/companies-hiring",
+          "title": "50+ Companies Hiring Frontend Developers in Nigeria (2026 List)",
+          "sourceType": "search_result",
+          "freshness": "truncated",
+          "processingStatus": "scraped",
+          "hasContent": true,
+          "chars": 12000
+        },
+        {
+          "url": "https://ng.indeed.com/q-react-developer-us-l-lagos-jobs.html",
+          "title": "10 React Developer US Jobs in Lagos - 22 June 2026 | Indeed",
+          "sourceType": "search_result",
+          "freshness": "truncated",
+          "processingStatus": "scraped",
+          "hasContent": true,
+          "chars": 12000
+        },
+        {
+          "url": "https://www.lagosdataschool.com/react-developer-training-in-lagos-nigeria-your-complete-guide/",
+          "title": "React Developer Training in Lagos Nigeria 2026",
+          "sourceType": "search_result",
+          "freshness": "truncated",
+          "processingStatus": "scraped",
+          "hasContent": true,
+          "chars": 12000
+        },
+        {
+          "url": "https://www.facebook.com/amazincareers/posts/a-fintech-startup-is-hiring-an-engineering-manager-that-will-lead-their-growing-/968939413632359/",
+          "title": "A fintech startup is hiring an Engineering Manager that will lead ...",
+          "sourceType": "search_result",
+          "freshness": "fresh",
+          "processingStatus": "discovered",
+          "hasContent": false,
+          "chars": 0
+        },
+        {
+          "url": "https://seedtable.com/best-fintech-startups-in-nigeria",
+          "title": "Best Fintech Startups in Nigeria (2026) | Seedtable",
+          "sourceType": "search_result",
+          "freshness": "fresh",
+          "processingStatus": "scraped",
+          "hasContent": true,
+          "chars": 9776
+        },
+        {
+          "url": "https://meetfrank.com/remote-fintech-jobs-in-lagos",
+          "title": "36 Remote, Hybrid & Onsite Fintech Jobs in Lagos - MeetFrank",
+          "sourceType": "search_result",
+          "freshness": "fresh",
+          "processingStatus": "scraped",
+          "hasContent": true,
+          "chars": 1236
+        },
+        {
+          "url": "https://ng.linkedin.com/jobs/fintech-company-jobs",
+          "title": "Fintech Company Jobs in Nigeria (254 Open Roles) | LinkedIn",
+          "sourceType": "search_result",
+          "freshness": "fresh",
+          "processingStatus": "discovered",
+          "hasContent": false,
+          "chars": 0
+        },
+        {
+          "url": "https://topstartups.io/?hq_location=Lagos",
+          "title": "Top 1 Lagos Startups — Newly Funded & Hiring",
+          "sourceType": "search_result",
+          "freshness": "fresh",
+          "processingStatus": "scraped",
+          "hasContent": true,
+          "chars": 5242
+        },
+        {
+          "url": "https://jobs.fintech.io/companies/antler/jobs/33555578-general-partner-africa-lagos",
+          "title": "General Partner - Africa, Lagos @ Antler | FinTech Collective Job Board",
+          "sourceType": "search_result",
+          "freshness": "fresh",
+          "processingStatus": "scraped",
+          "hasContent": true,
+          "chars": 9949
+        },
+        {
+          "url": "https://ng.indeed.com/q-fintech-company-l-lagos-jobs.html",
+          "title": "Fintech Company jobs in Lagos - Indeed",
+          "sourceType": "search_result",
+          "freshness": "truncated",
+          "processingStatus": "scraped",
+          "hasContent": true,
+          "chars": 12000
+        },
+        {
+          "url": "https://careers.ynvgroup.com/tek-experts/jobs/15549?lang=en-us",
+          "title": "Front End (React Native) Developer in Victoria Island Lagos, Nigeria",
+          "sourceType": "search_result",
+          "freshness": "cached",
+          "processingStatus": "scraped",
+          "hasContent": true,
+          "chars": 4878
+        },
+        {
+          "url": "https://www.crossover.com/jobs/front-end-developer/ng/lg/lagos",
+          "title": "Front-End Developer Jobs in Lagos, Nigeria - Crossover",
+          "sourceType": "search_result",
+          "freshness": "truncated",
+          "processingStatus": "scraped",
+          "hasContent": true,
+          "chars": 12000
+        },
+        {
+          "url": "https://ng.linkedin.com/jobs/react-jobs",
+          "title": "React Jobs in Nigeria (116 Open Roles) | LinkedIn",
+          "sourceType": "search_result",
+          "freshness": "fresh",
+          "processingStatus": "discovered",
+          "hasContent": false,
+          "chars": 0
+        },
+        {
+          "url": "https://www.glassdoor.com/Job/lagos-react-developer-jobs-SRCH_IL.0,5_IC2543876_KO6,21.htm",
+          "title": "47 react developer Jobs in Lagos, August 2026 | Glassdoor",
+          "sourceType": "search_result",
+          "freshness": "truncated",
+          "processingStatus": "scraped",
+          "hasContent": true,
+          "chars": 12000
+        },
+        {
+          "url": "https://bebee.com/ng/jobs/role/frontend-developer/lagos",
+          "title": "33+ Frontend Developer Jobs in Lagos 2026 | Apply Today - BeBee",
+          "sourceType": "search_result",
+          "freshness": "truncated",
+          "processingStatus": "scraped",
+          "hasContent": true,
+          "chars": 12000
+        },
+        {
+          "url": "https://ng.indeed.com/q-react-developer-jobs.html",
+          "title": "15 React Developer Jobs - Lagos - Indeed",
+          "sourceType": "search_result",
+          "freshness": "truncated",
+          "processingStatus": "scraped",
+          "hasContent": true,
+          "chars": 12000
+        }
+      ]
+    },
+    "entities": [
+      {
+        "name": "Breezy Digital Solutions",
+        "kind": "organization",
+        "summary": "Breezy Digital Solutions is a fintech company based in Lagos, focusing on developing innovative payment solutions for remittance and collections.",
+        "expressedNeed": null,
+        "offer": [
+          "Product Management",
+          "Market Research",
+          "Stakeholder Collaboration",
+          "Product Performance Monitoring",
+          "Customer Insight Initiatives",
+          "Go-to-Market Execution"
+        ],
+        "contactRoute": null,
+        "extractionStatus": "extracted",
+        "confidence": 0.9
+      },
+      {
+        "name": "TeKnowledge",
+        "kind": "organization",
+        "summary": "TeKnowledge is seeking a Front End Developer to join their team in product development outsourcing, focused on creating innovative software solutions for the financial services industry.",
+        "expressedNeed": null,
+        "offer": [
+          "Front End Development",
+          "Software Development",
+          "AI Technology Services",
+          "Customer Experience Solutions",
+          "Cybersecurity",
+          "Agile Framework",
+          "API Development",
+          "Microservices"
+        ],
+        "contactRoute": null,
+        "extractionStatus": "extracted",
+        "confidence": 0.95
+      },
+      {
+        "name": "Crossover",
+        "kind": "organization",
+        "summary": "Crossover offers remote Front-end Developer positions for individuals in Lagos, Nigeria, allowing them to work with leading US companies and providing a competitive salary.",
+        "expressedNeed": null,
+        "offer": [
+          "Remote Front-end Developer jobs",
+          "Cloud technologies",
+          "Full-time employment",
+          "Salary up to $200,000 USD/year"
+        ],
+        "contactRoute": null,
+        "extractionStatus": "extracted",
+        "confidence": 0.9
+      },
+      {
+        "name": "HomeFairyTech",
+        "kind": "organization",
+        "summary": "HomeFairyTech is a technology-driven B2B hospitality marketplace connecting accommodation providers with verified accommodation agents.",
+        "expressedNeed": "We are seeking an experienced Full-Time Onsite Laravel/React Developer.",
+        "offer": [
+          "Node.js",
+          "Express.js",
+          "TypeScript",
+          "REST APIs",
+          "PostgreSQL",
+          "Prisma ORM",
+          "React Native",
+          "Expo"
+        ],
+        "contactRoute": null,
+        "extractionStatus": "extracted",
+        "confidence": 1
+      },
+      {
+        "name": "Frontend Developer",
+        "kind": "product",
+        "summary": "The page lists 33 opportunities for Frontend Developer positions in Lagos, showcasing various companies and roles available in the field.",
+        "expressedNeed": null,
+        "offer": [
+          "Frontend development",
+          "User interface design",
+          "Web development",
+          "JavaScript",
+          "React",
+          "Angular",
+          "Vue.js"
+        ],
+        "contactRoute": null,
+        "extractionStatus": "extracted",
+        "confidence": 0.9
+      },
+      {
+        "name": "Droomwork Limited",
+        "kind": "organization",
+        "summary": "Droomwork Limited is seeking a skilled Frontend Developer to design and implement responsive, high-performance web and mobile applications.",
+        "expressedNeed": "We are seeking a skilled Frontend Developer to design and implement responsive, high-performance web and mobile applications.",
+        "offer": [
+          "Frontend Developer",
+          "React",
+          "TypeScript",
+          "React Native"
+        ],
+        "contactRoute": {
+          "kind": "form",
+          "publicSource": "https://ng.indeed.com/cmp/Droomwork?campaignid=mobvjcmp&from=mobviewjob&tk=1k2r2cq3ug34s800&fromjk=3098f0605edd90ff",
+          "value": "https://secure.indeed.com/auth?hl=en_NG&co=NG&continue=https%3A%2F%2Fng.indeed.com%2Fthirdpartysignin%3Ffrom%3Djsfe-3pintercept-viewjob%26xkcb%3DSoBF67M2ebM8mtx7n50LbzkdCdPP%26viewtype%3Dembedded%26jk%3D3098f0605edd90ff%26continueUrl%3D%252"
+        },
+        "extractionStatus": "extracted",
+        "confidence": 0.9
+      }
+    ],
+    "signals": [
+      {
+        "type": "project_request",
+        "statement": "The successful candidate will work across our backend, mobile application, and admin dashboard; troubleshoot existing technical issues; develop new features; integrate third-party services; and help ensure the platform is stable, secure, and ready to scale.",
+        "evidenceUrl": "https://www.glassdoor.com/Job/lagos-react-developer-jobs-SRCH_IL.0,5_IC2543876_KO6,21.htm"
+      }
+    ],
+    "matches": [
+      {
+        "subject": "Remote React JS Developer Jobs in Lagos, Nigeria - Crossover",
+        "signal": "Rating 4.8(244)The best remote React JS Developer jobs are on Crossover. Find leading US companies hiring full-time ReactJS developers in Lagos, Nigeria.",
+        "label": "insufficient",
+        "sourceUrl": "https://www.crossover.com/jobs/react-js-developer/ng/lg/lagos",
+        "sourceTitle": "Remote React JS Developer Jobs in Lagos, Nigeria - Crossover",
+        "investigatedBecause": "React developer needed for fintech projects in Lagos",
+        "explanationSummary": "Crossover offers remote jobs, but the content does not provide specific information about a fintech company in Lagos seeking a React frontend developer.",
+        "explanationModel": "qwen-max",
+        "evidence": [],
+        "unknowns": [],
+        "risks": [],
+        "recommendedAction": "Find another route to reach them — no public contact channel is established yet.",
+        "entity": null
+      },
+      {
+        "subject": "Tech Jobs Lagos 2026 | Where to Find Them, Salaries & How to Stand Out",
+        "signal": "# Tech Jobs in Lagos: Where to Find Them, What They Pay, and How to Stand Out (2027) ## Who Is Hiring in Lagos: Company Types and What They Look For What these employers consistently look for: production experience or a strong portfolio, proficiency in a modern stack (React, Node.js, Python, or Flutter), experience with or interest in payment systems, and the ability to work in a team using Git and standard development workflows.",
+        "label": "insufficient",
+        "sourceUrl": "https://www.mctaba.com/learn/nigeria/tech-jobs-lagos",
+        "sourceTitle": "Tech Jobs Lagos 2026 | Where to Find Them, Salaries & How to Stand Out",
+        "investigatedBecause": "Lagos fintech startups looking for React developers",
+        "explanationSummary": "The match is a general article about tech jobs in Lagos, but no specific fintech company is mentioned, making it impossible to evaluate against the mission criteria.",
+        "explanationModel": "qwen-max",
+        "evidence": [],
+        "unknowns": [],
+        "risks": [],
+        "recommendedAction": "Find another route to reach them — no public contact channel is established yet.",
+        "entity": null
+      },
+      {
+        "subject": "Joshua Oni - Frontend Developer | React.js, Next.js & TypeScript",
+        "signal": "Frontend Developer | React.js, Next.js & TypeScript | Optimized UI Performance by 20% at Fintech Startup · Frontend Developer skilled in React ... Lagos, Lagos ...",
+        "label": "insufficient",
+        "sourceUrl": "https://ng.linkedin.com/in/joshua-oni-1b633a244",
+        "sourceTitle": "Joshua Oni - Frontend Developer | React.js, Next.js & TypeScript",
+        "investigatedBecause": "Lagos fintech startups looking for React developers",
+        "explanationSummary": "The match is a LinkedIn profile of a Frontend Developer, but no specific fintech company in Lagos is mentioned, making it impossible to evaluate against the mission criteria.",
+        "explanationModel": "qwen-max",
+        "evidence": [],
+        "unknowns": [],
+        "risks": [],
+        "recommendedAction": "Find another route to reach them — no public contact channel is established yet.",
+        "entity": null
+      },
+      {
+        "subject": "50+ Companies Hiring Frontend Developers in Nigeria (2026 List)",
+        "signal": "# 50+ Companies Hiring Frontend Developers in Nigeria ## Fintech and Payments Companies Hiring Frontend Developers #### Flutterwave - ✓Expert-level React or Angular skills #### Moniepoint - ✓Proficiency in React or Vue.js #### PiggyVest - ✓React proficiency required ## Banks and Financial Institutions Hiring Frontend Developers #### Stanbic IBTC - ✓React or Angular expertise",
+        "label": "insufficient",
+        "sourceUrl": "https://www.profolio.ng/frontend-developer/companies-hiring",
+        "sourceTitle": "50+ Companies Hiring Frontend Developers in Nigeria (2026 List)",
+        "investigatedBecause": "Lagos fintech startups looking for React developers",
+        "explanationSummary": "The match provides a general list of companies hiring frontend developers in Nigeria, but no specific fintech company in Lagos is mentioned, making it impossible to evaluate against the mission criteria.",
+        "explanationModel": "qwen-max",
+        "evidence": [],
+        "unknowns": [],
+        "risks": [],
+        "recommendedAction": "Find another route to reach them — no public contact channel is established yet.",
+        "entity": null
+      },
+      {
+        "subject": "10 React Developer US Jobs in Lagos - 22 June 2026 | Indeed",
+        "signal": "Jarakey is a Lagos-based technology startup ... Our client is seeking to engage a React Native Engineer on a short term project for a fintech mobile platform.",
+        "label": "promising",
+        "sourceUrl": "https://ng.indeed.com/q-react-developer-us-l-lagos-jobs.html",
+        "sourceTitle": "10 React Developer US Jobs in Lagos - 22 June 2026 | Indeed",
+        "investigatedBecause": "Lagos fintech startups looking for React developers",
+        "explanationSummary": "Breezy Digital Solutions in Lagos is hiring for a Frontend Developer with React Native experience, but the company's stage and specific need for a React frontend developer are unclear.",
+        "explanationModel": "qwen-max",
+        "evidence": [],
+        "unknowns": [],
+        "risks": [],
+        "recommendedAction": "Find another route to reach them — no public contact channel is established yet.",
+        "entity": null
+      },
+      {
+        "subject": "React Developer Training in Lagos Nigeria 2026",
+        "signal": "# What Is React and Why Do Lagos Employers Want It? Lagos fintech firms especially value this performance for transaction dashboards and payment flows. # React Career Paths Available in Lagos ## React Native Mobile Developer Lagos fintech and health tech firms use React Native for customer apps. # Industries That Hire React Developers in Lagos ## Fintech Flutterwave, Paystack, Kuda, and Moniepoint all run React frontend systems. Customer dashboards, transaction histories, and payment interfaces ",
+        "label": "insufficient",
+        "sourceUrl": "https://www.lagosdataschool.com/react-developer-training-in-lagos-nigeria-your-complete-guide/",
+        "sourceTitle": "React Developer Training in Lagos Nigeria 2026",
+        "investigatedBecause": "React developer needed for fintech projects in Lagos",
+        "explanationSummary": "The match is a training guide for React developers in Lagos, but no specific fintech company is mentioned, making it impossible to evaluate against the mission criteria.",
+        "explanationModel": "qwen-max",
+        "evidence": [],
+        "unknowns": [],
+        "risks": [],
+        "recommendedAction": "Find another route to reach them — no public contact channel is established yet.",
+        "entity": null
+      },
+      {
+        "subject": "A fintech startup is hiring an Engineering Manager that will lead ...",
+        "signal": "We are looking to constitute a 4-Man Team of React Developers from ... Startup seeks React developers from Nigeria for social network project.",
+        "label": "insufficient",
+        "sourceUrl": "https://www.facebook.com/amazincareers/posts/a-fintech-startup-is-hiring-an-engineering-manager-that-will-lead-their-growing-/968939413632359/",
+        "sourceTitle": "A fintech startup is hiring an Engineering Manager that will lead ...",
+        "investigatedBecause": "Lagos fintech startups looking for React developers",
+        "explanationSummary": "The match is a Facebook post about a fintech startup hiring an Engineering Manager, but no specific company in Lagos is mentioned, making it impossible to evaluate against the mission criteria.",
+        "explanationModel": "qwen-max",
+        "evidence": [],
+        "unknowns": [],
+        "risks": [],
+        "recommendedAction": "Find another route to reach them — no public contact channel is established yet.",
+        "entity": null
+      },
+      {
+        "subject": "Best Fintech Startups in Nigeria (2026) | Seedtable",
+        "signal": "# Best Fintech Startups in Nigeria | # | Company | Location | Stage | Score | |-|-|-|-|-| | 1 | [OPay](https://seedtable.com/companies/opay) Payments | [Lagos, Nigeria](https://seedtable.com/best-startups-in-lagos) | Series C | 62 | | 2 | [OmniRetail](https://seedtable.com/companies/omniretail) Financial technology | [Lagos, Nigeria](https://seedtable.com/best-startups-in-lagos) | Series A | 61 | | 3 | [Interswitch](https://seedtable.com/companies/interswitch) Payment | [Lagos, Nigeria](https://",
+        "label": "insufficient",
+        "sourceUrl": "https://seedtable.com/best-fintech-startups-in-nigeria",
+        "sourceTitle": "Best Fintech Startups in Nigeria (2026) | Seedtable",
+        "investigatedBecause": "seed-stage fintech companies hiring in Lagos",
+        "explanationSummary": "The match provides a general listing of fintech startups in Nigeria, but no specific company in Lagos is mentioned, making it impossible to evaluate against the mission criteria.",
+        "explanationModel": "qwen-max",
+        "evidence": [],
+        "unknowns": [],
+        "risks": [],
+        "recommendedAction": "Find another route to reach them — no public contact channel is established yet.",
+        "entity": null
+      },
+      {
+        "subject": "36 Remote, Hybrid & Onsite Fintech Jobs in Lagos - MeetFrank",
+        "signal": "Explore the most recent 36 Remote, Hybrid & Onsite Fintech Jobs in Lagos with new ones added daily. Apply now or get headhunted on your own terms.",
+        "label": "insufficient",
+        "sourceUrl": "https://meetfrank.com/remote-fintech-jobs-in-lagos",
+        "sourceTitle": "36 Remote, Hybrid & Onsite Fintech Jobs in Lagos - MeetFrank",
+        "investigatedBecause": "seed-stage fintech companies hiring in Lagos",
+        "explanationSummary": "The match provides a general listing of fintech jobs in Lagos, but no specific company is mentioned, making it impossible to evaluate against the mission criteria.",
+        "explanationModel": "qwen-max",
+        "evidence": [],
+        "unknowns": [],
+        "risks": [],
+        "recommendedAction": "Find another route to reach them — no public contact channel is established yet.",
+        "entity": null
+      },
+      {
+        "subject": "Fintech Company Jobs in Nigeria (254 Open Roles) | LinkedIn",
+        "signal": "Today's top 254 Fintech Company jobs in Nigeria. Leverage your professional network, and get hired. New Fintech Company jobs added daily.",
+        "label": "insufficient",
+        "sourceUrl": "https://ng.linkedin.com/jobs/fintech-company-jobs",
+        "sourceTitle": "Fintech Company Jobs in Nigeria (254 Open Roles) | LinkedIn",
+        "investigatedBecause": "seed-stage fintech companies hiring in Lagos",
+        "explanationSummary": "The match provides a general listing of fintech jobs in Nigeria, but no specific company in Lagos is mentioned, making it impossible to evaluate against the mission criteria.",
+        "explanationModel": "qwen-max",
+        "evidence": [],
+        "unknowns": [],
+        "risks": [],
+        "recommendedAction": "Find another route to reach them — no public contact channel is established yet.",
+        "entity": null
+      },
+      {
+        "subject": "Top 1 Lagos Startups — Newly Funded & Hiring",
+        "signal": "Top Lagos startups hiring now. Sort by valuation and recent funding. Research Lagos tech startup salary and equity.",
+        "label": "insufficient",
+        "sourceUrl": "https://topstartups.io/?hq_location=Lagos",
+        "sourceTitle": "Top 1 Lagos Startups — Newly Funded & Hiring",
+        "investigatedBecause": "seed-stage fintech companies hiring in Lagos",
+        "explanationSummary": "Vendease is a marketplace, but the content does not provide specific information about a fintech company in Lagos seeking a React frontend developer.",
+        "explanationModel": "qwen-max",
+        "evidence": [],
+        "unknowns": [],
+        "risks": [],
+        "recommendedAction": "Find another route to reach them — no public contact channel is established yet.",
+        "entity": null
+      },
+      {
+        "subject": "General Partner - Africa, Lagos @ Antler | FinTech Collective Job Board",
+        "signal": "A General Partner or Associate Partner in Antler has the opportunity to have a transformative impact on the early-stage innovation ecosystem and be a part of ...",
+        "label": "insufficient",
+        "sourceUrl": "https://jobs.fintech.io/companies/antler/jobs/33555578-general-partner-africa-lagos",
+        "sourceTitle": "General Partner - Africa, Lagos @ Antler | FinTech Collective Job Board",
+        "investigatedBecause": "seed-stage fintech companies hiring in Lagos",
+        "explanationSummary": "Antler's General Partner role is not relevant to the mission criteria, as it does not specify a fintech company in Lagos seeking a React frontend developer.",
+        "explanationModel": "qwen-max",
+        "evidence": [],
+        "unknowns": [],
+        "risks": [],
+        "recommendedAction": "Find another route to reach them — no public contact channel is established yet.",
+        "entity": null
+      },
+      {
+        "subject": "Fintech Company jobs in Lagos - Indeed",
+        "signal": "# fintech company jobs in Lagos - | | | --- | | ### [Engineering and Technology Manager (Fintech)](https://ng.indeed.com/rc/clk?jk=d906f1b6d39aff61&bb=SqWD2IngHpwx495cHx3SboRFTtRpqXkkHWUfzoNnVXpMQRgqeJdLi_rwtAV2CmeC6s6Gze9Yz8KVyfb0zYIlAGlr53IaHkeMRD_yjB9U5lD-mI-FAAmH0MtGKAFARJP2&xkcb=SoAA67M2ebMPJjx7mp0JbzkdCdPP&fccid=622e2250f1b6f0d4&cmp=Breezy-Digital-Solutions&ti=Engineering+Manager&vjs=3)<br>Breezy Digital Solutions<br>Lekki | - Collaborate with Product, Operations, Compliance, and other sta",
+        "label": "promising",
+        "sourceUrl": "https://ng.indeed.com/q-fintech-company-l-lagos-jobs.html",
+        "sourceTitle": "Fintech Company jobs in Lagos - Indeed",
+        "investigatedBecause": "seed-stage fintech companies hiring in Lagos",
+        "explanationSummary": "Breezy Digital Solutions in Lekki, Lagos, is hiring for an Engineering and Technology Manager, but the company's stage and specific need for a React frontend developer are unclear.",
+        "explanationModel": "qwen-max",
+        "evidence": [],
+        "unknowns": [],
+        "risks": [],
+        "recommendedAction": "Find another route to reach them — no public contact channel is established yet.",
+        "entity": {
+          "name": "Breezy Digital Solutions",
+          "kind": "organization",
+          "extractionStatus": "extracted",
+          "hasContactRoute": false
+        }
+      },
+      {
+        "subject": "Front End (React Native) Developer in Victoria Island Lagos, Nigeria",
+        "signal": "tek-experts is hiring a Front End (React Native) Developer in Victoria Island Lagos, Nigeria. Review all of the job details and apply today!",
+        "label": "promising",
+        "sourceUrl": "https://careers.ynvgroup.com/tek-experts/jobs/15549?lang=en-us",
+        "sourceTitle": "Front End (React Native) Developer in Victoria Island Lagos, Nigeria",
+        "investigatedBecause": "React developer needed for fintech projects in Lagos",
+        "explanationSummary": "TeKnowledge in Victoria Island, Lagos, is hiring for a Front End (React Native) Developer, but the company's stage and specific need for a React frontend developer are unclear.",
+        "explanationModel": "qwen-max",
+        "evidence": [],
+        "unknowns": [],
+        "risks": [],
+        "recommendedAction": "Find another route to reach them — no public contact channel is established yet.",
+        "entity": {
+          "name": "TeKnowledge",
+          "kind": "organization",
+          "extractionStatus": "extracted",
+          "hasContactRoute": false
+        }
+      },
+      {
+        "subject": "Front-End Developer Jobs in Lagos, Nigeria - Crossover",
+        "signal": "Rating 4.8(244)The best remote Front-end Developer jobs are on Crossover. Find leading US companies hiring full-time front-end developers in Lagos, Nigeria.",
+        "label": "insufficient",
+        "sourceUrl": "https://www.crossover.com/jobs/front-end-developer/ng/lg/lagos",
+        "sourceTitle": "Front-End Developer Jobs in Lagos, Nigeria - Crossover",
+        "investigatedBecause": "React frontend developer jobs in Lagos fintech",
+        "explanationSummary": "Crossover offers remote jobs, but the content does not provide specific information about a fintech company in Lagos seeking a React frontend developer.",
+        "explanationModel": "qwen-max",
+        "evidence": [],
+        "unknowns": [],
+        "risks": [],
+        "recommendedAction": "Find another route to reach them — no public contact channel is established yet.",
+        "entity": {
+          "name": "Crossover",
+          "kind": "organization",
+          "extractionStatus": "extracted",
+          "hasContactRoute": false
+        }
+      },
+      {
+        "subject": "React Jobs in Nigeria (116 Open Roles) | LinkedIn",
+        "signal": "116 React jobs in Nigeria. New React jobs added daily. Lagos, Lagos State, Nigeria. Frontend Developer (React) at Tezza Business Solutions. Lagos, Lagos State, ...",
+        "label": "insufficient",
+        "sourceUrl": "https://ng.linkedin.com/jobs/react-jobs",
+        "sourceTitle": "React Jobs in Nigeria (116 Open Roles) | LinkedIn",
+        "investigatedBecause": "React developer needed for fintech projects in Lagos",
+        "explanationSummary": "The match provides no specific information about companies or job listings, making it impossible to evaluate against the mission criteria.",
+        "explanationModel": "qwen-max",
+        "evidence": [],
+        "unknowns": [],
+        "risks": [],
+        "recommendedAction": "Find another route to reach them — no public contact channel is established yet.",
+        "entity": null
+      },
+      {
+        "subject": "47 react developer Jobs in Lagos, August 2026 | Glassdoor",
+        "signal": "# 43 React developer jobs in Lagos ### **Job descriptions & requirements** - Payment or financial technology - Escrow or wallet systems",
+        "label": "promising",
+        "sourceUrl": "https://www.glassdoor.com/Job/lagos-react-developer-jobs-SRCH_IL.0,5_IC2543876_KO6,21.htm",
+        "sourceTitle": "47 react developer Jobs in Lagos, August 2026 | Glassdoor",
+        "investigatedBecause": "React developer needed for fintech projects in Lagos",
+        "explanationSummary": "HomeFairyTech in Lagos is hiring for a Full-Time Onsite Laravel/React Developer, but the company's stage and specific need for a React frontend developer are unclear.",
+        "explanationModel": "qwen-max",
+        "evidence": [],
+        "unknowns": [],
+        "risks": [],
+        "recommendedAction": "Find another route to reach them — no public contact channel is established yet.",
+        "entity": {
+          "name": "HomeFairyTech",
+          "kind": "organization",
+          "extractionStatus": "extracted",
+          "hasContactRoute": false
+        }
+      },
+      {
+        "subject": "33+ Frontend Developer Jobs in Lagos 2026 | Apply Today - BeBee",
+        "signal": "# Frontend Developer jobs in Lagos ### [Frontend Developer (React)](https://bebee.com/ng/jobs/frontend-developer-react-tezza-business-solutions-lagos--ss-ng-1aca7xt) Lagos Job Title: Frontend Developer (React) Location: Magodo Phase 1, Lagos Type: Full Time/Hybrid Position Summary We are seeking a skilled Frontend Developer to build intuitive, responsive user interfaces for the MarketEdge CRM platform. You will work closely with designers and backend developers to imp 1 weeks ago ### [Frontend D",
+        "label": "promising",
+        "sourceUrl": "https://bebee.com/ng/jobs/role/frontend-developer/lagos",
+        "sourceTitle": "33+ Frontend Developer Jobs in Lagos 2026 | Apply Today - BeBee",
+        "investigatedBecause": "React frontend developer jobs in Lagos fintech",
+        "explanationSummary": "Tezza Business Solutions in Lagos is hiring for a Frontend Developer with React experience, but the company's stage and specific need for a React frontend developer are unclear.",
+        "explanationModel": "qwen-max",
+        "evidence": [],
+        "unknowns": [],
+        "risks": [],
+        "recommendedAction": "Find another route to reach them — no public contact channel is established yet.",
+        "entity": {
+          "name": "Frontend Developer",
+          "kind": "product",
+          "extractionStatus": "extracted",
+          "hasContactRoute": false
+        }
+      },
+      {
+        "subject": "15 React Developer Jobs - Lagos - Indeed",
+        "signal": "15 React Developer jobs available on Indeed.com. Senior Front-End Engineer (React Native – FinTech / Digital Asset) design, build, and deliver high-quality web ...",
+        "label": "promising",
+        "sourceUrl": "https://ng.indeed.com/q-react-developer-jobs.html",
+        "sourceTitle": "15 React Developer Jobs - Lagos - Indeed",
+        "investigatedBecause": "React developer needed for fintech projects in Lagos",
+        "explanationSummary": "Breezy Digital Solutions in Lagos is hiring for a Frontend Developer with React Native experience, but the company's stage and specific need for a React frontend developer are unclear.",
+        "explanationModel": "qwen-max",
+        "evidence": [],
+        "unknowns": [],
+        "risks": [],
+        "recommendedAction": "Find another route to reach them — no public contact channel is established yet.",
+        "entity": {
+          "name": "Droomwork Limited",
+          "kind": "organization",
+          "extractionStatus": "extracted",
+          "hasContactRoute": true
+        }
+      }
+    ],
+    "budget": {
+      "creditLimit": 400,
+      "used": 30,
+      "remaining": 370,
+      "breakdown": {
+        "crawl": 0,
+        "extract": 6,
+        "scrape": 0,
+        "search": 24
+      }
+    },
+    "eventTrail": [
+      {
+        "type": "mission.created",
+        "stage": "intake",
+        "summary": "Mission created from natural language; awaiting AI intent classification.",
+        "at": "2026-09-18T20:12:18.417Z"
+      },
+      {
+        "type": "intent.classified",
+        "stage": "interpret",
+        "summary": "Intent classified as find_opportunity.",
+        "at": "2026-09-18T20:12:23.986Z"
+      },
+      {
+        "type": "plan.created",
+        "stage": "plan",
+        "summary": "Strategy-bearing mission plan created from the classified intent.",
+        "at": "2026-09-18T20:12:34.490Z"
+      },
+      {
+        "type": "stage.plan_review.started",
+        "stage": "plan_review",
+        "summary": "Plan ready — review it before Radar starts searching.",
+        "at": "2026-09-18T20:12:34.538Z"
+      },
+      {
+        "type": "plan_review.waiting",
+        "stage": "plan_review",
+        "summary": "Radar is waiting for you to review the plan.",
+        "at": "2026-09-18T20:12:34.580Z"
+      },
+      {
+        "type": "plan.approved",
+        "stage": "discover",
+        "summary": "User approved the plan — starting discovery.",
+        "at": "2026-09-18T20:12:41.861Z"
+      },
+      {
+        "type": "source.ready",
+        "stage": "evaluate",
+        "summary": "Firecrawl persisted 6 deduplicated sources.",
+        "at": "2026-09-18T20:12:49.912Z"
+      },
+      {
+        "type": "stage.discover.resumed",
+        "stage": "discover",
+        "summary": "Resuming discovery: 6 queries remaining.",
+        "at": "2026-09-18T20:12:53.481Z"
+      },
+      {
+        "type": "source.ready",
+        "stage": "evaluate",
+        "summary": "Firecrawl persisted 6 deduplicated sources.",
+        "at": "2026-09-18T20:12:58.572Z"
+      },
+      {
+        "type": "stage.discover.resumed",
+        "stage": "discover",
+        "summary": "Resuming discovery: 5 queries remaining.",
+        "at": "2026-09-18T20:13:02.068Z"
+      },
+      {
+        "type": "source.ready",
+        "stage": "evaluate",
+        "summary": "Firecrawl persisted 6 deduplicated sources.",
+        "at": "2026-09-18T20:13:07.772Z"
+      },
+      {
+        "type": "stage.discover.resumed",
+        "stage": "discover",
+        "summary": "Resuming discovery: 4 queries remaining.",
+        "at": "2026-09-18T20:13:10.014Z"
+      },
+      {
+        "type": "source.ready",
+        "stage": "evaluate",
+        "summary": "Firecrawl persisted 6 deduplicated sources.",
+        "at": "2026-09-18T20:13:12.210Z"
+      },
+      {
+        "type": "stage.discover.resumed",
+        "stage": "discover",
+        "summary": "Resuming discovery: 3 queries remaining.",
+        "at": "2026-09-18T20:13:14.464Z"
+      },
+      {
+        "type": "stage.check_in.started",
+        "stage": "check_in",
+        "summary": "Discovery finished — here's what Radar found.",
+        "at": "2026-09-18T20:13:20.872Z"
+      },
+      {
+        "type": "check_in.waiting",
+        "stage": "check_in",
+        "summary": "Radar is showing you what it found before evaluating.",
+        "at": "2026-09-18T20:13:20.909Z"
+      },
+      {
+        "type": "checkin.continued",
+        "stage": "evaluate",
+        "summary": "User confirmed — proceeding to evaluation.",
+        "at": "2026-09-18T20:13:23.651Z"
+      },
+      {
+        "type": "stage.approval.started",
+        "stage": "approval",
+        "summary": "Matches explained — review them and approve a draft before anything is sent.",
+        "at": "2026-09-18T20:15:24.257Z"
+      },
+      {
+        "type": "approval.awaiting",
+        "stage": "approval",
+        "summary": "Awaiting your approval: nothing is sent until you approve a draft.",
+        "at": "2026-09-18T20:15:24.361Z"
+      }
+    ],
+    "stepReceipts": [
+      {
+        "stage": "interpret",
+        "label": "intent.find_opportunity",
+        "tool": "llm.classify",
+        "errorCode": null,
+        "summary": "You're looking for seed-stage fintech companies in Lagos that require a React frontend developer, likely to offer your services."
+      },
+      {
+        "stage": "plan",
+        "label": "plan.created",
+        "tool": "llm.plan",
+        "errorCode": null,
+        "summary": "Strategy: organizations showing publicly expressed needs (hiring posts, project requests, RFPs, complaints about current solutions) · 4 search queries, 3 crawl targets queued."
+      },
+      {
+        "stage": "discover",
+        "label": "discover.query.done",
+        "tool": "firecrawl.search",
+        "errorCode": null,
+        "summary": "Discovery query returned 6 deduplicated sources."
+      },
+      {
+        "stage": "discover",
+        "label": "discover.query.done",
+        "tool": "firecrawl.search",
+        "errorCode": null,
+        "summary": "Discovery query returned 6 deduplicated sources."
+      },
+      {
+        "stage": "discover",
+        "label": "discover.query.done",
+        "tool": "firecrawl.search",
+        "errorCode": null,
+        "summary": "Discovery query returned 6 deduplicated sources."
+      },
+      {
+        "stage": "discover",
+        "label": "discover.query.done",
+        "tool": "firecrawl.search",
+        "errorCode": null,
+        "summary": "Discovery query returned 6 deduplicated sources."
+      },
+      {
+        "stage": "discover",
+        "label": "discover.query.skipped",
+        "tool": "orchestrator",
+        "errorCode": null,
+        "summary": "The planner produced an invalid crawl URL."
+      },
+      {
+        "stage": "discover",
+        "label": "discover.query.skipped",
+        "tool": "orchestrator",
+        "errorCode": null,
+        "summary": "The planner produced an invalid crawl URL."
+      },
+      {
+        "stage": "discover",
+        "label": "discover.query.skipped",
+        "tool": "orchestrator",
+        "errorCode": null,
+        "summary": "The planner produced an invalid crawl URL."
+      },
+      {
+        "stage": "evaluate",
+        "label": "entity.extracted",
+        "tool": "firecrawl.extract",
+        "errorCode": null,
+        "summary": "Extracted Droomwork Limited (organization) with 0 signals."
+      },
+      {
+        "stage": "evaluate",
+        "label": "entity.extracted",
+        "tool": "firecrawl.extract",
+        "errorCode": null,
+        "summary": "Extracted Frontend Developer (product) with 0 signals."
+      },
+      {
+        "stage": "evaluate",
+        "label": "entity.extracted",
+        "tool": "firecrawl.extract",
+        "errorCode": null,
+        "summary": "Extracted HomeFairyTech (organization) with 1 signal."
+      },
+      {
+        "stage": "evaluate",
+        "label": "entity.extracted",
+        "tool": "firecrawl.extract",
+        "errorCode": null,
+        "summary": "Extracted Crossover (organization) with 0 signals."
+      },
+      {
+        "stage": "evaluate",
+        "label": "entity.extracted",
+        "tool": "firecrawl.extract",
+        "errorCode": null,
+        "summary": "Extracted TeKnowledge (organization) with 0 signals."
+      },
+      {
+        "stage": "evaluate",
+        "label": "entity.extracted",
+        "tool": "firecrawl.extract",
+        "errorCode": null,
+        "summary": "Extracted Breezy Digital Solutions (organization) with 0 signals."
+      }
+    ]
+  },
+  "errors": [],
+  "workspaceId": "px76j3ggw435pe9tr55867k57d8enhxn",
+  "missionId": "kd7c5t7zffx7879xdv2hjswb0d8emm13",
+  "terminal": "approval",
+  "gatesReached": 2,
+  "workspaceOutcomes": [],
+  "crossWorkspaceRefused": true
+}

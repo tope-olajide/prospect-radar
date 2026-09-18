@@ -244,7 +244,10 @@ export const classifyMissionIntent = action({
   handler: async (ctx, args) => {
     const mission = await ctx.runQuery(internal.missionsInternal.get, { missionId: args.missionId });
     if (!mission) throw new Error("Mission not found");
-    const factRows = await ctx.runQuery(api.context.list, { workspaceId: mission.workspaceId, missionId: null });
+    // Internal read: this action runs inside Convex with no user identity, so it
+    // cannot call the public `context.list` (which resolves the caller's
+    // workspace authority). `factsForAgent` is the trusted, internal-only read.
+    const factRows = await ctx.runQuery(internal.context.factsForAgent, { workspaceId: mission.workspaceId, missionId: null });
     const confirmedFacts = confirmedFactPairs(factRows, args.missionId);
     const userSources = await ctx.runQuery(internal.dataSources.relevantChunks, { workspaceId: mission.workspaceId, query: mission.rawGoal });
     const { apiKey, baseUrl, model, provider } = llmConfig();

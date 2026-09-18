@@ -362,3 +362,65 @@ describe("context facts", () => {
     expect(fact).not.toBeNull();
   });
 });
+
+/**
+ * The authority boundary between a client caller and a machine caller.
+ *
+ * These exist because a live mission run caught the opposite failure: the
+ * workspace guard was tightened for anonymous callers, which also locked out the
+ * orchestrator's own server-driven reads. The orchestrator runs inside Convex
+ * with no user identity, so anything it reads must be an internal function —
+ * public ones resolve the *caller's* authority and a machine caller has none.
+ * The test suite never saw it because it drives every function with a synthetic
+ * workspace string, so it never exercised a real `workspaces` row.
+ */
+describe("workspace authority boundary (real workspace row)", () => {
+  async function seedRealWorkspace(t: TestT) {
+    return await t.run(async (ctx) => {
+      const now = Date.now();
+      const userId = await ctx.db.insert("users", {});
+      const workspaceId = await ctx.db.insert("workspaces", { ownerId: userId, name: "Real workspace", createdAt: now });
+      await ctx.db.insert("contextFacts", {
+        workspaceId, missionId: null, category: "skills", value: "React", sourceType: "user_input",
+        sourceReference: null, confidence: 1, verificationStatus: "user_confirmed", visibility: "workspace",
+        createdAt: now, updatedAt: now,
+      });
+      return workspaceId;
+    });
+  }
+
+  it("lets the agent read its own context with no identity, and still refuses the public read", async () => {
+    const t = convexTest(schema, convexModules);
+    const workspaceId = await seedRealWorkspace(t);
+
+    // Server-driven path (the orchestrator's classifier): must work, or every
+    // mission blocks at intake.
+    const facts = await t.query(internal.context.factsForAgent, { workspaceId, missionId: null });
+    expect(facts.map((fact) => fact.value)).toEqual(["React"]);
+
+    // Client-facing path: a real workspace is not readable without a session.
+    await expect(
+      t.query(api.context.list, { workspaceId, missionId: null }),
+    ).rejects.toThrow(/UNAUTHORIZED/);
+  });
+
+  it("lets server-driven research run against a real workspace with no identity", async () => {
+    const t = convexTest(schema, convexModules);
+    const workspaceId = await seedRealWorkspace(t);
+
+    // The research readers the orchestrator calls are addressed by missionId
+    // only, so they carry no session and must still work against a real
+    // workspace. (They are read-only projections, not authority checks.)
+    const missionId = await t.run(async (ctx) => {
+      const now = Date.now();
+      return await ctx.db.insert("missions", {
+        workspaceId, title: "Real mission", rawGoal: "Real mission", mode: "opportunity", status: "ready",
+        constraints: [], sourceScope: "public-web", completionPredicate: "n/a", createdAt: now, updatedAt: now,
+      });
+    });
+
+    expect(await t.query(api.researchStore.listSources, { missionId })).toEqual([]);
+    expect(await t.query(api.researchStore.listMatches, { missionId })).toEqual([]);
+    expect(await t.query(api.researchStore.listJobs, { missionId })).toEqual([]);
+  });
+});

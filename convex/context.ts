@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
-import { internalMutation, mutation, query } from "./_generated/server";
+import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
+import type { QueryCtx } from "./_generated/server";
 import { boundedText } from "./hash";
 import { validateWorkspace } from "./model/auth";
 
@@ -23,22 +24,44 @@ const factView = v.object({
   updatedAt: v.number(),
 });
 
+/** One bounded read shape shared by the public and internal readers. */
+async function readFacts(ctx: QueryCtx, args: { workspaceId: string; missionId: Id<"missions"> | null }) {
+  const rows = args.missionId
+    ? await ctx.db.query("contextFacts")
+      .withIndex("by_missionId", (q) => q.eq("missionId", args.missionId))
+      .take(100)
+    : await ctx.db.query("contextFacts")
+      .withIndex("by_workspaceId", (q) => q.eq("workspaceId", args.workspaceId))
+      .take(100);
+  return rows
+    .filter((row) => row.workspaceId === args.workspaceId)
+    .map(({ _creationTime, ...row }) => row);
+}
+
 export const list = query({
   args: { workspaceId: v.string(), missionId: v.union(v.id("missions"), v.null()) },
   returns: v.array(factView),
   handler: async (ctx, args) => {
     await validateWorkspace(ctx, args.workspaceId);
-    const rows = args.missionId
-      ? await ctx.db.query("contextFacts")
-        .withIndex("by_missionId", (q) => q.eq("missionId", args.missionId))
-        .take(100)
-      : await ctx.db.query("contextFacts")
-        .withIndex("by_workspaceId", (q) => q.eq("workspaceId", args.workspaceId))
-        .take(100);
-    return rows
-      .filter((row) => row.workspaceId === args.workspaceId)
-      .map(({ _creationTime, ...row }) => row);
+    return await readFacts(ctx, args);
   },
+});
+
+/**
+ * The agent's own read of a workspace's facts.
+ *
+ * Server-driven flows — the orchestrator's classifier, match explanation, and
+ * drafting — run inside Convex with no user identity, so they cannot call the
+ * public `list`: that resolves the *caller's* authority, and a machine caller
+ * has none. This variant is reachable only from Convex internals, which makes
+ * it the correct trusted read for building prompts. Kept as a separate function
+ * rather than a flag on `list`, so "who is allowed to read this" stays a
+ * property of the function rather than of an argument.
+ */
+export const factsForAgent = internalQuery({
+  args: { workspaceId: v.string(), missionId: v.union(v.id("missions"), v.null()) },
+  returns: v.array(factView),
+  handler: async (ctx, args) => await readFacts(ctx, args),
 });
 
 export const add = mutation({
