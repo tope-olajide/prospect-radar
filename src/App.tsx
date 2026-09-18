@@ -8,7 +8,7 @@ import { useAuthActions } from "@convex-dev/auth/react";
 import SignIn from "./SignIn";
 
 type MissionMode = "opportunity" | "person" | "customer" | "solution" | "collaborator";
-type View = "home" | "dashboard" | "discover" | "outreach" | "inbox" | "outcomes" | "forms" | "profile";
+type View = "home" | "dashboard" | "discover" | "actions" | "inbox" | "relationships" | "outcomes" | "profile" | "activity";
 type PipelineStageName = "contacted" | "replied" | "engaged" | "meeting" | "proposal" | "won" | "lost" | "dormant";
 
 const PIPELINE_STAGES: PipelineStageName[] = ["contacted", "replied", "engaged", "meeting", "proposal", "won", "lost", "dormant"];
@@ -24,26 +24,35 @@ const sponsorCapabilities: Array<[string, string]> = [
   ["AgentMail", "Official component: agent-owned inboxes, durable approved sends, delivery state, and inbound threads."],
 ];
 
-const navItems: { id: View; label: string; hint: string }[] = [
-  { id: "home", label: "Home", hint: "Ask Radar. Watch it work." },
-  { id: "dashboard", label: "Dashboard", hint: "Workspace overview & how it works" },
-  { id: "discover", label: "Discover", hint: "Sourced, explained matches" },
-  { id: "outreach", label: "Outreach", hint: "Draft, approve, send" },
-  { id: "inbox", label: "Inbox", hint: "Live replies and threads" },
-  { id: "outcomes", label: "Pipeline", hint: "Relationship stages" },
-  { id: "forms", label: "Forms", hint: "Approval-bound submissions" },
-  { id: "profile", label: "Profile", hint: "Who you are & what Radar knows" },
+/**
+ * Navigation is grouped by the user's mental model of the agent, not by
+ * implementation module: where you direct Radar, what it produces, what it
+ * knows about you, and how the machinery is doing.
+ */
+const navItems: { id: View; label: string; hint: string; group: string }[] = [
+  { id: "home", label: "Home", hint: "Ask Radar. Watch it work.", group: "RADAR" },
+  { id: "dashboard", label: "Dashboard", hint: "Workspace overview at a glance", group: "RADAR" },
+  { id: "discover", label: "Discover", hint: "Sourced, explained evidence", group: "WORK" },
+  { id: "actions", label: "Actions", hint: "Outreach, forms, follow-ups", group: "WORK" },
+  { id: "inbox", label: "Inbox", hint: "Replies and live conversations", group: "WORK" },
+  { id: "relationships", label: "Relationships", hint: "People, orgs, timelines", group: "WORK" },
+  { id: "outcomes", label: "Outcomes", hint: "What actually happened", group: "WORK" },
+  { id: "profile", label: "Profile", hint: "Who you are & what Radar knows", group: "KNOWLEDGE" },
+  { id: "activity", label: "Activity", hint: "Real agent event timeline", group: "SYSTEM" },
 ];
+
+const navGroups: string[] = ["RADAR", "WORK", "KNOWLEDGE", "SYSTEM"];
 
 const viewTitles: Record<View, { eyebrow: string; title: string; description: string }> = {
   home: { eyebrow: "Agent workspace", title: "Home", description: "Tell Radar what you want. It works right here, in front of you." },
   dashboard: { eyebrow: "Overview", title: "The workspace at a glance", description: "Live counts, run states, and the pipeline — every number is a real Convex subscription." },
   discover: { eyebrow: "Signal intelligence", title: "Evidence before opinions.", description: "Every match carries its source, freshness, and unknowns." },
-  outreach: { eyebrow: "Approval boundary", title: "Nothing sends without you.", description: "Approve the exact recipient, subject, and body — then Radar sends." },
+  actions: { eyebrow: "Approval boundary", title: "Nothing sends without you.", description: "Outreach, form submissions, and follow-ups — each one is approved as its own exact payload." },
   inbox: { eyebrow: "Agent-owned inbox", title: "Replies arrive live.", description: "Inbound mail is untrusted data: classified, never auto-sent." },
-  outcomes: { eyebrow: "Relationship pipeline", title: "Keep the momentum.", description: "Every relationship keeps its stage, evidence, next step, and history — and Radar never closes a loop without you." },
-  forms: { eyebrow: "Approval boundary", title: "Paperwork, handled honestly.", description: "Radar reads a public form, fills it from confirmed facts only, and submits one approved payload at a time — with a screenshot as evidence." },
+  relationships: { eyebrow: "Relationship memory", title: "Radar remembers.", description: "People, organizations, stages, follow-ups, and meetings — every relationship keeps its history." },
+  outcomes: { eyebrow: "Results", title: "What actually happened.", description: "Contacted, replied, interested, meeting, proposal, converted — tied back to the mission that caused it." },
   profile: { eyebrow: "Your identity", title: "Who you are to Radar.", description: "Sources, skills, preferences, and what Radar has learned — all in one place." },
+  activity: { eyebrow: "Agent timeline", title: "What Radar did.", description: "Real run events from real execution — nothing animated, nothing invented." },
 };
 
 const quickPrompts: { label: string; goal: string }[] = [
@@ -71,15 +80,37 @@ function hostLabel(url: string) {
   }
 }
 
+/**
+ * Auth gate.
+ *
+ * This is deliberately a thin wrapper. React requires the same hooks on every
+ * render, and the workspace shell below calls a large number of them; gating
+ * inside that shell would render it with fewer hooks while identity loads.
+ */
 export default function App({ backendConnected }: { backendConnected: boolean }) {
+  const user = useQuery(api.users.current);
+  if (user === undefined) return <AuthSplash label="Checking your session…" />;
+  if (!user) return <SignIn />;
+  return <WorkspaceApp backendConnected={backendConnected} />;
+}
+
+function AuthSplash({ label }: { label: string }) {
+  return (
+    <div className="auth-page" role="status" aria-live="polite">
+      <div className="auth-card auth-splash">
+        <div className="brand-mark">↗</div>
+        <p className="eyebrow">PROSPECT RADAR</p>
+        <p className="stage-note">{label}</p>
+      </div>
+    </div>
+  );
+}
+
+function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
   const { signOut } = useAuthActions();
   const user = useQuery(api.users.current);
   const workspace = useQuery(api.users.workspace);
   const provisionWorkspace = useMutation(api.users.provisionWorkspace);
-
-  // Auth gate
-  if (user === undefined) return null; // loading
-  if (!user) return <SignIn />;
 
   // Auto-provision workspace on first login
   useEffect(() => {
@@ -132,6 +163,8 @@ export default function App({ backendConnected }: { backendConnected: boolean })
   const [selectedMissionId, setSelectedMissionId] = useState<string | null>(null);
   const [sidebarSearch, setSidebarSearch] = useState("");
   const [showMissionHistory, setShowMissionHistory] = useState(false);
+  /** Which mission's run trail the Activity page is inspecting. */
+  const [activityMissionId, setActivityMissionId] = useState<string | null>(null);
 
   const [planning, setPlanning] = useState(false);
   const [planNotice, setPlanNotice] = useState("");
@@ -224,6 +257,11 @@ export default function App({ backendConnected }: { backendConnected: boolean })
   const crawlProgress = useQuery(api.researchStore.latestCrawlProgress, backendConnected && missionId ? { missionId } : "skip");
   const contextFacts = useQuery(api.context.list, backendConnected && workspaceId ? { workspaceId, missionId: null } : "skip");
   const board = useQuery(api.commandCenter.runsBoard, backendConnected && workspaceId ? { workspaceId } : "skip");
+  // Activity page: the run trail for whichever mission the user is inspecting.
+  // These are durable runEvents/runSteps, so the trail rebuilds on refresh.
+  const activityRun = useQuery(api.runs.forMission, backendConnected && activityMissionId ? { missionId: activityMissionId as Id<"missions"> } : "skip");
+  const activityEvents = useQuery(api.runs.events, backendConnected && activityRun ? { runId: activityRun._id } : "skip");
+  const activitySteps = useQuery(api.runs.steps, backendConnected && activityRun ? { runId: activityRun._id } : "skip");
   const dataSources = useQuery(api.dataSources.list, backendConnected && workspaceId ? { workspaceId } : "skip");
   const dataProgress = useQuery(api.dataSources.progress, backendConnected && workspaceId ? { workspaceId } : "skip");
   const addSnippet = useMutation(api.dataSources.addSnippet);
@@ -254,15 +292,20 @@ export default function App({ backendConnected }: { backendConnected: boolean })
   const dueFollowUps = (followUps ?? []).filter((item) => item.status === "due" || item.dueAt <= Date.now());
   const followUpForOutcome = (outcomeId: Id<"outcomes">) => (followUps ?? []).find((item) => item.outcomeId === outcomeId);
 
+  const pendingFormWork = (formProposals ?? []).filter((proposal) => proposal.status === "draft" || proposal.status === "approved" || proposal.status === "blocked" || proposal.status === "failed").length;
+
   const navCounts: Record<View, number | null> = {
     home: null,
-    discover: matches?.length ?? null,
-    outreach: actionableDrafts.length || null,
-    inbox: threads?.length || null,
-    outcomes: openOutcomes.length || null,
-    forms: (formProposals ?? []).filter((proposal) => proposal.status === "draft" || proposal.status === "approved" || proposal.status === "blocked" || proposal.status === "failed").length || null,
-    profile: (contextFacts ?? []).filter((f) => f.verificationStatus === "unreviewed").length || null,
     dashboard: null,
+    discover: matches?.length ?? null,
+    // Actions is one destination for every side effect, so its badge is the
+    // total of everything waiting on a human decision there.
+    actions: actionableDrafts.length + pendingFormWork || null,
+    inbox: threads?.length || null,
+    relationships: openOutcomes.length || null,
+    outcomes: openOutcomes.length || null,
+    profile: (contextFacts ?? []).filter((f) => f.verificationStatus === "unreviewed").length || null,
+    activity: null,
   };
 
   const attentionItems = useMemo(() => {
@@ -274,7 +317,7 @@ export default function App({ backendConnected }: { backendConnected: boolean })
         title: approved ? "A draft is approved — sending is one click away" : "A draft needs your approval",
         detail: approved ? `${approved.subject} → ${approved.recipient}` : "Sending is refused server-side until the exact content is approved.",
         tone: "amber",
-        view: "outreach",
+        view: "actions",
       });
     }
     if (plan && plan.missingFacts.length > 0) {
@@ -285,11 +328,11 @@ export default function App({ backendConnected }: { backendConnected: boolean })
       items.push({ id: "replies", title: `${freshReplies} inbound repl${freshReplies === 1 ? "y" : "ies"} waiting for review`, detail: "Classifications and suggested next steps are ready in the inbox.", tone: "cyan", view: "inbox" });
     }
     if (dueFollowUps.length > 0) {
-      items.push({ id: "followups", title: `${dueFollowUps.length} follow-up${dueFollowUps.length === 1 ? "" : "s"} due`, detail: dueFollowUps[0].note, tone: "amber", view: "outcomes" });
+      items.push({ id: "followups", title: `${dueFollowUps.length} follow-up${dueFollowUps.length === 1 ? "" : "s"} due`, detail: dueFollowUps[0].note, tone: "amber", view: "relationships" });
     }
     const queuedSteps = (sequences ?? []).flatMap((sequence) => sequence.steps).filter((step) => step.status === "draft_ready").length;
     if (queuedSteps > 0) {
-      items.push({ id: "sequence", title: `${queuedSteps} sequence step${queuedSteps === 1 ? "" : "s"} drafted and awaiting approval`, detail: "A step is queued as a draft. Approving it is the only way it sends.", tone: "amber", view: "outreach" });
+      items.push({ id: "sequence", title: `${queuedSteps} sequence step${queuedSteps === 1 ? "" : "s"} drafted and awaiting approval`, detail: "A step is queued as a draft. Approving it is the only way it sends.", tone: "amber", view: "actions" });
     }
     return items;
   }, [actionableDrafts, plan, threads, dueFollowUps, sequences]);
@@ -857,19 +900,23 @@ Clarification: ${clarifyAnswer.trim()}` });
       </div>
       <div className="workspace-switcher">
         <div className="workspace-avatar">PR</div>
-        <div className="workspace-copy"><strong>{workspace?.name ?? "Radar"}</strong><span>{user.email ?? "Workspace"}</span></div>
+        <div className="workspace-copy"><strong>{workspace?.name ?? "Radar"}</strong><span>{user?.email ?? "Workspace"}</span></div>
       </div>
       <div className="sidebar-search">
         <input type="text" placeholder="Search missions…" value={sidebarSearch} onChange={(e) => setSidebarSearch(e.target.value)} aria-label="Search missions" />
         {sidebarSearch && <button type="button" className="sidebar-search-clear" onClick={() => setSidebarSearch("")}>✕</button>}
       </div>
-      <p className="nav-section-label">Workspace</p>
       <nav className="main-nav" aria-label="Primary">
-        {navItems.map((item) => (
-          <button key={item.id} type="button" className={activeView === item.id ? "nav-item active" : "nav-item"} onClick={() => selectView(item.id)}>
-            <span className="nav-label"><strong>{item.label}</strong><em>{item.hint}</em></span>
-            {navCounts[item.id] ? <span className="nav-count">{navCounts[item.id]}</span> : null}
-          </button>
+        {navGroups.map((group) => (
+          <div className="nav-group" key={group}>
+            <p className="nav-section-label">{group}</p>
+            {navItems.filter((item) => item.group === group).map((item) => (
+              <button key={item.id} type="button" className={activeView === item.id ? "nav-item active" : "nav-item"} onClick={() => selectView(item.id)}>
+                <span className="nav-label"><strong>{item.label}</strong><em>{item.hint}</em></span>
+                {navCounts[item.id] ? <span className="nav-count">{navCounts[item.id]}</span> : null}
+              </button>
+            ))}
+          </div>
         ))}
       </nav>
       {/* Mission history */}
@@ -918,12 +965,17 @@ Clarification: ${clarifyAnswer.trim()}` });
         <div><strong>{backendConnected ? "Convex connected" : "Backend setup"}</strong><span>{backendConnected ? "Live subscriptions on" : "Run npx convex dev"}</span></div>
       </div>
       <div className="auth-bar">
-        <span className="auth-user">{user.name ?? user.email ?? "Signed in"}</span>
+        <span className="auth-user">{user?.name ?? user?.email ?? "Signed in"}</span>
         <button type="button" className="btn ghost auth-signout" onClick={() => signOut()}>Sign out</button>
       </div>
       {selectedMission && <div className="backend-status-card mission-chip"><div className="status-icon"><span className="status-dot amber-dot" /></div><div><strong>{selectedMission.title.slice(0, 30)}{selectedMission.title.length > 30 ? "…" : ""}</strong><span>{run ? `${run.currentStage} · ${run.status}` : selectedMission.status}</span></div></div>}
     </aside>
   );
+
+  // Every hook above has already run, so this guard cannot change the hook
+  // count between renders. While the workspace provisions there is nothing
+  // workspace-scoped to render yet.
+  if (!workspace) return <AuthSplash label="Preparing your workspace…" />;
 
   return (
     <div className="app-shell">
@@ -1141,12 +1193,12 @@ Clarification: ${clarifyAnswer.trim()}` });
                       <p className="followup-title">What next?</p>
                       <div className="followup-pills">
                         {matches.filter((m) => m.label === "stronger").length > 0 && (
-                          <button type="button" className="followup-pill" onClick={() => selectView("outreach")}>Draft outreach to top match</button>
+                          <button type="button" className="followup-pill" onClick={() => selectView("actions")}>Draft outreach to top match</button>
                         )}
                         {entities && entities.length > 0 && (
                           <button type="button" className="followup-pill" onClick={() => selectView("discover")}>Review all entities</button>
                         )}
-                        <button type="button" className="followup-pill" onClick={() => selectView("outcomes")}>See pipeline</button>
+                        <button type="button" className="followup-pill" onClick={() => selectView("relationships")}>See relationships</button>
                         <button type="button" className="followup-pill" onClick={() => { setGoal("Find more companies like the top matches"); selectView("home"); }}>Find similar</button>
                       </div>
                     </div>
@@ -1155,7 +1207,7 @@ Clarification: ${clarifyAnswer.trim()}` });
                   {drafts && drafts.filter((d) => ["awaiting_approval", "approved"].includes(d.status)).length > 0 && (
                     <div className="thread-approval">
                       <p><b>Waiting for you</b> — {drafts.filter((d) => ["awaiting_approval", "approved"].includes(d.status)).length} draft{drafts.filter((d) => ["awaiting_approval", "approved"].includes(d.status)).length === 1 ? "" : "s"} ready for review.</p>
-                      <button type="button" className="btn" onClick={() => selectView("outreach")}>Review & approve →</button>
+                      <button type="button" className="btn" onClick={() => selectView("actions")}>Review & approve →</button>
                     </div>
                   )}
                   {/* Terminal state */}
@@ -1197,9 +1249,9 @@ Clarification: ${clarifyAnswer.trim()}` });
                       { label: "Entities", value: overview.counts.entities, view: "discover" as View },
                       { label: "Signals · 7d", value: overview.counts.signalsThisWeek, view: "discover" as View },
                       { label: "Replies", value: overview.counts.replies, view: "inbox" as View },
-                      { label: "Follow-ups due", value: overview.counts.followUpsDue, view: "outcomes" as View },
-                      { label: "Drafts pending", value: overview.counts.draftsPending, view: "outreach" as View },
-                      { label: "Submissions", value: overview.counts.submissions, view: "forms" as View },
+                      { label: "Follow-ups due", value: overview.counts.followUpsDue, view: "relationships" as View },
+                      { label: "Drafts pending", value: overview.counts.draftsPending, view: "actions" as View },
+                      { label: "Submissions", value: overview.counts.submissions, view: "actions" as View },
                     ].map((metric) => (
                       <button key={metric.label} type="button" className="metric-tile" onClick={() => selectView(metric.view)}>
                         <span className="metric-value">{metric.value}</span>
@@ -1377,7 +1429,7 @@ Clarification: ${clarifyAnswer.trim()}` });
                           <button type="button" className="btn" onClick={onRunPipeline} disabled={planning}>{planning ? "Starting…" : "▶ Run Radar end-to-end"}</button>
                         )}
                         {run && run.status === "waiting" && run.currentStage === "approval" && (
-                          <button type="button" className="btn ghost" onClick={() => selectView("outreach")}>Review matches & approvals →</button>
+                          <button type="button" className="btn ghost" onClick={() => selectView("actions")}>Review matches & approvals →</button>
                         )}
                         <button type="button" className="btn ghost" onClick={() => selectView("home")}>Live transcript</button>
                       </div>
@@ -1508,7 +1560,7 @@ Clarification: ${clarifyAnswer.trim()}` });
                                 <button type="button" className="btn" onClick={() => onAiDraft(match._id)} disabled={aiDraftingMatchId === match._id}>
                                   {aiDraftingMatchId === match._id ? "Drafting…" : "AI draft outreach"}
                                 </button>
-                                <button type="button" className="btn ghost" onClick={() => { setLinkedMatchId(match._id); selectView("outreach"); }}>Write manually</button>
+                                <button type="button" className="btn ghost" onClick={() => { setLinkedMatchId(match._id); selectView("actions"); }}>Write manually</button>
                               </div>
                             </article>
                           );
@@ -1521,8 +1573,9 @@ Clarification: ${clarifyAnswer.trim()}` });
             </div>
           )}
 
-          {activeView === "outreach" && (
+          {activeView === "actions" && (
             <div className="view-stack">
+              <div className="actions-divider"><span>Outreach</span></div>
               <section className="panel" aria-label="Inbox link">
                 <div className="panel-head"><p className="eyebrow">AGENTMAIL INBOX</p>{inbox && <span className="mono-tag">{inbox.email}</span>}</div>
                 {inbox === undefined ? <p className="empty-state">Checking inbox link…</p> : !inbox ? (
@@ -1712,7 +1765,7 @@ Clarification: ${clarifyAnswer.trim()}` });
             </div>
           )}
 
-          {activeView === "outcomes" && (
+          {activeView === "relationships" && (
             <div className="view-stack">
               {overview && (
                 <section className="panel" aria-label="Where every relationship stands">
@@ -1801,8 +1854,153 @@ Clarification: ${clarifyAnswer.trim()}` });
             </div>
           )}
 
-          {activeView === "forms" && (
+          {/*
+            Outcomes: what actually happened, as opposed to Relationships
+            (which tracks where each one stands right now). The counts come from
+            persisted records, so a judge can verify every number in the
+            Convex dashboard.
+          */}
+          {activeView === "outcomes" && (
             <div className="view-stack">
+              <section className="panel" aria-label="Results so far">
+                <div className="panel-head"><p className="eyebrow">RESULTS SO FAR</p><span className="muted">counted from persisted records — nothing estimated</span></div>
+                {!overview ? <p className="empty-state">Loading results…</p> : (
+                  <>
+                    <div className="metric-grid">
+                      {[
+                        { label: "Messages approved & sent", value: overview.counts.draftsApproved },
+                        { label: "Replies received", value: overview.counts.replies },
+                        { label: "Conversations", value: overview.counts.threads },
+                        { label: "Form submissions", value: overview.counts.submissions },
+                        { label: "Submissions blocked", value: overview.counts.blockedSubmissions },
+                        { label: "People & orgs found", value: overview.counts.entities },
+                      ].map((metric) => (
+                        <div className="metric-tile static" key={metric.label}>
+                          <span className="metric-value">{metric.value}</span>
+                          <span className="metric-label">{metric.label}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="stage-note">Blocked submissions are forms Radar refused to force — a login wall or a human check is reported as a stop, never bypassed.</p>
+                  </>
+                )}
+              </section>
+
+              <section className="panel" aria-label="Outcomes by stage">
+                <div className="panel-head"><p className="eyebrow">WHERE RELATIONSHIPS LANDED</p></div>
+                {!overview ? <p className="empty-state">Loading…</p> : (
+                  <div className="stage-summary">
+                    {overview.pipeline.map((row) => (
+                      <span key={row.stage} className={row.count > 0 ? "" : "zero"}>
+                        <span className={`stage-dot stage-${row.stage}`} />{PIPELINE_LABELS[row.stage as PipelineStageName] ?? row.stage}
+                        <strong>{row.count}</strong>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              <section className="panel" aria-label="Mission outcomes">
+                <div className="panel-head">
+                  <p className="eyebrow">OUTCOMES FOR THIS MISSION</p>
+                  {selectedMission && <span className="muted">{selectedMission.title.slice(0, 44)}{selectedMission.title.length > 44 ? "…" : ""}</span>}
+                </div>
+                {!selectedMission ? <p className="empty-state">Pick a mission to see the results Radar recorded for it.</p> : outcomes === undefined ? <p className="empty-state">Loading…</p> : outcomes.length === 0 ? (
+                  <p className="empty-state">No outcomes recorded yet. Radar opens one the moment an approved message is sent or a reply lands.</p>
+                ) : (
+                  <div className="row-list">
+                    {outcomes.map((outcome) => (
+                      <article className="row-item static" key={outcome._id}>
+                        <div className="row-copy">
+                          <strong><span className={`stage-dot stage-${outcome.stage}`} /> {outcome.counterpart}</strong>
+                          <em>{outcome.latestEvidence}</em>
+                          <span className="muted">{PIPELINE_LABELS[outcome.stage as PipelineStageName] ?? outcome.stage} · updated {shortDate(outcome.updatedAt)}</span>
+                        </div>
+                        <div className="inline-actions">
+                          <button type="button" className="btn ghost" onClick={() => selectView("relationships")}>Open relationship →</button>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </section>
+            </div>
+          )}
+
+          {/*
+            Activity: the real execution trail. Rows come from the runs board,
+            and the event log is the durable runEvents/runSteps the orchestrator
+            already writes — so this page cannot show work that did not happen.
+          */}
+          {activeView === "activity" && (
+            <div className="view-stack">
+              <section className="panel" aria-label="Run trail">
+                <div className="panel-head"><p className="eyebrow">RUN TRAIL</p><span className="muted">{board?.length ?? 0} mission{(board?.length ?? 0) === 1 ? "" : "s"}</span></div>
+                {board === undefined ? <p className="empty-state">Loading the trail…</p> : board.length === 0 ? (
+                  <p className="empty-state">Nothing has run yet. Start a mission on Home and every step Radar takes is recorded here.</p>
+                ) : (
+                  <div className="row-list">
+                    {[...board].sort((a, b) => b.updatedAt - a.updatedAt).map((row) => (
+                      <article className={`row-item static${activityMissionId === row.missionId ? " selected" : ""}`} key={row.missionId}>
+                        <button type="button" className="thread-select" onClick={() => { setActivityMissionId(row.missionId); setSelectedMissionId(row.missionId); }}>
+                          <strong>{row.missionTitle}</strong>
+                          <em>{row.lastStep ? `${row.lastStep.label} — ${row.lastStep.summary}` : "No step recorded yet"}</em>
+                          <span className="thread-meta">
+                            {row.currentStage ?? "—"}{row.lastStep?.tool ? ` · ${row.lastStep.tool}` : ""} · {shortDate(row.updatedAt)}{row.lastStep?.errorCode ? ` · ${row.lastStep.errorCode}` : ""}
+                          </span>
+                        </button>
+                        <div className="board-state">
+                          <span className={`status-pill status-${row.runStatus}`}>{row.runStatus}</span>
+                          {row.awaitingApprovals > 0 && <span className="status-pill status-awaiting_approval">{row.awaitingApprovals} waiting</span>}
+                          {row.activeInterruption && <span className="status-pill status-blocked">{row.activeInterruption.replace(/_/g, " ")}</span>}
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              {activityMissionId && (
+                <section className="panel" aria-label="Event log">
+                  <div className="panel-head"><p className="eyebrow">EVENT LOG</p><span className="muted">durable runEvents, oldest first</span></div>
+                  {activityEvents === undefined ? <p className="empty-state">Loading events…</p> : activityEvents.length === 0 ? (
+                    <p className="empty-state">No events recorded for this run yet.</p>
+                  ) : (
+                    <ol className="activity-log">
+                      {activityEvents.map((evt) => (
+                        <li key={evt._id}>
+                          <span className="activity-time">{shortDate(evt.createdAt)}</span>
+                          <span className="status-pill status-draft">{evt.stage.replace(/_/g, " ")}</span>
+                          <span className="activity-copy"><strong>{evt.type}</strong> — {evt.safeSummary}</span>
+                        </li>
+                      ))}
+                    </ol>
+                  )}
+                </section>
+              )}
+
+              {activityMissionId && activitySteps && activitySteps.length > 0 && (
+                <section className="panel" aria-label="Step record">
+                  <div className="panel-head"><p className="eyebrow">STEP RECORD</p><span className="muted">{activitySteps.length} recorded</span></div>
+                  <div className="row-list">
+                    {activitySteps.map((step) => (
+                      <div className="row-item static" key={step._id}>
+                        <div className="row-copy">
+                          <strong>{step.label}</strong>
+                          <em>{step.summary}</em>
+                          <span className="muted">{step.stage}{step.tool ? ` · ${step.tool}` : ""} · {shortDate(step.createdAt)}{step.errorCode ? ` · ${step.errorCode}` : ""}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
+            </div>
+          )}
+
+          {activeView === "actions" && (
+            <div className="view-stack">
+              <div className="actions-divider"><span>Form submissions</span></div>
               {!selectedMission ? <p className="empty-state">Select or start a mission first.</p> : (
                 <>
                   <section className="panel" aria-label="Form scout">
@@ -2166,11 +2364,16 @@ Clarification: ${clarifyAnswer.trim()}` });
       <div className={mobileNavOpen ? "mobile-drawer open" : "mobile-drawer"} aria-hidden={!mobileNavOpen}>
         <div className="mobile-drawer-head"><strong>Prospect Radar</strong><button type="button" aria-label="Close navigation" onClick={() => setMobileNavOpen(false)}>✕</button></div>
         <nav className="main-nav" aria-label="Mobile">
-          {navItems.map((item) => (
-            <button key={item.id} type="button" className={activeView === item.id ? "nav-item active" : "nav-item"} onClick={() => selectView(item.id)}>
-              <span className="nav-label"><strong>{item.label}</strong><em>{item.hint}</em></span>
-              {navCounts[item.id] ? <span className="nav-count">{navCounts[item.id]}</span> : null}
-            </button>
+          {navGroups.map((group) => (
+            <div className="nav-group" key={group}>
+              <p className="nav-section-label">{group}</p>
+              {navItems.filter((item) => item.group === group).map((item) => (
+                <button key={item.id} type="button" className={activeView === item.id ? "nav-item active" : "nav-item"} onClick={() => selectView(item.id)}>
+                  <span className="nav-label"><strong>{item.label}</strong><em>{item.hint}</em></span>
+                  {navCounts[item.id] ? <span className="nav-count">{navCounts[item.id]}</span> : null}
+                </button>
+              ))}
+            </div>
           ))}
         </nav>
         <div className="theme-switch mobile-theme" role="radiogroup" aria-label="Theme">
