@@ -14,11 +14,35 @@
 - **Auth:** Convex Auth
 - **AI models:** any OpenAI-compatible model via OPENAI_BASE_URL / OPENAI_MODEL (DashScope qwen-max in production; provider recorded on plans and classifications)
 - **Started:** 2026-09-13T00:00:00Z
-- **Last updated:** 2026-09-18T19:43:00Z
+- **Last updated:** 2026-09-18T20:52:00Z
 
 ## Log
 
-### 2026-09-18 - working tree
+### 2026-09-18 - d88fafb
+Proved Convex Auth end to end on the production deployment and fixed the two
+production defects the proof exposed. The live run signs up a real account over
+the deployed API, resolves the identity from the issued JWT, provisions exactly
+one workspace (re-calling is idempotent), creates and reads workspace-scoped
+data, and is then refused for a foreign workspace id. It also proves that an
+anonymous caller who presents a real workspace id is refused, and that sign-out
+revokes the refresh token. Evidence: `proof/auth-proof.json`, harness
+`scripts/authProof.mjs`.
+Two real bugs found by running it against the deployment rather than locally:
+**1.** `auth.addHttpRoutes` was never registered, so the static-hosting SPA
+fallback answered `/.well-known/openid-configuration` with `index.html` and the
+client failed with `AuthProviderDiscoveryFailed` — the auth routes are now
+registered before the static catch-all in `convex/http.ts`. **2.**
+`validateWorkspace` returned early for anonymous callers, so any unauthenticated
+caller holding a workspace id passed validation; the anonymous path is now
+narrowed so it is refused as soon as the id resolves to a real `workspaces` row
+(`convex/model/auth.ts`). The production deployment was also missing
+`JWT_PRIVATE_KEY`, `JWKS`, and `SITE_URL` entirely, so auth could not have worked
+there; a fresh RS256 keypair was generated and set (variable names only — no
+values are recorded here). Verified: tsc clean on both configs, 187 tests
+passing, `/.well-known/openid-configuration` and `/.well-known/jwks.json`
+returning 200 on the live site.
+
+### 2026-09-18 - 290bb84
 Restructured the sidebar around the user's mental model of an agent instead of
 implementation modules: **RADAR** (Home, Dashboard), **WORK** (Discover, Actions,
 Inbox, Relationships, Outcomes), **KNOWLEDGE** (Profile), **SYSTEM** (Activity).

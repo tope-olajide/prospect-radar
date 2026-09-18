@@ -1,0 +1,54 @@
+{
+  "capturedAt": "2026-09-18T19:51:43.213Z",
+  "convexUrl": "https://wry-walrus-528.convex.cloud",
+  "steps": [
+    {
+      "step": "anonymous identity",
+      "detail": "users.current -> null (correct)"
+    },
+    {
+      "step": "sign-up",
+      "detail": "issued JWT (3-part) for radar-proof-1789761103213@[redacted]"
+    },
+    {
+      "step": "identity",
+      "detail": "users.current -> user ps72kjgk… (email present: true)"
+    },
+    {
+      "step": "workspace",
+      "detail": "provisioned once, idempotent re-call -> px7ag2jw…"
+    },
+    {
+      "step": "workspace scope",
+      "detail": "users.workspace -> My workspace"
+    },
+    {
+      "step": "scoped write",
+      "detail": "missions.create with own workspaceId -> kd71bkgj…"
+    },
+    {
+      "step": "scoped read",
+      "detail": "missions.list on own workspace -> 1 mission(s)"
+    },
+    {
+      "step": "cross-workspace refusal",
+      "detail": "authenticated caller, foreign workspaceId -> [Request ID: 897dac06e2bf7855] Server Error"
+    },
+    {
+      "step": "anonymous scope refusal",
+      "detail": "anonymous caller, known workspaceId -> [Request ID: 66be0b4fd6dca412] Server Error"
+    },
+    {
+      "step": "sign-out",
+      "detail": "refresh token after signOut -> no tokens returned"
+    }
+  ],
+  "summary": {
+    "anonymousBlocked": true,
+    "signUpIssuedToken": true,
+    "workspaceIdempotent": true,
+    "crossWorkspaceRefused": true,
+    "anonymousWorkspaceReadBlocked": true,
+    "refreshTokenRevoked": true
+  }
+}

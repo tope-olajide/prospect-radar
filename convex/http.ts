@@ -3,6 +3,7 @@ import { verifyAgentMailWebhook } from "@agentmail/convex";
 import { registerStaticRoutes } from "@convex-dev/static-hosting";
 import { api, components } from "./_generated/api";
 import { httpAction } from "./_generated/server";
+import { auth } from "./auth";
 
 const http = httpRouter();
 
@@ -86,8 +87,15 @@ http.route({ path: "/agentmail/webhook", method: "POST", handler: agentmailWebho
 // Firecrawl crawl progress webhooks are mounted automatically at /firecrawl/webhook
 // by convex.config.ts (httpPrefix: "/firecrawl/").
 
-// Static hosting catch-all: registered AFTER exact app routes so /agentmail/webhook
-// and /firecrawl/* keep priority; everything else serves the built frontend.
+// Convex Auth HTTP routes: `/.well-known/openid-configuration` and
+// `/.well-known/jwks.json`. These must be registered BEFORE the static-hosting
+// catch-all, otherwise the SPA fallback answers with index.html and the client
+// cannot discover the auth provider (`AuthProviderDiscoveryFailed`).
+auth.addHttpRoutes(http);
+
+// Static hosting catch-all: registered AFTER every exact app route so
+// /agentmail/webhook, /firecrawl/* and the auth discovery routes keep priority;
+// everything else serves the built frontend.
 registerStaticRoutes(http, components.staticHosting);
 
 export default http;
