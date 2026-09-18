@@ -242,6 +242,9 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
   const threadMessages = useQuery(api.inbox.listMessages, backendConnected && selectedThreadId ? { workspaceId, threadId: selectedThreadId } : "skip");
   const classifications = useQuery(api.outreachStore.listClassifications, backendConnected && workspaceId ? { workspaceId, missionId: null } : "skip");
   const outcomes = useQuery(api.outcomes.listForMission, backendConnected && missionId ? { workspaceId, missionId } : "skip");
+  // Outcomes is a workspace-level question ("what actually happened"), so it
+  // reads every relationship rather than only the selected mission's.
+  const workspaceOutcomes = useQuery(api.outcomes.listForWorkspace, backendConnected && workspaceId ? { workspaceId } : "skip");
   const followUps = useQuery(api.relationships.followUpsForMission, backendConnected && missionId ? { workspaceId, missionId } : "skip");
   const meetings = useQuery(api.relationships.meetingsForMission, backendConnected && missionId ? { workspaceId, missionId } : "skip");
   const sequences = useQuery(api.relationships.sequencesForMission, backendConnected && missionId ? { workspaceId, missionId } : "skip");
@@ -303,7 +306,9 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
     actions: actionableDrafts.length + pendingFormWork || null,
     inbox: threads?.length || null,
     relationships: openOutcomes.length || null,
-    outcomes: openOutcomes.length || null,
+    // Outcomes is workspace-wide, so its badge counts every open relationship
+    // rather than only the selected mission's.
+    outcomes: (workspaceOutcomes ?? []).filter((outcome) => !["won", "lost"].includes(outcome.stage)).length || null,
     profile: (contextFacts ?? []).filter((f) => f.verificationStatus === "unreviewed").length || null,
     activity: null,
   };
@@ -1900,24 +1905,26 @@ Clarification: ${clarifyAnswer.trim()}` });
                 )}
               </section>
 
-              <section className="panel" aria-label="Mission outcomes">
+              <section className="panel" aria-label="Every relationship">
                 <div className="panel-head">
-                  <p className="eyebrow">OUTCOMES FOR THIS MISSION</p>
-                  {selectedMission && <span className="muted">{selectedMission.title.slice(0, 44)}{selectedMission.title.length > 44 ? "…" : ""}</span>}
+                  <p className="eyebrow">EVERY RELATIONSHIP</p>
+                  <span className="muted">{workspaceOutcomes?.length ?? 0} tracked across this workspace</span>
                 </div>
-                {!selectedMission ? <p className="empty-state">Pick a mission to see the results Radar recorded for it.</p> : outcomes === undefined ? <p className="empty-state">Loading…</p> : outcomes.length === 0 ? (
-                  <p className="empty-state">No outcomes recorded yet. Radar opens one the moment an approved message is sent or a reply lands.</p>
+                {workspaceOutcomes === undefined ? <p className="empty-state">Loading outcomes…</p> : workspaceOutcomes.length === 0 ? (
+                  <p className="empty-state">No outcomes recorded yet. Radar opens one the moment an approved message is sent or a reply lands — whichever mission started it, it shows up here.</p>
                 ) : (
                   <div className="row-list">
-                    {outcomes.map((outcome) => (
+                    {workspaceOutcomes.map((outcome) => (
                       <article className="row-item static" key={outcome._id}>
                         <div className="row-copy">
                           <strong><span className={`stage-dot stage-${outcome.stage}`} /> {outcome.counterpart}</strong>
                           <em>{outcome.latestEvidence}</em>
-                          <span className="muted">{PIPELINE_LABELS[outcome.stage as PipelineStageName] ?? outcome.stage} · updated {shortDate(outcome.updatedAt)}</span>
+                          <span className="muted">
+                            {PIPELINE_LABELS[outcome.stage as PipelineStageName] ?? outcome.stage} · {outcome.missionTitle} · updated {shortDate(outcome.updatedAt)}
+                          </span>
                         </div>
                         <div className="inline-actions">
-                          <button type="button" className="btn ghost" onClick={() => selectView("relationships")}>Open relationship →</button>
+                          <button type="button" className="btn ghost" onClick={() => { setSelectedMissionId(outcome.missionId); selectView("relationships"); }}>Open relationship →</button>
                         </div>
                       </article>
                     ))}
