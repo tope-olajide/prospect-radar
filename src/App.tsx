@@ -102,6 +102,8 @@ export default function App({ backendConnected }: { backendConnected: boolean })
   const runPipeline = useMutation(api.orchestratorStore.runPipeline);
   const stopRun = useMutation(api.orchestratorStore.stopRun);
   const retryRunStage = useMutation(api.orchestratorStore.retryStage);
+  const approvePlan = useMutation(api.orchestratorStore.approvePlan);
+  const continueAfterCheckIn = useMutation(api.orchestratorStore.continueAfterCheckIn);
 
   const [activeView, setActiveView] = useState<View>("home");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -114,10 +116,7 @@ export default function App({ backendConnected }: { backendConnected: boolean })
   const [submitting, setSubmitting] = useState(false);
   const [notice, setNotice] = useState("");
   const [selectedMissionId, setSelectedMissionId] = useState<string | null>(null);
-  const [openThreadId, setOpenThreadId] = useState<string | null>(null);
-  // The user's request as typed, held locally until the Convex row exists —
-  // so the exchange is visible on screen the instant the button is pressed.
-  const [pendingGoal, setPendingGoal] = useState<string | null>(null);
+
   const [planning, setPlanning] = useState(false);
   const [planNotice, setPlanNotice] = useState("");
 
@@ -286,53 +285,17 @@ export default function App({ backendConnected }: { backendConnected: boolean })
     setMobileNavOpen(false);
   }
 
-  // Conversation thread per mission: the run's real steps, oldest first, so a
-  // refresh reconstructs the same history the user saw live. Persisted in
-  // Convex — nothing here is frontend-only state.
-  const threadStepsByMission = useQuery(
-    api.commandCenter.threadSteps,
-    backendConnected && selectedMissionId ? { missionId: selectedMissionId as Id<"missions"> } : "skip",
-  );
-  // Step streams for the last three missions, so earlier threads stay live
-  // while the user talks about a newer goal.
-  const recentThreadSteps = useQuery(
-    api.commandCenter.threadStepsMany,
-    backendConnected && board && board.length > 0 ? { missionIds: board.slice(0, 3).map((row) => row.missionId) } : "skip",
-  );
-
-  // Home is the agent conversation: the newest mission is what the user came
-  // to watch, so it starts expanded without any click. A user toggle pins
-  // their choice; otherwise the newest mission with a live run expands.
-  const autoExpandedId = useMemo(() => {
-    if (openThreadId !== null) return openThreadId;
-    if (!board || board.length === 0) return null;
-    const liveStatuses = ["queued", "active", "waiting", "blocked"];
-    const live = board.find((row) => liveStatuses.includes(row.runStatus));
-    return (live ?? board[0]).missionId;
-  }, [board, openThreadId]);
-
-  // ChatGPT-pattern: the moment the user sends, the exchange must appear in
-  // the viewport. Scroll to the pending card, then to the real thread.
+  // Scroll to the active mission panel when a new mission is created.
   useEffect(() => {
-    if (activeView !== "home") return;
-    const target = (selectedMissionId && document.getElementById(`thread-${selectedMissionId}`)) || (pendingGoal !== null ? document.getElementById("thread-pending") : null);
-    target?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, [selectedMissionId, activeView, pendingGoal]);
-
-  // Once the real run row lands in Convex, the local pending card retires —
-  // the persisted thread replaces it with identical content in place.
-  useEffect(() => {
-    if (pendingGoal === null || !selectedMissionId || !board) return;
-    if (board.some((row) => row.missionId === selectedMissionId)) setPendingGoal(null);
-  }, [board, pendingGoal, selectedMissionId]);
+    if (activeView !== "home" || !selectedMissionId) return;
+    const el = document.getElementById("active-mission");
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [selectedMissionId, activeView]);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!goal.trim() || !backendConnected) return;
     const requested = goal.trim();
-    // The user must SEE their request working immediately: the pending
-    // exchange renders above the composer before any network round-trip.
-    setPendingGoal(requested);
     setSubmitting(true);
     setNotice("");
     try {
@@ -348,7 +311,6 @@ export default function App({ backendConnected }: { backendConnected: boolean })
         setNotice("The run did not start automatically — open Dashboard and press ▶ Run Radar end-to-end.");
       });
     } catch (error) {
-      setPendingGoal(null);
       setGoal(requested);
       setNotice(error instanceof Error ? error.message : "Mission creation failed.");
     } finally {
@@ -427,6 +389,28 @@ Clarification: ${clarifyAnswer.trim()}` });
     setEditingUnderstanding(false);
     await classifyIntent({ missionId });
     setPlanNotice("Understanding revised — classification updated.");
+  }
+
+  async function onApprovePlan() {
+    if (!missionId) return;
+    setPlanning(true); setPlanNotice("");
+    try {
+      await approvePlan({ workspaceId, missionId });
+      setPlanNotice("Plan approved — Radar is searching.");
+    } catch (error) {
+      setPlanNotice(error instanceof Error ? error.message : "Could not approve plan.");
+    } finally { setPlanning(false); }
+  }
+
+  async function onContinueAfterCheckIn() {
+    if (!missionId) return;
+    setPlanning(true); setPlanNotice("");
+    try {
+      await continueAfterCheckIn({ workspaceId, missionId });
+      setPlanNotice("Continuing to evaluation.");
+    } catch (error) {
+      setPlanNotice(error instanceof Error ? error.message : "Could not continue.");
+    } finally { setPlanning(false); }
   }
 
   function startBriefEdit() {
@@ -944,126 +928,187 @@ Clarification: ${clarifyAnswer.trim()}` });
 
           {activeView === "home" && (
             <div className="workspace">
-              {pendingGoal !== null && (
-                <article className="panel thread-card open" id="thread-pending" aria-label="Starting mission">
-                  <div className="thread-body">
-                    <div className="thread-msg you">
-                      <span className="thread-who">You</span>
-                      <p>{pendingGoal}</p>
-                    </div>
-                    <div className="thread-msg radar">
-                      <span className="thread-who">Radar</span>
-                      <p className="thread-picking-up" aria-live="polite">Picking up your request…</p>
+              {/* ── Active mission: visible the moment a run exists ── */}
+              {selectedMission && (
+                <section className="panel active-mission" id="active-mission" aria-label="Active mission">
+                  <div className="panel-head">
+                    <p className="eyebrow">ACTIVE MISSION</p>
+                    <div className="control-row">
+                      <span className={`status-pill status-${run?.status ?? selectedMission.status}`}>{run?.status ?? selectedMission.status}</span>
+                      {run && !["cancelled", "complete", "failed"].includes(run.status) && (
+                        <button type="button" className="btn ghost" onClick={onStopRun}>■ Stop</button>
+                      )}
+                      {run?.status === "blocked" && (
+                        <button type="button" className="btn ghost" onClick={onRetryStage}>{budgetBlocked ? "↻ Resume" : "↻ Retry"}</button>
+                      )}
                     </div>
                   </div>
-                </article>
-              )}
-              {(() => {
-                // Render from the runs board (authoritative, updates instantly),
-                // not from the steps list — a brand-new mission has zero steps
-                // for its first seconds, and hiding it then is exactly the
-                // "clicked start and nothing happened" bug.
-                const stepMap = new Map((recentThreadSteps ?? []).map((thread) => [thread.missionId as string, thread.steps]));
-                const stepsFor = (id: string) => stepMap.get(id) ?? [];
-                const liveStatuses = ["queued", "active", "waiting", "blocked"];
-                const rows = (board ?? []).filter((row) => stepsFor(row.missionId).length > 0 || row.runStatus !== "none" || row.missionId === selectedMissionId);
-                const ordered = [...rows].sort((a, b) => {
-                  const live = (row: typeof a) => liveStatuses.includes(row.runStatus);
-                  if (live(a) !== live(b)) return live(a) ? -1 : 1;
-                  return stepsFor(b.missionId).length - stepsFor(a.missionId).length;
-                });
-                return ordered.map((row) => {
-                const thread = { missionId: row.missionId, steps: stepsFor(row.missionId) };
-                const mission = missions?.find((item) => item._id === thread.missionId);
-                if (!mission) return null;
-                const threadRun = row;
-                const threadMatches = thread.missionId === selectedMissionId ? matches : undefined;
-                const threadDrafts = thread.missionId === selectedMissionId ? drafts : undefined;
-                const threadApprovals = (threadDrafts ?? []).filter((draft) => ["awaiting_approval", "approved"].includes(draft.status));
-                const isOpen = autoExpandedId === thread.missionId;
-                const strongCount = (threadMatches ?? []).filter((match) => match.label === "stronger").length;
-                const rawRunState = threadRun ? { status: threadRun.runStatus, currentStage: threadRun.currentStage, activeInterruption: threadRun.activeInterruption } : null;
-                const runState = rawRunState && rawRunState.status !== "none" ? { status: rawRunState.status, currentStage: rawRunState.currentStage ?? "intake", activeInterruption: rawRunState.activeInterruption } : null;
-                const headStep = thread.steps.length > 0 ? thread.steps[thread.steps.length - 1] : null;
-                const runLive = runState ? ["queued", "active", "waiting", "blocked"].includes(runState.status) : false;
-                return (
-                  <article className={`panel thread-card${isOpen ? " open" : ""}`} key={thread.missionId} id={`thread-${thread.missionId}`}>
-                    <button type="button" className="thread-card-head" onClick={() => setOpenThreadId(isOpen ? null : thread.missionId)} aria-expanded={isOpen}>
-                      <span className={`status-pill status-${runState?.status ?? mission.status}`}>{runState?.status ?? mission.status}</span>
-                      <strong className="thread-goal">{mission.rawGoal}</strong>
-                      {!isOpen && (
-                        <span className={`head-step${runLive ? " live" : ""}`}>{headStep ? <><em>{headStep.label}</em> {headStep.summary}</> : runLive ? "Radar is working…" : ""}</span>
-                      )}
-                      <span className="muted">{shortDate(mission.createdAt)}</span>
-                    </button>
-                    {isOpen && (
-                      <div className="thread-body">
-                        <div className="thread-msg you">
-                          <span className="thread-who">You</span>
-                          <p>{mission.rawGoal}</p>
-                        </div>
-                        <div className="thread-msg radar">
-                          <span className="thread-who">Radar</span>
-                          {thread.steps.length === 0 && (
-                            <p className="thread-picking-up" aria-live="polite">Picking up your request…</p>
-                          )}
-                          {mission.intent && (
-                            <p className="thread-understanding">{mission.intent.rationale}</p>
-                          )}
-                          {mission.clarification && (
-                            <div className="thread-ask">
-                              <p><b>Radar needs one detail</b>{mission.clarification}</p>
-                              <div className="control-row">
-                                <input value={clarifyAnswer} onChange={(e) => setClarifyAnswer(e.target.value)} placeholder="Answer in one line…" aria-label="Clarification answer" />
-                                <button type="button" className="btn" disabled={!clarifyAnswer.trim() || planning} onClick={onClarifySubmit}>Answer</button>
-                              </div>
-                            </div>
-                          )}
-                          <MissionLifecycle run={runState} latestStep={thread.steps.length > 0 ? thread.steps[thread.steps.length - 1] : null} />
-                          {thread.steps.length > 0 && (
-                            <details className="thread-steps">
-                              <summary>{thread.steps.length} step{thread.steps.length === 1 ? "" : "s"} — every receipt from the run</summary>
-                              <ol className="event-trail compact">
-                                {thread.steps.slice().reverse().map((step) => (
-                                  <li key={step._id}>
-                                    <span className="event-dot" />
-                                    <div><strong>{step.label}{step.tool ? <em className="tool-chip">{step.tool}</em> : null}</strong><em>{step.summary}</em><small>{shortDate(step.createdAt)} · {step.stage}{step.errorCode ? ` · ${step.errorCode}` : ""}</small></div>
-                                  </li>
-                                ))}
-                              </ol>
-                            </details>
-                          )}
-                          {thread.missionId === selectedMissionId && strongCount > 0 && (
-                            <div className="thread-results">
-                              <p className="thread-count"><strong>{strongCount}</strong> strong {strongCount === 1 ? "match" : "matches"} · {(threadMatches ?? []).length} evaluated</p>
-                              <div className="thread-cards">
-                                {(threadMatches ?? []).filter((match) => match.label === "stronger").slice(0, 2).map((match) => (
-                                  <div className="thread-result" key={match._id}>
-                                    <strong>{match.entity?.name ?? match.subject}</strong>
-                                    <span className="muted">{match.explanationSummary?.slice(0, 110)}{match.explanationSummary && match.explanationSummary.length > 110 ? "…" : ""}</span>
-                                  </div>
-                                ))}
-                              </div>
-                              <button type="button" className="btn ghost" onClick={() => selectView("discover")}>View all matches →</button>
-                            </div>
-                          )}
-                          {threadApprovals.length > 0 && (
-                            <div className="thread-approval">
-                              <p><b>Waiting for you</b>{threadApprovals.length} draft{threadApprovals.length === 1 ? "" : "s"} cannot send until you approve the exact content.</p>
-                              <button type="button" className="btn" onClick={() => selectView("outreach")}>Review & approve</button>
-                            </div>
-                          )}
-                          {runState && ["cancelled", "complete", "failed"].includes(runState.status) && runState.status !== "complete" && (
-                            <p className="stage-note">Run {runState.status}{runState.status === "failed" ? " — the transcript in Activity has the reason" : " — you stopped this mission"}.</p>
-                          )}
-                        </div>
+                  {/* What the user asked */}
+                  <p className="mission-goal-display"><strong>You asked:</strong> {selectedMission.rawGoal}</p>
+                  {/* Radar's understanding */}
+                  {selectedMission.intent && (
+                    <div className="understanding-inline">
+                      <strong>Radar understands:</strong> <span>{selectedMission.intent.rationale}</span>
+                      <span className="stage-note">{selectedMission.intent.primary.replace("find_", "")}{selectedMission.intent.secondary ? ` + ${selectedMission.intent.secondary.replace("find_", "")}` : ""}</span>
+                    </div>
+                  )}
+                  {/* Clarification request */}
+                  {selectedMission.clarification && (
+                    <div className="thread-ask">
+                      <p><b>Radar needs one detail:</b> {selectedMission.clarification}</p>
+                      <div className="control-row">
+                        <input value={clarifyAnswer} onChange={(e) => setClarifyAnswer(e.target.value)} placeholder="Answer in one line…" aria-label="Clarification answer" />
+                        <button type="button" className="btn" disabled={!clarifyAnswer.trim() || planning} onClick={onClarifySubmit}>Answer</button>
                       </div>
-                    )}
-                  </article>
-                );
-                });
-              })()}
+                    </div>
+                  )}
+                  {/* Lifecycle rail — the core visual of what Radar is doing */}
+                  <MissionLifecycle
+                    run={run ? { status: run.status, currentStage: run.currentStage, activeInterruption: run.activeInterruption ?? null } : { status: selectedMission.status, currentStage: "intake", activeInterruption: null }}
+                    latestStep={runSteps && runSteps.length > 0 ? runSteps[runSteps.length - 1] : undefined}
+                  />
 
+                  {/* ── GAP 1: Plan review card ── */}
+                  {run?.status === "waiting" && run.currentStage === "plan_review" && plan && (
+                    <div className="plan-review-card">
+                      <div className="panel-head"><p className="eyebrow">RADAR'S PLAN</p><span className="muted">review before searching</span></div>
+                      <div className="plan-goal"><strong>Goal:</strong> {plan.normalizedGoal}</div>
+                      {plan.mustHave.length > 0 && (
+                        <div className="plan-section"><strong>Must find:</strong> {plan.mustHave.join(", ")}</div>
+                      )}
+                      {plan.niceToHave.length > 0 && (
+                        <div className="plan-section"><strong>Nice to have:</strong> {plan.niceToHave.join(", ")}</div>
+                      )}
+                      {plan.exclusions && (
+                        <div className="plan-section"><strong>Exclusions:</strong> {plan.exclusions}</div>
+                      )}
+                      {plan.recommendedSources && (
+                        <div className="plan-section"><strong>Sources:</strong> {plan.recommendedSources}</div>
+                      )}
+                      {plan.strategyNotes && (
+                        <div className="plan-section"><strong>Strategy:</strong> {plan.strategyNotes}</div>
+                      )}
+                      <div className="inline-actions">
+                        <button type="button" className="btn" onClick={onApprovePlan} disabled={planning}>{planning ? "Approving…" : "✓ Approve plan"}</button>
+                        <button type="button" className="btn ghost" onClick={() => selectView("dashboard")}>Edit plan →</button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── GAP 5: Check-in card ── */}
+                  {run?.status === "waiting" && run.currentStage === "check_in" && (
+                    <div className="checkin-card">
+                      <div className="panel-head"><p className="eyebrow">DISCOVERY SUMMARY</p><span className="muted">what Radar found</span></div>
+                      <div className="checkin-stats">
+                        <span><strong>{sources?.length ?? 0}</strong> sources</span>
+                        <span><strong>{entities?.length ?? 0}</strong> entities</span>
+                        <span><strong>{missionSignals?.length ?? 0}</strong> signals</span>
+                        <span><strong>{matches?.length ?? 0}</strong> matches</span>
+                      </div>
+                      {matches && matches.filter((m) => m.label === "stronger").length > 0 && (
+                        <p className="checkin-highlight">{matches.filter((m) => m.label === "stronger").length} strong match{matches.filter((m) => m.label === "stronger").length === 1 ? "" : "es"} found</p>
+                      )}
+                      <div className="inline-actions">
+                        <button type="button" className="btn" onClick={onContinueAfterCheckIn} disabled={planning}>{planning ? "Continuing…" : "Continue to evaluation →"}</button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── GAP 6: Parallel Firecrawl jobs ── */}
+                  {jobs && jobs.length > 0 && run?.status === "active" && run.currentStage === "discover" && (
+                    <div className="parallel-jobs">
+                      <div className="panel-head"><p className="eyebrow">RESEARCHING</p><span className="muted">{jobs.filter((j) => j.status === "complete").length}/{jobs.length} done</span></div>
+                      <div className="job-pills">
+                        {jobs.slice(0, 8).map((job) => (
+                          <span key={job._id} className={`job-pill job-${job.status}`}>
+                            <span className="job-icon">{job.status === "running" ? "●" : job.status === "complete" ? "✓" : "✗"}</span>
+                            {job.operation} · {job.query.slice(0, 30)}{job.query.length > 30 ? "…" : ""}
+                            {job.resultCount > 0 ? <em>{job.resultCount}</em> : null}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── GAP 2: Inline tool cards (step transcript) ── */}
+                  {runSteps && runSteps.length > 0 && (
+                    <div className="step-cards">
+                      <div className="panel-head"><p className="eyebrow">AGENT STEPS</p><span className="muted">{runSteps.length} receipt{runSteps.length === 1 ? "" : "s"}</span></div>
+                      {runSteps.slice().reverse().map((step) => (
+                        <details className="step-card" key={step._id}>
+                          <summary className="step-card-head">
+                            <span className={`step-dot step-${step.stage}`} />
+                            <span className="step-label">{step.label}</span>
+                            {step.tool && <em className="tool-chip">{step.tool}</em>}
+                            <span className="step-summary">{step.summary}</span>
+                          </summary>
+                          <div className="step-card-body">
+                            <p>{step.summary}</p>
+                            <small>{shortDate(step.createdAt)} · {step.stage}{step.errorCode ? ` · ${step.errorCode}` : ""}{step.reference ? ` · ref ${step.reference.slice(0, 12)}…` : ""}</small>
+                          </div>
+                        </details>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* ── GAP 4: Strong matches with source chips ── */}
+                  {matches && matches.filter((m) => m.label === "stronger").length > 0 && (
+                    <div className="thread-results">
+                      <p className="thread-count"><strong>{matches.filter((m) => m.label === "stronger").length}</strong> strong match{matches.filter((m) => m.label === "stronger").length === 1 ? "" : "es"} · {matches.length} evaluated</p>
+                      <div className="thread-cards">
+                        {matches.filter((m) => m.label === "stronger").slice(0, 3).map((match) => {
+                          const matchSource = match.sourceId ? sources?.find((s) => s._id === match.sourceId) : undefined;
+                          return (
+                            <div className="thread-result" key={match._id}>
+                              <strong>{match.entity?.name ?? match.subject}</strong>
+                              <span className="muted">{match.explanationSummary?.slice(0, 120)}{match.explanationSummary && match.explanationSummary.length > 120 ? "…" : ""}</span>
+                              {matchSource && (
+                                <span className="source-chip" title={matchSource.url}>
+                                  <span className="source-icon">🔗</span>{hostLabel(matchSource.url)}
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <button type="button" className="btn ghost" onClick={() => selectView("discover")}>View all matches →</button>
+                    </div>
+                  )}
+
+                  {/* ── GAP 3: Follow-up suggestions ── */}
+                  {run?.status === "complete" && matches && matches.length > 0 && (
+                    <div className="followup-suggestions">
+                      <p className="followup-title">What next?</p>
+                      <div className="followup-pills">
+                        {matches.filter((m) => m.label === "stronger").length > 0 && (
+                          <button type="button" className="followup-pill" onClick={() => selectView("outreach")}>Draft outreach to top match</button>
+                        )}
+                        {entities && entities.length > 0 && (
+                          <button type="button" className="followup-pill" onClick={() => selectView("discover")}>Review all entities</button>
+                        )}
+                        <button type="button" className="followup-pill" onClick={() => selectView("outcomes")}>See pipeline</button>
+                        <button type="button" className="followup-pill" onClick={() => { setGoal("Find more companies like the top matches"); selectView("home"); }}>Find similar</button>
+                      </div>
+                    </div>
+                  )}
+                  {/* Pending approvals */}
+                  {drafts && drafts.filter((d) => ["awaiting_approval", "approved"].includes(d.status)).length > 0 && (
+                    <div className="thread-approval">
+                      <p><b>Waiting for you</b> — {drafts.filter((d) => ["awaiting_approval", "approved"].includes(d.status)).length} draft{drafts.filter((d) => ["awaiting_approval", "approved"].includes(d.status)).length === 1 ? "" : "s"} ready for review.</p>
+                      <button type="button" className="btn" onClick={() => selectView("outreach")}>Review & approve →</button>
+                    </div>
+                  )}
+                  {/* Terminal state */}
+                  {run && ["cancelled", "complete", "failed"].includes(run.status) && run.status !== "complete" && (
+                    <p className="stage-note">Run {run.status}{run.status === "failed" ? " — see Activity for the reason." : " — you stopped this mission."}</p>
+                  )}
+                  {run?.status === "complete" && (
+                    <p className="stage-note">Mission complete. <button type="button" className="btn ghost" onClick={() => selectView("outcomes")}>See outcomes →</button></p>
+                  )}
+                </section>
+              )}
+
+              {/* ── Composer: always visible at the bottom ── */}
               <section className="panel composer-panel" aria-label="Ask Radar">
                 <form onSubmit={onSubmit}>
                   <label className="field-label" htmlFor="mission-goal">What should Radar find for you?</label>

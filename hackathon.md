@@ -14,9 +14,26 @@
 - **Auth:** none (demo workspace scope)
 - **AI models:** any OpenAI-compatible model via OPENAI_BASE_URL / OPENAI_MODEL (DashScope qwen-max in production; provider recorded on plans and classifications)
 - **Started:** 2026-09-13T00:00:00Z
-- **Last updated:** 2026-09-17T20:50:00Z
+- **Last updated:** 2026-09-18T14:45:00Z
 
 ## Log
+
+### 2026-09-18 - agent UX upgrade: plan review, check-in, inline tool cards, source chips, follow-up suggestions, parallel jobs
+Six UX gaps identified by comparing Radar against ChatGPT Agent, Devin, Manus, Perplexity, and Cursor. All six implemented end-to-end, frontend and backend.
+
+**Gap 1 — Plan preview.** After intent classification and planning, the run pauses at a new `plan_review` stage (`waiting` status). The Home screen renders a plan card showing the normalized goal, must-haves, nice-to-haves, exclusions, sources, and strategy. The user clicks Approve Plan to resume. Mutations: `approvePlan` in `convex/orchestratorStore.ts`. Stage added to `runState.ts` transitions, `runs.ts` validators, `schema.ts` runStage union, and `MissionLifecycle.tsx` lifecycle rail.
+
+**Gap 2 — Inline tool cards.** The flat transcript list is replaced with expandable step cards in the active mission area. Each card shows a stage-colored dot, label, tool chip, and summary; clicking expands to the full receipt. CSS in `src/index.css` (`.step-cards`, `.step-card`, `.step-card-head`).
+
+**Gap 3 — Follow-up suggestions.** After mission completion with matches, a "What next?" row renders contextual pills: "Draft outreach to top match", "Review all entities", "See pipeline", "Find similar". Each navigates to the appropriate view.
+
+**Gap 4 — Source chips.** Match cards now show an inline source chip with the hostname of the crawled source, linking back to the evidence. CSS: `.source-chip`.
+
+**Gap 5 — Mid-run check-in.** New `check_in` stage between `discover` and `evaluate`. After discovery finishes, the run pauses in `waiting` at `check_in`. Home renders a check-in card showing source count, entity count, signal count, and match count. The user clicks Continue to evaluation. Mutations: `continueAfterCheckIn` in `convex/orchestratorStore.ts`. Added to `runState.ts`, `runs.ts`, `schema.ts`, `MissionLifecycle.tsx`.
+
+**Gap 6 — Parallel task visibility.** During the `discover` stage, a compact research bar shows live Firecrawl job pills with running/complete/failed status and result counts. CSS: `.parallel-jobs`, `.job-pills`, `.job-pill`.
+
+All changes backed by real Convex state: `plan_review` and `check_in` are durable run stages with persisted transitions. 187 tests pass. Deployed to `wry-walrus-528.convex.site`.
 
 ### 2026-09-17 - later ×6 — Home rebuilt as the agent conversation; Dashboard split out
 **Home** is now a single-column AI workspace, ChatGPT-style: every mission renders

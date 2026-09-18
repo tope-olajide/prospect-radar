@@ -1,16 +1,18 @@
 import type { Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
 
-type RunStage = "intake" | "interpret" | "plan" | "discover" | "evaluate" | "approval" | "execute" | "wait" | "complete";
+type RunStage = "intake" | "interpret" | "plan" | "plan_review" | "discover" | "check_in" | "evaluate" | "approval" | "execute" | "wait" | "complete";
 type RunStatus = "queued" | "active" | "waiting" | "blocked" | "complete" | "failed" | "cancelled";
 type MissionStatus = "draft" | "ready" | "running" | "waiting" | "blocked" | "complete" | "failed" | "expired" | "cancelled";
 
 const allowedNextStages: Record<RunStage, RunStage[]> = {
-  intake: ["interpret", "plan", "discover", "approval", "wait", "complete"],
-  interpret: ["plan", "discover", "approval", "wait", "complete"],
-  plan: ["discover", "evaluate", "approval", "wait", "complete"],
-  discover: ["evaluate", "approval", "wait", "complete"],
-  evaluate: ["discover", "approval", "execute", "wait", "complete"],
+  intake: ["interpret", "plan", "plan_review", "discover", "approval", "wait", "complete"],
+  interpret: ["plan", "plan_review", "discover", "approval", "wait", "complete"],
+  plan: ["plan_review", "discover", "evaluate", "approval", "wait", "complete"],
+  plan_review: ["discover", "evaluate", "approval", "wait", "complete"],
+  discover: ["check_in", "evaluate", "approval", "wait", "complete"],
+  check_in: ["evaluate", "discover", "approval", "wait", "complete"],
+  evaluate: ["discover", "check_in", "approval", "execute", "wait", "complete"],
   approval: ["execute", "wait", "complete"],
   execute: ["approval", "wait", "complete"],
   wait: ["discover", "evaluate", "approval", "execute", "complete"],

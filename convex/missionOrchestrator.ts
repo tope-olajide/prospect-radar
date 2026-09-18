@@ -36,7 +36,7 @@ function advanceable(status: string, stage: string): boolean {
   return status === "active" || (status === "queued" && stage === "intake");
 }
 
-type Stage = "intake" | "interpret" | "plan" | "discover" | "evaluate" | "approval" | "execute" | "wait" | "complete";
+type Stage = "intake" | "interpret" | "plan" | "plan_review" | "discover" | "check_in" | "evaluate" | "approval" | "execute" | "wait" | "complete";
 
 type RunRow = {
   _id: Id<"agentRuns">;
@@ -169,8 +169,14 @@ export const runStage = internalAction({
           // save materializes the discovery backlog (missionQueries).
           await ctx.runAction(api.ai.planMission, { missionId: args.missionId });
           await ctx.runMutation(internal.orchestratorStore.stageDone, {
-            missionId: args.missionId, stage: "interpret", nextStage: "discover",
-            eventType: "stage.discover.started", summary: "Plan ready — starting discovery.",
+            missionId: args.missionId, stage: "interpret", nextStage: "plan_review",
+            eventType: "stage.plan_review.started", summary: "Plan ready — review it before Radar starts searching.",
+          });
+          // Pause for user review: transition to waiting so the orchestrator
+          // stops. The user clicks Approve Plan which sets status back to active.
+          await ctx.runMutation(internal.runs.transition, {
+            missionId: args.missionId, targetStage: "plan_review", targetStatus: "waiting",
+            interruption: null, eventType: "plan_review.waiting", safeSummary: "Radar is waiting for you to review the plan.",
           });
           return null;
         }
@@ -178,8 +184,12 @@ export const runStage = internalAction({
           const pending = await ctx.runQuery(internal.orchestratorStore.pendingQueries, { missionId: args.missionId });
           if (pending.length === 0) {
             await ctx.runMutation(internal.orchestratorStore.stageDone, {
-              missionId: args.missionId, stage: "discover", nextStage: "evaluate",
-              eventType: "stage.discover.done", summary: "Discovery finished — evaluating what was found.",
+              missionId: args.missionId, stage: "discover", nextStage: "check_in",
+              eventType: "stage.check_in.started", summary: "Discovery finished — here's what Radar found.",
+            });
+            await ctx.runMutation(internal.runs.transition, {
+              missionId: args.missionId, targetStage: "check_in", targetStatus: "waiting",
+              interruption: null, eventType: "check_in.waiting", safeSummary: "Radar is showing you what it found before evaluating.",
             });
             return null;
           }
@@ -256,6 +266,16 @@ export const runStage = internalAction({
             queryId: next._id, missionId: args.missionId, resultCount,
           });
           await ctx.scheduler.runAfter(0, internal.missionOrchestrator.runStage, { missionId: args.missionId });
+          return null;
+        }
+        case "plan_review": {
+          // Waiting for the user to approve the plan. The orchestrator
+          // should not advance — the approvePlan mutation transitions to discover.
+          return null;
+        }
+        case "check_in": {
+          // Waiting for the user to review the discovery summary. The
+          // continueAfterCheckIn mutation transitions to evaluate.
           return null;
         }
         case "evaluate": {
