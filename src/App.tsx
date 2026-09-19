@@ -30,15 +30,12 @@ const sponsorCapabilities: Array<[string, string]> = [
  * knows about you, and how the machinery is doing.
  */
 const navItems: { id: View; label: string; hint: string; group: string }[] = [
-  { id: "home", label: "Home", hint: "Mission control — what Radar is doing.", group: "RADAR" },
-  { id: "dashboard", label: "Dashboard", hint: "Workspace overview at a glance", group: "RADAR" },
-  { id: "discover", label: "Discover", hint: "Sourced, explained evidence", group: "WORK" },
-  { id: "actions", label: "Actions", hint: "Outreach, forms, follow-ups", group: "WORK" },
-  { id: "inbox", label: "Inbox", hint: "Replies and live conversations", group: "WORK" },
-  { id: "relationships", label: "Relationships", hint: "People, orgs, timelines", group: "WORK" },
-  { id: "outcomes", label: "Outcomes", hint: "What actually happened", group: "WORK" },
-  { id: "profile", label: "Profile", hint: "Who you are & what Radar knows", group: "KNOWLEDGE" },
-  { id: "activity", label: "Activity", hint: "Real agent event timeline", group: "SYSTEM" },
+  { id: "home", label: "Home", hint: "What is Radar doing?", group: "RADAR" },
+  { id: "discover", label: "Discover", hint: "What did Radar find?", group: "WORK" },
+  { id: "actions", label: "Actions", hint: "What is Radar going to do?", group: "WORK" },
+  { id: "inbox", label: "Inbox", hint: "What happened externally?", group: "WORK" },
+  { id: "outcomes", label: "Outcomes", hint: "What resulted?", group: "WORK" },
+  { id: "profile", label: "Profile", hint: "What does Radar know about me?", group: "KNOWLEDGE" },
 ];
 
 const navGroups: string[] = ["RADAR", "WORK", "KNOWLEDGE", "SYSTEM"];
@@ -229,6 +226,7 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
   const [budgetNotice, setBudgetNotice] = useState("");
 
   const [sourceTab, setSourceTab] = useState<"file" | "website" | "snippet">("file");
+  const [outcomesTab, setOutcomesTab] = useState<"results" | "relationships" | "pipeline">("results");
   const [fileDrag, setFileDrag] = useState(false);
   const [uploadingFile, setUploadingFile] = useState(false);
   const [addingWebsite, setAddingWebsite] = useState(false);
@@ -362,13 +360,9 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
     home: null,
     dashboard: null,
     discover: matches?.length ?? null,
-    // Actions is one destination for every side effect, so its badge is the
-    // total of everything waiting on a human decision there.
     actions: actionableDrafts.length + pendingFormWork || null,
     inbox: threads?.length || null,
     relationships: openOutcomes.length || null,
-    // Outcomes is workspace-wide, so its badge counts every open relationship
-    // rather than only the selected mission's.
     outcomes: (workspaceOutcomes ?? []).filter((outcome) => !["won", "lost"].includes(outcome.stage)).length || null,
     profile: (contextFacts ?? []).filter((f) => f.verificationStatus === "unreviewed").length || null,
     activity: null,
@@ -394,7 +388,7 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
       items.push({ id: "replies", title: `${freshReplies} inbound repl${freshReplies === 1 ? "y" : "ies"} waiting for review`, detail: "Classifications and suggested next steps are ready in the inbox.", tone: "cyan", view: "inbox" });
     }
     if (dueFollowUps.length > 0) {
-      items.push({ id: "followups", title: `${dueFollowUps.length} follow-up${dueFollowUps.length === 1 ? "" : "s"} due`, detail: dueFollowUps[0].note, tone: "amber", view: "relationships" });
+      items.push({ id: "followups", title: `${dueFollowUps.length} follow-up${dueFollowUps.length === 1 ? "" : "s"} due`, detail: dueFollowUps[0].note, tone: "amber", view: "outcomes" });
     }
     const queuedSteps = (sequences ?? []).flatMap((sequence) => sequence.steps).filter((step) => step.status === "draft_ready").length;
     if (queuedSteps > 0) {
@@ -1436,7 +1430,7 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
                       )}
                       <div className="inline-actions">
                         <button type="button" className="btn" onClick={onApprovePlan} disabled={planning}>{planning ? "Approving…" : "✓ Approve plan"}</button>
-                        <button type="button" className="btn ghost" onClick={() => selectView("dashboard")}>Edit plan →</button>
+                        <button type="button" className="btn ghost" onClick={() => { /* plan editing stays in mission context */ }}>Edit plan →</button>
                       </div>
                     </div>
                   )}
@@ -1532,7 +1526,7 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
                         {entities && entities.length > 0 && (
                           <button type="button" className="followup-pill" onClick={() => selectView("discover")}>Review all entities</button>
                         )}
-                        <button type="button" className="followup-pill" onClick={() => selectView("relationships")}>See relationships</button>
+                        <button type="button" className="followup-pill" onClick={() => { setOutcomesTab("relationships"); selectView("outcomes"); }}>See relationships</button>
                         <button type="button" className="followup-pill" onClick={() => { setGoal("Find more companies like the top matches"); selectView("home"); }}>Find similar</button>
                       </div>
                     </div>
@@ -1592,6 +1586,63 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
                 </section>
               )}
 
+              {/* ── Workspace summary: lightweight metrics from Dashboard ── */}
+              {overview && (
+                <section className="panel" aria-label="Workspace summary">
+                  <div className="panel-head"><p className="eyebrow">WORKSPACE</p></div>
+                  <div className="metric-grid">
+                    {[
+                      { label: "Entities", value: overview.counts.entities, view: "discover" as View },
+                      { label: "Replies", value: overview.counts.replies, view: "inbox" as View },
+                      { label: "Drafts pending", value: overview.counts.draftsPending, view: "actions" as View },
+                      { label: "Open outcomes", value: (workspaceOutcomes ?? []).filter((o) => !["won", "lost"].includes(o.stage)).length, view: "outcomes" as View },
+                    ].map((metric) => (
+                      <button key={metric.label} type="button" className="metric-tile" onClick={() => selectView(metric.view)}>
+                        <span className="metric-value">{metric.value}</span>
+                        <span className="metric-label">{metric.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                  {overview.pipeline.some((row) => row.count > 0) && (
+                    <div className="pipeline-mini" aria-label="Pipeline">
+                      {overview.pipeline.filter((row) => row.count > 0).map((row) => {
+                        const max = Math.max(...overview.pipeline.map((item) => item.count), 1);
+                        return (
+                          <div key={row.stage} className="pipeline-mini-row">
+                            <span>{PIPELINE_LABELS[row.stage as PipelineStageName] ?? row.stage}</span>
+                            <span className="pipeline-bar" aria-hidden="true"><span style={{ width: `${Math.round((row.count / max) * 100)}%` }} /></span>
+                            <strong>{row.count}</strong>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  <div className="inline-actions">
+                    <button type="button" className="btn ghost" onClick={() => selectView("outcomes")}>View all outcomes →</button>
+                  </div>
+                </section>
+              )}
+
+              {/* ── Attention items ── */}
+              {attentionItems.length > 0 && (
+                <section className="attention-grid" aria-label="Needs attention">
+                  {attentionItems.map((item) => (
+                    <button key={item.id} type="button" className={`attention-card ${item.tone === "amber" ? "tone-amber" : "tone-cyan"}`} onClick={() => selectView(item.view)}>
+                      <strong>{item.title}</strong>
+                      <p>{item.detail}</p>
+                      <span>Resolve →</span>
+                    </button>
+                  ))}
+                </section>
+              )}
+
+              {/* ── Activity link ── */}
+              {run && (
+                <div className="inline-actions" style={{ justifyContent: "center", padding: "0 0 1rem" }}>
+                  <button type="button" className="btn ghost" onClick={() => selectView("activity")}>View execution history →</button>
+                </div>
+              )}
+
               {/* ── Composer: always visible at the bottom ── */}
               <section className="panel composer-panel" aria-label="Ask Radar">
                 <form onSubmit={onSubmit}>
@@ -1621,7 +1672,7 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
                       { label: "Entities", value: overview.counts.entities, view: "discover" as View },
                       { label: "Signals · 7d", value: overview.counts.signalsThisWeek, view: "discover" as View },
                       { label: "Replies", value: overview.counts.replies, view: "inbox" as View },
-                      { label: "Follow-ups due", value: overview.counts.followUpsDue, view: "relationships" as View },
+                      { label: "Follow-ups due", value: overview.counts.followUpsDue, view: "outcomes" as View },
                       { label: "Drafts pending", value: overview.counts.draftsPending, view: "actions" as View },
                       { label: "Submissions", value: overview.counts.submissions, view: "actions" as View },
                     ].map((metric) => (
@@ -2262,70 +2313,168 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
           */}
           {activeView === "outcomes" && (
             <div className="view-stack">
-              <section className="panel" aria-label="Results so far">
-                <div className="panel-head"><p className="eyebrow">RESULTS SO FAR</p><span className="muted">counted from persisted records — nothing estimated</span></div>
-                {!overview ? <p className="empty-state">Loading results…</p> : (
-                  <>
-                    <div className="metric-grid">
-                      {[
-                        { label: "Messages approved & sent", value: overview.counts.draftsApproved },
-                        { label: "Replies received", value: overview.counts.replies },
-                        { label: "Conversations", value: overview.counts.threads },
-                        { label: "Form submissions", value: overview.counts.submissions },
-                        { label: "Submissions blocked", value: overview.counts.blockedSubmissions },
-                        { label: "People & orgs found", value: overview.counts.entities },
-                      ].map((metric) => (
-                        <div className="metric-tile static" key={metric.label}>
-                          <span className="metric-value">{metric.value}</span>
-                          <span className="metric-label">{metric.label}</span>
+              {/* ── Outcomes tabs ── */}
+              <div className="outcomes-tabs" role="tablist" aria-label="Outcomes sections">
+                {(["results", "relationships", "pipeline"] as const).map((tab) => (
+                  <button key={tab} type="button" role="tab" aria-selected={outcomesTab === tab} className={outcomesTab === tab ? "active" : ""} onClick={() => setOutcomesTab(tab)}>
+                    {tab === "results" ? "Results" : tab === "relationships" ? "Relationships" : "Pipeline"}
+                  </button>
+                ))}
+              </div>
+
+              {/* ── Results tab ── */}
+              {outcomesTab === "results" && (
+                <>
+                  <section className="panel" aria-label="Results so far">
+                    <div className="panel-head"><p className="eyebrow">RESULTS SO FAR</p><span className="muted">counted from persisted records — nothing estimated</span></div>
+                    {!overview ? <p className="empty-state">Loading results…</p> : (
+                      <>
+                        <div className="metric-grid">
+                          {[
+                            { label: "Messages approved & sent", value: overview.counts.draftsApproved },
+                            { label: "Replies received", value: overview.counts.replies },
+                            { label: "Conversations", value: overview.counts.threads },
+                            { label: "Form submissions", value: overview.counts.submissions },
+                            { label: "Submissions blocked", value: overview.counts.blockedSubmissions },
+                            { label: "People & orgs found", value: overview.counts.entities },
+                          ].map((metric) => (
+                            <div className="metric-tile static" key={metric.label}>
+                              <span className="metric-value">{metric.value}</span>
+                              <span className="metric-label">{metric.label}</span>
+                            </div>
+                          ))}
                         </div>
-                      ))}
+                        <p className="stage-note">Blocked submissions are forms Radar refused to force — a login wall or a human check is reported as a stop, never bypassed.</p>
+                      </>
+                    )}
+                  </section>
+
+                  <section className="panel" aria-label="Every relationship">
+                    <div className="panel-head">
+                      <p className="eyebrow">EVERY RELATIONSHIP</p>
+                      <span className="muted">{workspaceOutcomes?.length ?? 0} tracked across this workspace</span>
                     </div>
-                    <p className="stage-note">Blocked submissions are forms Radar refused to force — a login wall or a human check is reported as a stop, never bypassed.</p>
-                  </>
-                )}
-              </section>
+                    {workspaceOutcomes === undefined ? <p className="empty-state">Loading outcomes…</p> : workspaceOutcomes.length === 0 ? (
+                      <p className="empty-state">No outcomes recorded yet. Radar opens one the moment an approved message is sent or a reply lands — whichever mission started it, it shows up here.</p>
+                    ) : (
+                      <div className="row-list">
+                        {workspaceOutcomes.map((outcome) => (
+                          <article className="row-item static" key={outcome._id}>
+                            <div className="row-copy">
+                              <strong><span className={`stage-dot stage-${outcome.stage}`} /> {outcome.counterpart}</strong>
+                              <em>{outcome.latestEvidence}</em>
+                              <span className="muted">
+                                {PIPELINE_LABELS[outcome.stage as PipelineStageName] ?? outcome.stage} · {outcome.missionTitle} · updated {shortDate(outcome.updatedAt)}
+                              </span>
+                            </div>
+                          </article>
+                        ))}
+                      </div>
+                    )}
+                  </section>
+                </>
+              )}
 
-              <section className="panel" aria-label="Outcomes by stage">
-                <div className="panel-head"><p className="eyebrow">WHERE RELATIONSHIPS LANDED</p></div>
-                {!overview ? <p className="empty-state">Loading…</p> : (
-                  <div className="stage-summary">
-                    {overview.pipeline.map((row) => (
-                      <span key={row.stage} className={row.count > 0 ? "" : "zero"}>
-                        <span className={`stage-dot stage-${row.stage}`} />{PIPELINE_LABELS[row.stage as PipelineStageName] ?? row.stage}
-                        <strong>{row.count}</strong>
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </section>
+              {/* ── Relationships tab (from old Relationships page) ── */}
+              {outcomesTab === "relationships" && (
+                <>
+                  {(sequences ?? []).filter((sequence) => sequence.status === "active").length > 0 && (
+                    <section className="panel" aria-label="Ongoing sequences">
+                      <div className="panel-head"><p className="eyebrow">ONGOING SEQUENCES</p><span className="muted">each step becomes its own approval — nothing auto-sends</span></div>
+                      <div className="row-list">
+                        {(sequences ?? []).filter((sequence) => sequence.status === "active").map((sequence) => {
+                          const nextStep = sequence.steps.filter((step) => step.status === "draft_ready" || step.status === "pending")[0];
+                          return (
+                            <div className="row-item static" key={sequence._id}>
+                              <div className="row-copy">
+                                <strong>{matches?.find((match) => match._id === sequence.matchId)?.subject ?? "Relationship sequence"}</strong>
+                                <em>{nextStep ? `Next: step ${nextStep.index + 1} — ${nextStep.intent} (${nextStep.status.replace("_", " ")})` : "All steps sent or awaiting approval"}</em>
+                              </div>
+                              <span className={`status-pill status-${sequence.status}`}>{sequence.steps.filter((step) => step.status === "sent").length}/{sequence.steps.length} sent</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </section>
+                  )}
 
-              <section className="panel" aria-label="Every relationship">
-                <div className="panel-head">
-                  <p className="eyebrow">EVERY RELATIONSHIP</p>
-                  <span className="muted">{workspaceOutcomes?.length ?? 0} tracked across this workspace</span>
-                </div>
-                {workspaceOutcomes === undefined ? <p className="empty-state">Loading outcomes…</p> : workspaceOutcomes.length === 0 ? (
-                  <p className="empty-state">No outcomes recorded yet. Radar opens one the moment an approved message is sent or a reply lands — whichever mission started it, it shows up here.</p>
-                ) : (
-                  <div className="row-list">
-                    {workspaceOutcomes.map((outcome) => (
-                      <article className="row-item static" key={outcome._id}>
-                        <div className="row-copy">
-                          <strong><span className={`stage-dot stage-${outcome.stage}`} /> {outcome.counterpart}</strong>
-                          <em>{outcome.latestEvidence}</em>
-                          <span className="muted">
-                            {PIPELINE_LABELS[outcome.stage as PipelineStageName] ?? outcome.stage} · {outcome.missionTitle} · updated {shortDate(outcome.updatedAt)}
+                  <section className="panel" aria-label="Follow-ups">
+                    <div className="panel-head"><p className="eyebrow">FOLLOW-UPS</p><span className="muted">{(followUps ?? []).length} open</span></div>
+                    {(followUps ?? []).length === 0 ? (
+                      <p className="empty-state">No open follow-ups. Radar schedules one when a reply defers; you can schedule your own on any relationship below.</p>
+                    ) : (
+                      <div className="row-list">
+                        {(followUps ?? []).map((item) => (
+                          <article className={`row-item static ${item.status === "due" || item.dueAt <= Date.now() ? "attention" : ""}`} key={item._id}>
+                            <div className="row-copy">
+                              <strong>{item.note}</strong>
+                              <em>{item.source === "agent" ? "Radar scheduled this" : "You scheduled this"} · due {shortDate(item.dueAt)}{item.status === "due" ? " · due now" : ""}</em>
+                            </div>
+                            <div className="inline-actions">
+                              <button type="button" className="btn ghost" onClick={() => onSnoozeFollowUp(item._id, 1)}>Snooze 1d</button>
+                              <button type="button" className="btn ghost" onClick={() => onSnoozeFollowUp(item._id, 3)}>Snooze 3d</button>
+                              <button type="button" className="btn" onClick={() => onCompleteFollowUp(item._id)}>Done</button>
+                            </div>
+                          </article>
+                        ))}
+                      </div>
+                    )}
+                  </section>
+
+                  <section aria-label="Relationships">
+                    {outcomes === undefined ? <p className="empty-state">Loading the pipeline…</p> : outcomes.length === 0 ? (
+                      <div className="panel"><p className="empty-state">No relationships yet. Radar opens one the moment an approved message is sent or a reply arrives — and remembers everything that happens next.</p></div>
+                    ) : (
+                      <div className="row-list">
+                        {outcomes.map((outcome) => {
+                          const followUp = followUpForOutcome(outcome._id);
+                          const overdue = followUp && (followUp.status === "due" || followUp.dueAt <= Date.now());
+                          return (
+                            <article className="row-item static" key={outcome._id}>
+                              <div className="row-copy">
+                                <strong><span className={`stage-dot stage-${outcome.stage}`} /> {outcome.counterpart}</strong>
+                                <em>{outcome.latestEvidence}</em>
+                                <span className="muted">{PIPELINE_LABELS[outcome.stage as PipelineStageName] ?? outcome.stage} · updated {shortDate(outcome.updatedAt)}{followUp ? ` · follow-up ${overdue ? "due now" : shortDate(followUp.dueAt)}` : ""}</span>
+                              </div>
+                              <div className="inline-actions">
+                                <button type="button" className="btn ghost" onClick={() => onAdvanceStage(outcome._id, "engaged", "Reply with a concrete next step.")}>Engaged</button>
+                                <button type="button" className="btn ghost" onClick={() => onOutcomeStatus(outcome._id, "positive")}>Won</button>
+                                <button type="button" className="btn ghost" onClick={() => onOutcomeStatus(outcome._id, "closed")}>Lost</button>
+                              </div>
+                            </article>
+                          );
+                        })}
+                      </div>
+                    )}
+                    {pipelineNotice && <p className="stage-note">{pipelineNotice}</p>}
+                  </section>
+                </>
+              )}
+
+              {/* ── Pipeline tab ── */}
+              {outcomesTab === "pipeline" && (
+                <section className="panel" aria-label="Pipeline">
+                  <div className="panel-head"><p className="eyebrow">PIPELINE</p><span className="muted">workspace-level progress</span></div>
+                  {!overview ? <p className="empty-state">Loading…</p> : (
+                    <>
+                      <div className="stage-summary">
+                        {overview.pipeline.map((row) => (
+                          <span key={row.stage} className={row.count > 0 ? "" : "zero"}>
+                            <span className={`stage-dot stage-${row.stage}`} />{PIPELINE_LABELS[row.stage as PipelineStageName] ?? row.stage}
+                            <strong>{row.count}</strong>
                           </span>
-                        </div>
-                        <div className="inline-actions">
-                          <button type="button" className="btn ghost" onClick={() => { setSelectedMissionId(outcome.missionId); selectView("relationships"); }}>Open relationship →</button>
-                        </div>
-                      </article>
-                    ))}
-                  </div>
-                )}
-              </section>
+                        ))}
+                      </div>
+                      <div className="run-strip" aria-label="Run states">
+                        <span><em>Working now</em><strong>{overview.counts.runsActive}</strong></span>
+                        <span><em>Ready to run</em><strong>{overview.counts.runsReady}</strong></span>
+                        <span><em>Parked</em><strong>{overview.counts.runsWaiting}</strong></span>
+                        <span><em>Blocked</em><strong>{overview.counts.runsBlocked}</strong></span>
+                      </div>
+                    </>
+                  )}
+                </section>
+              )}
             </div>
           )}
 
