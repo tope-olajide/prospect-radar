@@ -1,0 +1,1497 @@
+{
+  "capturedAt": "2026-09-19T10:12:44.563Z",
+  "scenario": "d",
+  "label": "D — finding-oriented objective (a solution, not a contact)",
+  "convexUrl": "https://wry-walrus-528.convex.cloud",
+  "freshUser": false,
+  "goal": "Find a scheduling solution for a six-site outpatient clinic group that needs multi-location rosters, recurring appointments and reminders.",
+  "harnessCalls": [
+    {
+      "at": "2026-09-19T10:12:45.401Z",
+      "kind": "query",
+      "name": "context.list"
+    },
+    {
+      "at": "2026-09-19T10:12:46.683Z",
+      "kind": "mutation",
+      "name": "missions.create"
+    },
+    {
+      "at": "2026-09-19T10:12:47.045Z",
+      "kind": "mutation",
+      "name": "orchestratorStore.runPipeline"
+    },
+    {
+      "at": "2026-09-19T10:13:15.850Z",
+      "kind": "mutation",
+      "name": "orchestratorStore.approvePlan"
+    }
+  ],
+  "timeline": [
+    {
+      "at": "2026-09-19T10:12:47.394Z",
+      "kind": "started",
+      "detail": "runPipeline → {\"stage\":\"intake\",\"started\":true}"
+    }
+  ],
+  "gates": [
+    {
+      "gate": "plan_review",
+      "at": "2026-09-19T10:13:15.850Z",
+      "objective": {
+        "successKind": "present_solution",
+        "targetCount": 1
+      },
+      "normalizedGoal": "Find a scheduling solution for a six-site outpatient clinic group that can handle multi-location rosters, recurring appointments, and reminders.",
+      "model": "qwen-max"
+    }
+  ],
+  "autonomousTransitions": [
+    {
+      "at": "2026-09-19T10:12:48.625Z",
+      "status": "queued",
+      "stage": "intake",
+      "interruption": null
+    },
+    {
+      "at": "2026-09-19T10:13:02.821Z",
+      "status": "active",
+      "stage": "interpret",
+      "interruption": null
+    },
+    {
+      "at": "2026-09-19T10:13:15.844Z",
+      "status": "waiting",
+      "stage": "plan_review",
+      "interruption": null
+    },
+    {
+      "at": "2026-09-19T10:13:16.932Z",
+      "status": "active",
+      "stage": "discover",
+      "interruption": null
+    },
+    {
+      "at": "2026-09-19T10:14:39.402Z",
+      "status": "active",
+      "stage": "evaluate",
+      "interruption": null
+    },
+    {
+      "at": "2026-09-19T10:17:43.542Z",
+      "status": "complete",
+      "stage": "complete",
+      "interruption": null
+    }
+  ],
+  "errors": [],
+  "final": {
+    "run": {
+      "status": "complete",
+      "currentStage": "complete",
+      "interruption": null
+    },
+    "plan": {
+      "normalizedGoal": "Find a scheduling solution for a six-site outpatient clinic group that can handle multi-location rosters, recurring appointments, and reminders.",
+      "mode": "solution",
+      "successKind": "present_solution",
+      "targetCount": 1,
+      "userEditedAt": null,
+      "mustHave": [
+        "multi-location rosters",
+        "recurring appointments",
+        "reminders"
+      ],
+      "recommendedSources": [
+        "product/vendor sites",
+        "comparison and review pages",
+        "case studies",
+        "consultant/agency profiles"
+      ],
+      "completionPredicate": "The mission is complete when a suitable scheduling solution has been identified and the provider contacted.",
+      "model": "qwen-max"
+    },
+    "research": {
+      "jobs": [
+        {
+          "operation": "search",
+          "status": "complete",
+          "query": "best scheduling solutions for healthcare clinics",
+          "resultCount": 6,
+          "errorCode": null
+        },
+        {
+          "operation": "search",
+          "status": "complete",
+          "query": "recurrence and reminder features in clinic scheduling software",
+          "resultCount": 6,
+          "errorCode": null
+        },
+        {
+          "operation": "search",
+          "status": "complete",
+          "query": "healthcare scheduling software with multi-location rosters",
+          "resultCount": 6,
+          "errorCode": null
+        },
+        {
+          "operation": "search",
+          "status": "complete",
+          "query": "scheduling solution for multi-site outpatient clinics",
+          "resultCount": 6,
+          "errorCode": null
+        }
+      ],
+      "sources": [
+        {
+          "url": "https://www.getprosper.ai/blog/patient-appointment-scheduling-software-guide",
+          "title": "Top 7 Patient Appointment Scheduling Software (2026) - Prosper AI",
+          "processingStatus": "scraped",
+          "hasContent": true
+        },
+        {
+          "url": "https://connecteam.com/healthcare-staff-scheduling-software/",
+          "title": "6 Best Healthcare Staff Scheduling Software (In-Depth Comparison)",
+          "processingStatus": "scraped",
+          "hasContent": true
+        },
+        {
+          "url": "https://www.blaze.tech/post/healthcare-scheduling-app",
+          "title": "7 Top Healthcare Scheduling Apps & Software: Tested for 2026 - Blaze.tech",
+          "processingStatus": "scraped",
+          "hasContent": true
+        },
+        {
+          "url": "https://practicesuite.com/resources/patient-appointment-scheduling-software/",
+          "title": "11 Best Patient Appointment Scheduling Software Solutions",
+          "processingStatus": "scraped",
+          "hasContent": true
+        },
+        {
+          "url": "https://prognocis.com/automated-patient-appointment-reminders/",
+          "title": "Patient Appointment Reminders System That Reduce No-Shows",
+          "processingStatus": "scraped",
+          "hasContent": true
+        },
+        {
+          "url": "https://www.passagehealth.com/blog/scheduling-software-for-therapists",
+          "title": "5 Best Scheduling Software For ABA Therapists in 2026 - Passage Health",
+          "processingStatus": "scraped",
+          "hasContent": true
+        },
+        {
+          "url": "https://schedly.io/how-to-set-up-recurring-appointments-for-ongoing-services/",
+          "title": "How to Set Up Recurring Appointments for Ongoing Services",
+          "processingStatus": "discovered",
+          "hasContent": false
+        },
+        {
+          "url": "https://www.capterra.com/appointment-reminder-software/",
+          "title": "Best Appointment Reminder Software 2026 | Capterra",
+          "processingStatus": "scraped",
+          "hasContent": true
+        },
+        {
+          "url": "https://www.callloop.com/blog/best-appointment-reminder-software",
+          "title": "12 Best Appointment Reminder Software Options for 2026 - Call Loop",
+          "processingStatus": "scraped",
+          "hasContent": true
+        },
+        {
+          "url": "https://www.noterro.com/features/appointment-reminder-software",
+          "title": "Automated Appointment Reminder Software for Clinics - Noterro",
+          "processingStatus": "scraped",
+          "hasContent": true
+        },
+        {
+          "url": "https://www.getapp.com/healthcare-pharmaceuticals-software/nurse-scheduling/f/multi-location/",
+          "title": "Top Rated Nurse Scheduling Software with Multi location - GetApp",
+          "processingStatus": "scraped",
+          "hasContent": true
+        },
+        {
+          "url": "https://heyshift.io/healthcare-staff-scheduling-software",
+          "title": "Healthcare Staff Scheduling Software - Heyshift",
+          "processingStatus": "scraped",
+          "hasContent": true
+        },
+        {
+          "url": "https://bestdoc.com/best-medical-appointment-scheduling-software/",
+          "title": "Best Medical Appointment Scheduling Software for Clinics in 2026",
+          "processingStatus": "scraped",
+          "hasContent": true
+        },
+        {
+          "url": "https://getsling.com/multiple-location-scheduling/",
+          "title": "Scheduling Software For Multi-Location Businesses - Sling",
+          "processingStatus": "scraped",
+          "hasContent": true
+        },
+        {
+          "url": "https://omnimd.com/blog/best-patient-scheduling-software/",
+          "title": "Best Patient Scheduling Software for Every Practice Size - OmniMD",
+          "processingStatus": "scraped",
+          "hasContent": true
+        },
+        {
+          "url": "https://www.vectorcare.com/feeds/blog/multi-location-healthcare-scheduling-software",
+          "title": "Best Multi-Location Healthcare Scheduling Software Solutions",
+          "processingStatus": "scraped",
+          "hasContent": true
+        },
+        {
+          "url": "https://www.clearwaveinc.com/patient-scheduling-software/",
+          "title": "Medical Appointment Scheduling Software for Healthcare Practices",
+          "processingStatus": "scraped",
+          "hasContent": true
+        },
+        {
+          "url": "https://waitwellsoftware.com/resources/articles/best-patient-scheduling-software/",
+          "title": "11 Best Patient Scheduling Software in 2026 - WaitWell",
+          "processingStatus": "scraped",
+          "hasContent": true
+        },
+        {
+          "url": "https://www.confido.health/blog/best-patient-scheduling-software-for-multi-location-clinics",
+          "title": "Best Patient Scheduling Software for Multi-Location Clinics| Confido.Health",
+          "processingStatus": "scraped",
+          "hasContent": true
+        },
+        {
+          "url": "https://wellsky.com/patient-scheduling-software/",
+          "title": "Patient Scheduling Software - WellSky",
+          "processingStatus": "scraped",
+          "hasContent": true
+        }
+      ]
+    },
+    "entities": [
+      {
+        "name": "Prosper AI",
+        "kind": "product",
+        "extractionStatus": "extracted",
+        "contactRoute": {
+          "kind": "email",
+          "publicSource": "https://www.getprosper.ai/",
+          "value": "info@getprosper.ai"
+        },
+        "summary": "Prosper AI offers a robust patient appointment scheduling solution, featuring AI voice capabilities to streamline the booking process across multiple locations, thereby improving patient access and clinic efficiency."
+      },
+      {
+        "name": "6 Best Healthcare Staff Scheduling Software (In-Depth Comparison)",
+        "kind": "organization",
+        "extractionStatus": "snippet_only",
+        "contactRoute": null,
+        "summary": "## The 6 Best Healthcare Staff Scheduling Software of 2026 [4.6/5](https://www.capterra.com/p/153140/Connecteam/) [4.6/5](https://www.g2.com/products/connecteam/reviews) [4.6/5](https://www.softwareadvice.com/hr/connecteam-profile/) [9.4/10](https://www.trustradius.com/products/connecteam/reviews) [4.7/5](https://play.google.com/store/apps/details?id=com.connecteamco.Connecteam.app&hl=en_US) [4.9/5](https://apps.apple.com/us/app/connecteam-team-management-app/id1121613912) Connecteam is the best"
+      },
+      {
+        "name": "7 Top Healthcare Scheduling Apps & Software: Tested for 2026 - Blaze.tech",
+        "kind": "organization",
+        "extractionStatus": "snippet_only",
+        "contactRoute": null,
+        "summary": "# 7 Top Healthcare Scheduling Apps & Software: Tested for 2026 ## **Top 7 Healthcare Scheduling Apps:** At a Glance | Tool Name | Best For | Ideal User | Starting Pricing | |-|-|-|-| | [Blaze.tech](https://www.blaze.tech/) | No-code custom healthcare scheduling app builder | Mid- to large-sized clinics needing flexible workflows | Contact sales for a custom quote for enterprise pricing | | [Acuity](https://acuityscheduling.com/) | Simple self-managed appointment scheduling | Solo providers manag"
+      },
+      {
+        "name": "11 Best Patient Appointment Scheduling Software Solutions",
+        "kind": "organization",
+        "extractionStatus": "snippet_only",
+        "contactRoute": null,
+        "summary": "# 11 Best Patient Appointment Scheduling Software Solutions ![Best Patient Appointment Scheduling Software Solutions](https://practicesuite.com/wp-content/uploads/2025/10/Patient-Appointment-Scheduling-Software_Feature-1024x505.jpg-992x489.webp) ## 1. PracticeSuite ### 3. NextGen Healthcare [NextGen Healthcare](https://www.nextgen.com/) is an award-winning EHR system that also includes patient appointment scheduling capabilities. Their system is completely customizable to meet the needs of your"
+      },
+      {
+        "name": "Patient Appointment Reminders System That Reduce No-Shows",
+        "kind": "organization",
+        "extractionStatus": "snippet_only",
+        "contactRoute": null,
+        "summary": "# PrognoCIS Appointment Reminder Software Improve Patient Engagement and Streamline Clinic Operations with Automated Reminders that are Fully Integrated into your EHR Software ## Top Features of PrognoCIS' Appointment Reminder EHR Integration Missed reminder alerts and options to reschedule are included. ## For clinics, patient appointment reminders: - Divert effort away from admin workload and towards high-value work ## Patients also receive several benefits, including: - Convenient reminders i"
+      },
+      {
+        "name": "5 Best Scheduling Software For ABA Therapists in 2026 - Passage Health",
+        "kind": "organization",
+        "extractionStatus": "snippet_only",
+        "contactRoute": null,
+        "summary": "## 2. SimplePractice ### Benefits - Automated reminders help **prevent missed appointments** ## 3. TherapyNotes ### Key features - **Automated reminders:** Can send email and text reminders to reduce missed appointments. ## 4. Acuity Scheduling ### Key features - **Automatic reminders:** Acuity sends email and text reminders so clients don’t forget their appointments. ## The final verdict The calendar updates instantly, reminders go out automatically, and completed appointments connect to sessio"
+      },
+      {
+        "name": "Best Appointment Reminder Software 2026 | Capterra",
+        "kind": "organization",
+        "extractionStatus": "snippet_only",
+        "contactRoute": null,
+        "summary": "Automates scheduling process: Appointment reminder software allows clients to book, reschedule, or cancel their appointments via integrations with appointment ...What are the core features of... · What are the benefits of..."
+      },
+      {
+        "name": "12 Best Appointment Reminder Software Options for 2026 - Call Loop",
+        "kind": "organization",
+        "extractionStatus": "snippet_only",
+        "contactRoute": null,
+        "summary": "Rating 4.7(97) · $0.00 to $329.00Jul 17, 2026 · Features include team booking pages, class scheduling, and support. Reminder Channels: Automated reminders via SMS and email. Scheduling: ...Top 12 Appointment Reminder... · Square Appointments"
+      },
+      {
+        "name": "Automated Appointment Reminder Software for Clinics - Noterro",
+        "kind": "organization",
+        "extractionStatus": "snippet_only",
+        "contactRoute": null,
+        "summary": "# Appointment Reminder Software ## One reminder system, built for real clinic days Noterro coordinates email, text, and call reminders into a single automated workflow that keeps patients informed and schedules predictable. Email, SMS, and phone reminders are sent automatically based on patient communication preferences, helping messages reach patients in the way they are most likely to notice and respond. ## Reliable delivery you can trust ### System-aware updates Reminder activity reflects rea"
+      },
+      {
+        "name": "QGenda",
+        "kind": "product",
+        "extractionStatus": "extracted",
+        "contactRoute": null,
+        "summary": "QGenda is a cloud-based physician scheduling software that enables multi-location staffing solutions and supports recurring appointments and alerts."
+      },
+      {
+        "name": "Heyshift",
+        "kind": "product",
+        "extractionStatus": "extracted",
+        "contactRoute": {
+          "kind": "form",
+          "publicSource": "https://heyshift.io/contact",
+          "value": "https://heyshift.io/contact"
+        },
+        "summary": "Heyshift provides a healthcare staff scheduling software designed to manage employee schedules across multiple locations, handling key functionalities like recurring appointments and attendance tracking."
+      },
+      {
+        "name": "BestDoc",
+        "kind": "product",
+        "extractionStatus": "extracted",
+        "contactRoute": null,
+        "summary": "BestDoc is a comprehensive medical appointment scheduling software that supports multi-location clinics by facilitating patient self-scheduling, managing ongoing appointments, and providing reminders."
+      },
+      {
+        "name": "Sling",
+        "kind": "product",
+        "extractionStatus": "extracted",
+        "contactRoute": null,
+        "summary": "Sling is a scheduling software designed for managing employees across multiple locations, making it easier to handle shifts, track hours, and communicate within dispersed teams."
+      },
+      {
+        "name": "OmniMD",
+        "kind": "product",
+        "extractionStatus": "extracted",
+        "contactRoute": null,
+        "summary": "OmniMD offers a cloud-based, ONC-certified EHR, practice management, and revenue cycle management solution designed for multi-specialty clinics, supporting a variety of specialties and features essential for handling complex scheduling needs."
+      },
+      {
+        "name": "VectorCare",
+        "kind": "product",
+        "extractionStatus": "extracted",
+        "contactRoute": {
+          "kind": "form",
+          "publicSource": "https://www.vectorcare.com/get-started/request-demo",
+          "value": "https://www.vectorcare.com/get-started/request-demo"
+        },
+        "summary": "VectorCare is a hospital patient transportation software that helps healthcare facilities coordinate and track non-emergency transport efficiently from within the EHR."
+      },
+      {
+        "name": "Clearwave Scheduling",
+        "kind": "product",
+        "extractionStatus": "extracted",
+        "contactRoute": null,
+        "summary": "Clearwave Scheduling is a patient self-scheduling software designed to enhance operational efficiency and patient satisfaction in healthcare practices."
+      },
+      {
+        "name": "WaitWell",
+        "kind": "product",
+        "extractionStatus": "extracted",
+        "contactRoute": null,
+        "summary": "WaitWell is a patient scheduling and queue management software that helps healthcare organizations manage both booked appointments and walk-in patients in one HIPAA-compliant system."
+      },
+      {
+        "name": "Confido Health",
+        "kind": "product",
+        "extractionStatus": "extracted",
+        "contactRoute": {
+          "kind": "email",
+          "publicSource": "https://www.confido.health/",
+          "value": "founders@confido.health"
+        },
+        "summary": "Confido Health offers an AI-powered scheduling solution designed for multi-location clinics, managing patient interactions from initial contact to appointment confirmation."
+      },
+      {
+        "name": "WellSky Scheduling",
+        "kind": "product",
+        "extractionStatus": "extracted",
+        "contactRoute": null,
+        "summary": "WellSky Scheduling is a web-based patient scheduling software designed to streamline operations for clinics and hospitals. It provides features for managing multi-location rosters, recurring appointments, and sending reminders."
+      }
+    ],
+    "matches": [
+      {
+        "subject": "Top 7 Patient Appointment Scheduling Software (2026) - Prosper AI",
+        "label": "promising",
+        "sourceUrl": "https://www.getprosper.ai/blog/patient-appointment-scheduling-software-guide",
+        "evidence": [
+          "# Top 7 Patient Appointment Scheduling Software (2026) ## Top 7 patient appointment scheduling software ### Prosper AI: Appointment Scheduling (Anna) **Integrations, security, and deployment:** Epic, athenahealth, eCW, NextGen, MEDITECH, Availity; calendar sync; HIPAA, SOC 2, SSO; cloud or on‑prem. **Best for + outcomes & differentiator:** Health systems and multi‑specialty groups; handles 60%+ of calls end-to-end in production, based on Prosper AI's customer deployment data; cuts abandonment up"
+        ],
+        "unknowns": [
+          "Fit has not yet been reviewed against every mission criterion."
+        ],
+        "recommendedAction": "Review the source, then decide whether to prepare outreach."
+      },
+      {
+        "subject": "6 Best Healthcare Staff Scheduling Software (In-Depth Comparison)",
+        "label": "promising",
+        "sourceUrl": "https://connecteam.com/healthcare-staff-scheduling-software/",
+        "evidence": [
+          "## The 6 Best Healthcare Staff Scheduling Software of 2026 [4.6/5](https://www.capterra.com/p/153140/Connecteam/) [4.6/5](https://www.g2.com/products/connecteam/reviews) [4.6/5](https://www.softwareadvice.com/hr/connecteam-profile/) [9.4/10](https://www.trustradius.com/products/connecteam/reviews) [4.7/5](https://play.google.com/store/apps/details?id=com.connecteamco.Connecteam.app&hl=en_US) [4.9/5](https://apps.apple.com/us/app/connecteam-team-management-app/id1121613912) Connecteam is the best"
+        ],
+        "unknowns": [
+          "Fit has not yet been reviewed against every mission criterion."
+        ],
+        "recommendedAction": "Review the source, then decide whether to prepare outreach."
+      },
+      {
+        "subject": "7 Top Healthcare Scheduling Apps & Software: Tested for 2026 - Blaze.tech",
+        "label": "promising",
+        "sourceUrl": "https://www.blaze.tech/post/healthcare-scheduling-app",
+        "evidence": [
+          "# 7 Top Healthcare Scheduling Apps & Software: Tested for 2026 ## **Top 7 Healthcare Scheduling Apps:** At a Glance | Tool Name | Best For | Ideal User | Starting Pricing | |-|-|-|-| | [Blaze.tech](https://www.blaze.tech/) | No-code custom healthcare scheduling app builder | Mid- to large-sized clinics needing flexible workflows | Contact sales for a custom quote for enterprise pricing | | [Acuity](https://acuityscheduling.com/) | Simple self-managed appointment scheduling | Solo providers manag"
+        ],
+        "unknowns": [
+          "Fit has not yet been reviewed against every mission criterion."
+        ],
+        "recommendedAction": "Review the source, then decide whether to prepare outreach."
+      },
+      {
+        "subject": "11 Best Patient Appointment Scheduling Software Solutions",
+        "label": "promising",
+        "sourceUrl": "https://practicesuite.com/resources/patient-appointment-scheduling-software/",
+        "evidence": [
+          "# 11 Best Patient Appointment Scheduling Software Solutions ![Best Patient Appointment Scheduling Software Solutions](https://practicesuite.com/wp-content/uploads/2025/10/Patient-Appointment-Scheduling-Software_Feature-1024x505.jpg-992x489.webp) ## 1. PracticeSuite ### 3. NextGen Healthcare [NextGen Healthcare](https://www.nextgen.com/) is an award-winning EHR system that also includes patient appointment scheduling capabilities. Their system is completely customizable to meet the needs of your "
+        ],
+        "unknowns": [
+          "Fit has not yet been reviewed against every mission criterion."
+        ],
+        "recommendedAction": "Review the source, then decide whether to prepare outreach."
+      },
+      {
+        "subject": "Patient Appointment Reminders System That Reduce No-Shows",
+        "label": "promising",
+        "sourceUrl": "https://prognocis.com/automated-patient-appointment-reminders/",
+        "evidence": [
+          "# PrognoCIS Appointment Reminder Software Improve Patient Engagement and Streamline Clinic Operations with Automated Reminders that are Fully Integrated into your EHR Software ## Top Features of PrognoCIS' Appointment Reminder EHR Integration Missed reminder alerts and options to reschedule are included. ## For clinics, patient appointment reminders: - Divert effort away from admin workload and towards high-value work ## Patients also receive several benefits, including: - Convenient reminders i"
+        ],
+        "unknowns": [
+          "Fit has not yet been reviewed against every mission criterion."
+        ],
+        "recommendedAction": "Review the source, then decide whether to prepare outreach."
+      },
+      {
+        "subject": "5 Best Scheduling Software For ABA Therapists in 2026 - Passage Health",
+        "label": "promising",
+        "sourceUrl": "https://www.passagehealth.com/blog/scheduling-software-for-therapists",
+        "evidence": [
+          "## 2. SimplePractice ### Benefits - Automated reminders help **prevent missed appointments** ## 3. TherapyNotes ### Key features - **Automated reminders:** Can send email and text reminders to reduce missed appointments. ## 4. Acuity Scheduling ### Key features - **Automatic reminders:** Acuity sends email and text reminders so clients don’t forget their appointments. ## The final verdict The calendar updates instantly, reminders go out automatically, and completed appointments connect to sessio"
+        ],
+        "unknowns": [
+          "Fit has not yet been reviewed against every mission criterion."
+        ],
+        "recommendedAction": "Review the source, then decide whether to prepare outreach."
+      },
+      {
+        "subject": "How to Set Up Recurring Appointments for Ongoing Services",
+        "label": "promising",
+        "sourceUrl": "https://schedly.io/how-to-set-up-recurring-appointments-for-ongoing-services/",
+        "evidence": [
+          "Learn how to set up recurring appointments to boost customer loyalty, streamline scheduling, and grow your service-based business."
+        ],
+        "unknowns": [
+          "Fit has not yet been reviewed against every mission criterion."
+        ],
+        "recommendedAction": "Review the source, then decide whether to prepare outreach."
+      },
+      {
+        "subject": "Best Appointment Reminder Software 2026 | Capterra",
+        "label": "promising",
+        "sourceUrl": "https://www.capterra.com/appointment-reminder-software/",
+        "evidence": [
+          "Automates scheduling process: Appointment reminder software allows clients to book, reschedule, or cancel their appointments via integrations with appointment ...What are the core features of... · What are the benefits of..."
+        ],
+        "unknowns": [
+          "Fit has not yet been reviewed against every mission criterion."
+        ],
+        "recommendedAction": "Review the source, then decide whether to prepare outreach."
+      },
+      {
+        "subject": "12 Best Appointment Reminder Software Options for 2026 - Call Loop",
+        "label": "promising",
+        "sourceUrl": "https://www.callloop.com/blog/best-appointment-reminder-software",
+        "evidence": [
+          "Rating 4.7(97) · $0.00 to $329.00Jul 17, 2026 · Features include team booking pages, class scheduling, and support. Reminder Channels: Automated reminders via SMS and email. Scheduling: ...Top 12 Appointment Reminder... · Square Appointments"
+        ],
+        "unknowns": [
+          "Fit has not yet been reviewed against every mission criterion."
+        ],
+        "recommendedAction": "Review the source, then decide whether to prepare outreach."
+      },
+      {
+        "subject": "Automated Appointment Reminder Software for Clinics - Noterro",
+        "label": "promising",
+        "sourceUrl": "https://www.noterro.com/features/appointment-reminder-software",
+        "evidence": [
+          "# Appointment Reminder Software ## One reminder system, built for real clinic days Noterro coordinates email, text, and call reminders into a single automated workflow that keeps patients informed and schedules predictable. Email, SMS, and phone reminders are sent automatically based on patient communication preferences, helping messages reach patients in the way they are most likely to notice and respond. ## Reliable delivery you can trust ### System-aware updates Reminder activity reflects rea"
+        ],
+        "unknowns": [
+          "Fit has not yet been reviewed against every mission criterion."
+        ],
+        "recommendedAction": "Review the source, then decide whether to prepare outreach."
+      },
+      {
+        "subject": "Top Rated Nurse Scheduling Software with Multi location - GetApp",
+        "label": "promising",
+        "sourceUrl": "https://www.getapp.com/healthcare-pharmaceuticals-software/nurse-scheduling/f/multi-location/",
+        "evidence": [
+          "Rotageek is a revolutionary rostering solution which goes beyond traditional rotas, helping healthcare organisations save time, support self-rostering and ..."
+        ],
+        "unknowns": [
+          "Fit has not yet been reviewed against every mission criterion."
+        ],
+        "recommendedAction": "Review the source, then decide whether to prepare outreach."
+      },
+      {
+        "subject": "Healthcare Staff Scheduling Software - Heyshift",
+        "label": "promising",
+        "sourceUrl": "https://heyshift.io/healthcare-staff-scheduling-software",
+        "evidence": [
+          "## Schedule every healthcare role from one platform Instead of separate files for each department, Heyshift keeps healthcare employee scheduling software on one roster, whether you manage a 20-person clinic or several hundred staff across facilities. ## How to choose healthcare staff scheduling software - Multi-location scheduling"
+        ],
+        "unknowns": [
+          "Fit has not yet been reviewed against every mission criterion."
+        ],
+        "recommendedAction": "Review the source, then decide whether to prepare outreach."
+      },
+      {
+        "subject": "Best Medical Appointment Scheduling Software for Clinics in 2026",
+        "label": "promising",
+        "sourceUrl": "https://bestdoc.com/best-medical-appointment-scheduling-software/",
+        "evidence": [
+          "## Quick picks by scheduling need | Scheduling need | What to look for | Strong fit | |-|-|-| | Multi-location scheduling | Provider/location rules, central visibility, role-based staff controls | BestDoc, NextGen, Skedulo | ## Detailed platform reviews ### Core Features - **Separate provider schedules** with multi-location support - **Multi-location coordination** with centralized oversight"
+        ],
+        "unknowns": [
+          "Fit has not yet been reviewed against every mission criterion."
+        ],
+        "recommendedAction": "Review the source, then decide whether to prepare outreach."
+      },
+      {
+        "subject": "Scheduling Software For Multi-Location Businesses - Sling",
+        "label": "promising",
+        "sourceUrl": "https://getsling.com/multiple-location-scheduling/",
+        "evidence": [
+          "Easily schedule and communicate with employees and teams across multiple locations. Track time, lower labor costs, and improve efficiency at every location."
+        ],
+        "unknowns": [
+          "Fit has not yet been reviewed against every mission criterion."
+        ],
+        "recommendedAction": "Review the source, then decide whether to prepare outreach."
+      },
+      {
+        "subject": "Best Patient Scheduling Software for Every Practice Size - OmniMD",
+        "label": "promising",
+        "sourceUrl": "https://omnimd.com/blog/best-patient-scheduling-software/",
+        "evidence": [
+          "# **Best Patient Scheduling Software in 2026 by Practice Size** ## Best for Small Group Practices (2 to 10 Providers) ### 4. Jane App Jane App was designed around multidisciplinary clinics from the start. ## Best for Multi-Specialty Clinics ### 6. OmniMD We are trusted by 12,000+ providers across 600+ clinics and carry HIPAA, ONC, and SOC2 certifications. - Enterprise and Multi-Location: includes everything in Growth plus RCM and billing services, a dedicated success manager, 24/7 priority suppo"
+        ],
+        "unknowns": [
+          "Fit has not yet been reviewed against every mission criterion."
+        ],
+        "recommendedAction": "Review the source, then decide whether to prepare outreach."
+      },
+      {
+        "subject": "Best Multi-Location Healthcare Scheduling Software Solutions",
+        "label": "insufficient",
+        "sourceUrl": "https://www.vectorcare.com/feeds/blog/multi-location-healthcare-scheduling-software",
+        "evidence": [
+          "Multi-location healthcare scheduling software coordinates patient care logistics — transport, staffing, appointments, and service delivery ..."
+        ],
+        "unknowns": [],
+        "recommendedAction": "research more about VectorCare's specific features."
+      },
+      {
+        "subject": "Medical Appointment Scheduling Software for Healthcare Practices",
+        "label": "insufficient",
+        "sourceUrl": "https://www.clearwaveinc.com/patient-scheduling-software/",
+        "evidence": [
+          "# Clearwave Scheduling ## About Clearwave's Patient Scheduling Software - **24/7 Real-time appointment booking** – Patients should be able to instantly book an appointment without waiting for or intervening with staff. - **Linked appointment booking** – Reduces back-and-forth for visits that require"
+        ],
+        "unknowns": [],
+        "recommendedAction": "research more about Clearwave Scheduling's specific features."
+      },
+      {
+        "subject": "11 Best Patient Scheduling Software in 2026 - WaitWell",
+        "label": "insufficient",
+        "sourceUrl": "https://waitwellsoftware.com/resources/articles/best-patient-scheduling-software/",
+        "evidence": [
+          "# 11 Best Patient Scheduling Software in 2026 ##### See How WaitWell Works ###### Newsletter WaitWell is the best patient scheduling software for healthcare organizations that need to manage both booked appointments and walk-in patients in one unified, HIPAA-compliant system while eliminating waitin"
+        ],
+        "unknowns": [],
+        "recommendedAction": "research more about WaitWell's specific features."
+      },
+      {
+        "subject": "Best Patient Scheduling Software for Multi-Location Clinics| Confido.Health",
+        "label": "uncertain",
+        "sourceUrl": "https://www.confido.health/blog/best-patient-scheduling-software-for-multi-location-clinics",
+        "evidence": [
+          "## **Best Patient Scheduling Software for Multi-Location Clinics** ### **1. Confido Health** Confido Health's AI Voice Assistant is purpose-built for healthcare organizations managing patient scheduling across multiple locations, providers, and specialties at scale."
+        ],
+        "unknowns": [
+          "Radar kept the citation this source was found on but could not confirm the fit against your criteria, so the match is unverified."
+        ],
+        "recommendedAction": "contact founders@confido.health to confirm recurring appointment support and discuss implementation."
+      },
+      {
+        "subject": "Patient Scheduling Software - WellSky",
+        "label": "uncertain",
+        "sourceUrl": "https://wellsky.com/patient-scheduling-software/",
+        "evidence": [
+          "- Equip your team with the most powerful patient scheduling software ## Designed for your success ### Flexible With WellSky, you can easily customize any setting or label to fit your medical specialty, centralize scheduling of multi-site organizations, or manage a large hospital enterprise. Our pati"
+        ],
+        "unknowns": [
+          "Radar kept the citation this source was found on but could not confirm the fit against your criteria, so the match is unverified."
+        ],
+        "recommendedAction": "Find another route to reach them — no public contact channel is established yet."
+      }
+    ],
+    "decisions": [
+      {
+        "decision": "no_action",
+        "actionability": "result_only",
+        "reason": "objective_presents_result",
+        "detail": "This mission is about finding this, not contacting them — Radar recorded it as a result.",
+        "quality": "uncertain",
+        "capability": null,
+        "evidence": [
+          "- Equip your team with the most powerful patient scheduling software ## Designed for your success ### Flexible With WellSky, you can easily customize any setting or label to fit your medical specialty, centralize scheduling of multi-site organizations, or manage a large hospital enterprise. Our pati"
+        ],
+        "usedFacts": [],
+        "artifacts": [],
+        "alternatives": [
+          {
+            "decision": "send_email",
+            "reason": "No address was verified in the evidence."
+          },
+          {
+            "decision": "submit_form",
+            "reason": "This counterpart has no public form."
+          }
+        ],
+        "nextStage": "complete",
+        "missingEvidence": null,
+        "matchId": "k57322eda8bcwz07tzwcdc61818epa63"
+      },
+      {
+        "decision": "no_action",
+        "actionability": "result_only",
+        "reason": "objective_presents_result",
+        "detail": "This mission is about finding this, not contacting them — Radar recorded it as a result.",
+        "quality": "uncertain",
+        "capability": null,
+        "evidence": [
+          "## **Best Patient Scheduling Software for Multi-Location Clinics** ### **1. Confido Health** Confido Health's AI Voice Assistant is purpose-built for healthcare organizations managing patient scheduling across multiple locations, providers, and specialties at scale."
+        ],
+        "usedFacts": [],
+        "artifacts": [],
+        "alternatives": [
+          {
+            "decision": "submit_form",
+            "reason": "This counterpart has no public form."
+          }
+        ],
+        "nextStage": "complete",
+        "missingEvidence": null,
+        "matchId": "k57fyqrwb4tzaxzneag3x3a08s8eqvj6"
+      },
+      {
+        "decision": "no_action",
+        "actionability": "not_actionable",
+        "reason": "insufficient_fit",
+        "detail": "The evidence does not support contacting them for this goal.",
+        "quality": "insufficient",
+        "capability": null,
+        "evidence": [
+          "# 11 Best Patient Scheduling Software in 2026 ##### See How WaitWell Works ###### Newsletter WaitWell is the best patient scheduling software for healthcare organizations that need to manage both booked appointments and walk-in patients in one unified, HIPAA-compliant system while eliminating waitin"
+        ],
+        "usedFacts": [],
+        "artifacts": [],
+        "alternatives": [
+          {
+            "decision": "send_email",
+            "reason": "No address was verified in the evidence."
+          },
+          {
+            "decision": "submit_form",
+            "reason": "This counterpart has no public form."
+          }
+        ],
+        "nextStage": "approval",
+        "missingEvidence": null,
+        "matchId": "k57fqqnsar7y7ta8zpw45qk1bh8eqfsa"
+      },
+      {
+        "decision": "no_action",
+        "actionability": "not_actionable",
+        "reason": "insufficient_fit",
+        "detail": "The evidence does not support contacting them for this goal.",
+        "quality": "insufficient",
+        "capability": null,
+        "evidence": [
+          "# Clearwave Scheduling ## About Clearwave's Patient Scheduling Software - **24/7 Real-time appointment booking** – Patients should be able to instantly book an appointment without waiting for or intervening with staff. - **Linked appointment booking** – Reduces back-and-forth for visits that require"
+        ],
+        "usedFacts": [],
+        "artifacts": [],
+        "alternatives": [
+          {
+            "decision": "send_email",
+            "reason": "No address was verified in the evidence."
+          },
+          {
+            "decision": "submit_form",
+            "reason": "This counterpart has no public form."
+          }
+        ],
+        "nextStage": "approval",
+        "missingEvidence": null,
+        "matchId": "k57csrn65e7ck3e58kmms4cyt18eqgkt"
+      },
+      {
+        "decision": "no_action",
+        "actionability": "not_actionable",
+        "reason": "insufficient_fit",
+        "detail": "The evidence does not support contacting them for this goal.",
+        "quality": "insufficient",
+        "capability": null,
+        "evidence": [
+          "Multi-location healthcare scheduling software coordinates patient care logistics — transport, staffing, appointments, and service delivery ..."
+        ],
+        "usedFacts": [],
+        "artifacts": [],
+        "alternatives": [
+          {
+            "decision": "send_email",
+            "reason": "This counterpart has no email route."
+          }
+        ],
+        "nextStage": "approval",
+        "missingEvidence": null,
+        "matchId": "k575vczrp3ye69erzfk06mkzbh8eqhy1"
+      },
+      {
+        "decision": "no_action",
+        "actionability": "result_only",
+        "reason": "objective_presents_result",
+        "detail": "This mission is about finding this, not contacting them — Radar recorded it as a result.",
+        "quality": "promising",
+        "capability": null,
+        "evidence": [
+          "# **Best Patient Scheduling Software in 2026 by Practice Size** ## Best for Small Group Practices (2 to 10 Providers) ### 4. Jane App Jane App was designed around multidisciplinary clinics from the start. ## Best for Multi-Specialty Clinics ### 6. OmniMD We are trusted by 12,000+ providers across 600+ clinics and carry HIPAA, ONC, and SOC2 certifications. - Enterprise and Multi-Location: includes everything in Growth plus RCM and billing services, a dedicated success manager, 24/7 priority suppo"
+        ],
+        "usedFacts": [],
+        "artifacts": [],
+        "alternatives": [
+          {
+            "decision": "send_email",
+            "reason": "No address was verified in the evidence."
+          },
+          {
+            "decision": "submit_form",
+            "reason": "This counterpart has no public form."
+          }
+        ],
+        "nextStage": "complete",
+        "missingEvidence": null,
+        "matchId": "k578b9cw7j4tx9x4pctyc9bnds8epz40"
+      },
+      {
+        "decision": "no_action",
+        "actionability": "result_only",
+        "reason": "objective_presents_result",
+        "detail": "This mission is about finding this, not contacting them — Radar recorded it as a result.",
+        "quality": "promising",
+        "capability": null,
+        "evidence": [
+          "Easily schedule and communicate with employees and teams across multiple locations. Track time, lower labor costs, and improve efficiency at every location."
+        ],
+        "usedFacts": [],
+        "artifacts": [],
+        "alternatives": [
+          {
+            "decision": "send_email",
+            "reason": "No address was verified in the evidence."
+          },
+          {
+            "decision": "submit_form",
+            "reason": "This counterpart has no public form."
+          }
+        ],
+        "nextStage": "complete",
+        "missingEvidence": null,
+        "matchId": "k572ssd649yzxpf43ddjeetqhn8eqvs1"
+      },
+      {
+        "decision": "no_action",
+        "actionability": "result_only",
+        "reason": "objective_presents_result",
+        "detail": "This mission is about finding this, not contacting them — Radar recorded it as a result.",
+        "quality": "promising",
+        "capability": null,
+        "evidence": [
+          "## Quick picks by scheduling need | Scheduling need | What to look for | Strong fit | |-|-|-| | Multi-location scheduling | Provider/location rules, central visibility, role-based staff controls | BestDoc, NextGen, Skedulo | ## Detailed platform reviews ### Core Features - **Separate provider schedules** with multi-location support - **Multi-location coordination** with centralized oversight"
+        ],
+        "usedFacts": [],
+        "artifacts": [],
+        "alternatives": [
+          {
+            "decision": "send_email",
+            "reason": "No address was verified in the evidence."
+          },
+          {
+            "decision": "submit_form",
+            "reason": "This counterpart has no public form."
+          }
+        ],
+        "nextStage": "complete",
+        "missingEvidence": null,
+        "matchId": "k5702cnby9pqmd38vyc5hcjny18epezn"
+      },
+      {
+        "decision": "no_action",
+        "actionability": "result_only",
+        "reason": "objective_presents_result",
+        "detail": "This mission is about finding this, not contacting them — Radar recorded it as a result.",
+        "quality": "promising",
+        "capability": null,
+        "evidence": [
+          "## Schedule every healthcare role from one platform Instead of separate files for each department, Heyshift keeps healthcare employee scheduling software on one roster, whether you manage a 20-person clinic or several hundred staff across facilities. ## How to choose healthcare staff scheduling software - Multi-location scheduling"
+        ],
+        "usedFacts": [],
+        "artifacts": [],
+        "alternatives": [
+          {
+            "decision": "send_email",
+            "reason": "This counterpart has no email route."
+          }
+        ],
+        "nextStage": "complete",
+        "missingEvidence": null,
+        "matchId": "k5767a9eej1qzwpe7c4e0vtwnh8epb1m"
+      },
+      {
+        "decision": "no_action",
+        "actionability": "result_only",
+        "reason": "objective_presents_result",
+        "detail": "This mission is about finding this, not contacting them — Radar recorded it as a result.",
+        "quality": "promising",
+        "capability": null,
+        "evidence": [
+          "Rotageek is a revolutionary rostering solution which goes beyond traditional rotas, helping healthcare organisations save time, support self-rostering and ..."
+        ],
+        "usedFacts": [],
+        "artifacts": [],
+        "alternatives": [
+          {
+            "decision": "send_email",
+            "reason": "No address was verified in the evidence."
+          },
+          {
+            "decision": "submit_form",
+            "reason": "This counterpart has no public form."
+          }
+        ],
+        "nextStage": "complete",
+        "missingEvidence": null,
+        "matchId": "k571ptbtary948bzk133qmcs7n8eq93f"
+      },
+      {
+        "decision": "no_action",
+        "actionability": "result_only",
+        "reason": "objective_presents_result",
+        "detail": "This mission is about finding this, not contacting them — Radar recorded it as a result.",
+        "quality": "promising",
+        "capability": null,
+        "evidence": [
+          "# Appointment Reminder Software ## One reminder system, built for real clinic days Noterro coordinates email, text, and call reminders into a single automated workflow that keeps patients informed and schedules predictable. Email, SMS, and phone reminders are sent automatically based on patient communication preferences, helping messages reach patients in the way they are most likely to notice and respond. ## Reliable delivery you can trust ### System-aware updates Reminder activity reflects rea"
+        ],
+        "usedFacts": [],
+        "artifacts": [],
+        "alternatives": [
+          {
+            "decision": "send_email",
+            "reason": "No address was verified in the evidence."
+          },
+          {
+            "decision": "submit_form",
+            "reason": "This counterpart has no public form."
+          }
+        ],
+        "nextStage": "complete",
+        "missingEvidence": null,
+        "matchId": "k579p5044xvkymejq9nmpj4k7h8epq26"
+      },
+      {
+        "decision": "no_action",
+        "actionability": "result_only",
+        "reason": "objective_presents_result",
+        "detail": "This mission is about finding this, not contacting them — Radar recorded it as a result.",
+        "quality": "promising",
+        "capability": null,
+        "evidence": [
+          "Rating 4.7(97) · $0.00 to $329.00Jul 17, 2026 · Features include team booking pages, class scheduling, and support. Reminder Channels: Automated reminders via SMS and email. Scheduling: ...Top 12 Appointment Reminder... · Square Appointments"
+        ],
+        "usedFacts": [],
+        "artifacts": [],
+        "alternatives": [
+          {
+            "decision": "send_email",
+            "reason": "No address was verified in the evidence."
+          },
+          {
+            "decision": "submit_form",
+            "reason": "This counterpart has no public form."
+          }
+        ],
+        "nextStage": "complete",
+        "missingEvidence": null,
+        "matchId": "k5768sj59059we7h0b81dh87798epe7n"
+      },
+      {
+        "decision": "no_action",
+        "actionability": "result_only",
+        "reason": "objective_presents_result",
+        "detail": "This mission is about finding this, not contacting them — Radar recorded it as a result.",
+        "quality": "promising",
+        "capability": null,
+        "evidence": [
+          "Automates scheduling process: Appointment reminder software allows clients to book, reschedule, or cancel their appointments via integrations with appointment ...What are the core features of... · What are the benefits of..."
+        ],
+        "usedFacts": [],
+        "artifacts": [],
+        "alternatives": [
+          {
+            "decision": "send_email",
+            "reason": "No address was verified in the evidence."
+          },
+          {
+            "decision": "submit_form",
+            "reason": "This counterpart has no public form."
+          }
+        ],
+        "nextStage": "complete",
+        "missingEvidence": null,
+        "matchId": "k570t80e5wkmf9adfdwnk7nx6h8eqj1x"
+      },
+      {
+        "decision": "no_action",
+        "actionability": "result_only",
+        "reason": "objective_presents_result",
+        "detail": "This mission is about finding this, not contacting them — Radar recorded it as a result.",
+        "quality": "promising",
+        "capability": null,
+        "evidence": [
+          "Learn how to set up recurring appointments to boost customer loyalty, streamline scheduling, and grow your service-based business."
+        ],
+        "usedFacts": [],
+        "artifacts": [],
+        "alternatives": [
+          {
+            "decision": "send_email",
+            "reason": "No address was verified in the evidence."
+          },
+          {
+            "decision": "submit_form",
+            "reason": "This counterpart has no public form."
+          }
+        ],
+        "nextStage": "complete",
+        "missingEvidence": null,
+        "matchId": "k57b1sqxavpeswt33jekv0jsh58epwtr"
+      },
+      {
+        "decision": "no_action",
+        "actionability": "result_only",
+        "reason": "objective_presents_result",
+        "detail": "This mission is about finding this, not contacting them — Radar recorded it as a result.",
+        "quality": "promising",
+        "capability": null,
+        "evidence": [
+          "## 2. SimplePractice ### Benefits - Automated reminders help **prevent missed appointments** ## 3. TherapyNotes ### Key features - **Automated reminders:** Can send email and text reminders to reduce missed appointments. ## 4. Acuity Scheduling ### Key features - **Automatic reminders:** Acuity sends email and text reminders so clients don’t forget their appointments. ## The final verdict The calendar updates instantly, reminders go out automatically, and completed appointments connect to sessio"
+        ],
+        "usedFacts": [],
+        "artifacts": [],
+        "alternatives": [
+          {
+            "decision": "send_email",
+            "reason": "No address was verified in the evidence."
+          },
+          {
+            "decision": "submit_form",
+            "reason": "This counterpart has no public form."
+          }
+        ],
+        "nextStage": "complete",
+        "missingEvidence": null,
+        "matchId": "k574cq9hdb89aqf5bc178w33c58ep35h"
+      },
+      {
+        "decision": "no_action",
+        "actionability": "result_only",
+        "reason": "objective_presents_result",
+        "detail": "This mission is about finding this, not contacting them — Radar recorded it as a result.",
+        "quality": "promising",
+        "capability": null,
+        "evidence": [
+          "# PrognoCIS Appointment Reminder Software Improve Patient Engagement and Streamline Clinic Operations with Automated Reminders that are Fully Integrated into your EHR Software ## Top Features of PrognoCIS' Appointment Reminder EHR Integration Missed reminder alerts and options to reschedule are included. ## For clinics, patient appointment reminders: - Divert effort away from admin workload and towards high-value work ## Patients also receive several benefits, including: - Convenient reminders i"
+        ],
+        "usedFacts": [],
+        "artifacts": [],
+        "alternatives": [
+          {
+            "decision": "send_email",
+            "reason": "No address was verified in the evidence."
+          },
+          {
+            "decision": "submit_form",
+            "reason": "This counterpart has no public form."
+          }
+        ],
+        "nextStage": "complete",
+        "missingEvidence": null,
+        "matchId": "k573rtzsdg704mvcfebat310p18eq5se"
+      },
+      {
+        "decision": "no_action",
+        "actionability": "result_only",
+        "reason": "objective_presents_result",
+        "detail": "This mission is about finding this, not contacting them — Radar recorded it as a result.",
+        "quality": "promising",
+        "capability": null,
+        "evidence": [
+          "# 11 Best Patient Appointment Scheduling Software Solutions ![Best Patient Appointment Scheduling Software Solutions](https://practicesuite.com/wp-content/uploads/2025/10/Patient-Appointment-Scheduling-Software_Feature-1024x505.jpg-992x489.webp) ## 1. PracticeSuite ### 3. NextGen Healthcare [NextGen Healthcare](https://www.nextgen.com/) is an award-winning EHR system that also includes patient appointment scheduling capabilities. Their system is completely customizable to meet the needs of your "
+        ],
+        "usedFacts": [],
+        "artifacts": [],
+        "alternatives": [
+          {
+            "decision": "send_email",
+            "reason": "No address was verified in the evidence."
+          },
+          {
+            "decision": "submit_form",
+            "reason": "This counterpart has no public form."
+          }
+        ],
+        "nextStage": "complete",
+        "missingEvidence": null,
+        "matchId": "k574tjw88tm1r7w03qn2j61kfd8eqrbh"
+      },
+      {
+        "decision": "no_action",
+        "actionability": "result_only",
+        "reason": "objective_presents_result",
+        "detail": "This mission is about finding this, not contacting them — Radar recorded it as a result.",
+        "quality": "promising",
+        "capability": null,
+        "evidence": [
+          "# 7 Top Healthcare Scheduling Apps & Software: Tested for 2026 ## **Top 7 Healthcare Scheduling Apps:** At a Glance | Tool Name | Best For | Ideal User | Starting Pricing | |-|-|-|-| | [Blaze.tech](https://www.blaze.tech/) | No-code custom healthcare scheduling app builder | Mid- to large-sized clinics needing flexible workflows | Contact sales for a custom quote for enterprise pricing | | [Acuity](https://acuityscheduling.com/) | Simple self-managed appointment scheduling | Solo providers manag"
+        ],
+        "usedFacts": [],
+        "artifacts": [],
+        "alternatives": [
+          {
+            "decision": "send_email",
+            "reason": "No address was verified in the evidence."
+          },
+          {
+            "decision": "submit_form",
+            "reason": "This counterpart has no public form."
+          }
+        ],
+        "nextStage": "complete",
+        "missingEvidence": null,
+        "matchId": "k57feav8ej1ppqpmd4thjf1jwx8epk6v"
+      },
+      {
+        "decision": "no_action",
+        "actionability": "result_only",
+        "reason": "objective_presents_result",
+        "detail": "This mission is about finding this, not contacting them — Radar recorded it as a result.",
+        "quality": "promising",
+        "capability": null,
+        "evidence": [
+          "## The 6 Best Healthcare Staff Scheduling Software of 2026 [4.6/5](https://www.capterra.com/p/153140/Connecteam/) [4.6/5](https://www.g2.com/products/connecteam/reviews) [4.6/5](https://www.softwareadvice.com/hr/connecteam-profile/) [9.4/10](https://www.trustradius.com/products/connecteam/reviews) [4.7/5](https://play.google.com/store/apps/details?id=com.connecteamco.Connecteam.app&hl=en_US) [4.9/5](https://apps.apple.com/us/app/connecteam-team-management-app/id1121613912) Connecteam is the best"
+        ],
+        "usedFacts": [],
+        "artifacts": [],
+        "alternatives": [
+          {
+            "decision": "send_email",
+            "reason": "No address was verified in the evidence."
+          },
+          {
+            "decision": "submit_form",
+            "reason": "This counterpart has no public form."
+          }
+        ],
+        "nextStage": "complete",
+        "missingEvidence": null,
+        "matchId": "k571c1nx7f57pbck9kxagtnmvx8ep9px"
+      },
+      {
+        "decision": "no_action",
+        "actionability": "result_only",
+        "reason": "objective_presents_result",
+        "detail": "This mission is about finding this, not contacting them — Radar recorded it as a result.",
+        "quality": "promising",
+        "capability": null,
+        "evidence": [
+          "# Top 7 Patient Appointment Scheduling Software (2026) ## Top 7 patient appointment scheduling software ### Prosper AI: Appointment Scheduling (Anna) **Integrations, security, and deployment:** Epic, athenahealth, eCW, NextGen, MEDITECH, Availity; calendar sync; HIPAA, SOC 2, SSO; cloud or on‑prem. **Best for + outcomes & differentiator:** Health systems and multi‑specialty groups; handles 60%+ of calls end-to-end in production, based on Prosper AI's customer deployment data; cuts abandonment up"
+        ],
+        "usedFacts": [],
+        "artifacts": [],
+        "alternatives": [
+          {
+            "decision": "submit_form",
+            "reason": "This counterpart has no public form."
+          }
+        ],
+        "nextStage": "complete",
+        "missingEvidence": null,
+        "matchId": "k5775gq9zycts7vp0vz63rg8ws8eqk9t"
+      }
+    ],
+    "drafts": [],
+    "steps": [
+      {
+        "stage": "interpret",
+        "label": "intent.find_solution",
+        "tool": "llm.classify",
+        "errorCode": null,
+        "summary": "You're looking for a scheduling solution that can handle multi-location rosters, recurring appointments, and reminders for a six-site outpatient clinic group.",
+        "createdAt": 1789812775060
+      },
+      {
+        "stage": "plan",
+        "label": "plan.created",
+        "tool": "llm.plan",
+        "errorCode": null,
+        "summary": "Strategy: products, services, or providers that solve the stated problem — the best solution type is discovered, not assumed · finished means presenting 1 credible solution(s) · 4 search queries queued.",
+        "createdAt": 1789812792695
+      },
+      {
+        "stage": "discover",
+        "label": "discover.query.done",
+        "tool": "firecrawl.search",
+        "errorCode": null,
+        "summary": "Discovery query returned 6 deduplicated sources.",
+        "createdAt": 1789812798126
+      },
+      {
+        "stage": "discover",
+        "label": "discover.query.done",
+        "tool": "firecrawl.search",
+        "errorCode": null,
+        "summary": "Discovery query returned 6 deduplicated sources.",
+        "createdAt": 1789812803453
+      },
+      {
+        "stage": "discover",
+        "label": "discover.query.done",
+        "tool": "firecrawl.search",
+        "errorCode": null,
+        "summary": "Discovery query returned 6 deduplicated sources.",
+        "createdAt": 1789812867907
+      },
+      {
+        "stage": "discover",
+        "label": "discover.query.done",
+        "tool": "firecrawl.search",
+        "errorCode": null,
+        "summary": "Discovery query returned 6 deduplicated sources.",
+        "createdAt": 1789812873207
+      },
+      {
+        "stage": "evaluate",
+        "label": "entity.extracted",
+        "tool": "firecrawl.extract",
+        "errorCode": null,
+        "summary": "Extracted WellSky Scheduling (product) with 0 signals.",
+        "createdAt": 1789812877530
+      },
+      {
+        "stage": "evaluate",
+        "label": "entity.extracted",
+        "tool": "firecrawl.extract",
+        "errorCode": null,
+        "summary": "Extracted Confido Health (product) with 0 signals.",
+        "createdAt": 1789812879479
+      },
+      {
+        "stage": "evaluate",
+        "label": "entity.extracted",
+        "tool": "firecrawl.extract",
+        "errorCode": null,
+        "summary": "Extracted WaitWell (product) with 0 signals.",
+        "createdAt": 1789812882138
+      },
+      {
+        "stage": "evaluate",
+        "label": "entity.extracted",
+        "tool": "firecrawl.extract",
+        "errorCode": null,
+        "summary": "Extracted Clearwave Scheduling (product) with 0 signals.",
+        "createdAt": 1789812885184
+      },
+      {
+        "stage": "evaluate",
+        "label": "entity.extracted",
+        "tool": "firecrawl.extract",
+        "errorCode": null,
+        "summary": "Extracted VectorCare (product) with 0 signals.",
+        "createdAt": 1789812887465
+      },
+      {
+        "stage": "evaluate",
+        "label": "entity.extracted",
+        "tool": "firecrawl.extract",
+        "errorCode": null,
+        "summary": "Extracted OmniMD (product) with 0 signals.",
+        "createdAt": 1789812889780
+      },
+      {
+        "stage": "evaluate",
+        "label": "entity.extraction_continues",
+        "tool": "firecrawl.extract",
+        "errorCode": null,
+        "summary": "Resolved 6 sources into entities; more scraped sources remain, so entity resolution continues before matches are explained.",
+        "createdAt": 1789812889866
+      },
+      {
+        "stage": "evaluate",
+        "label": "entity.extracted",
+        "tool": "firecrawl.extract",
+        "errorCode": null,
+        "summary": "Extracted Sling (product) with 0 signals.",
+        "createdAt": 1789812891957
+      },
+      {
+        "stage": "evaluate",
+        "label": "entity.extracted",
+        "tool": "firecrawl.extract",
+        "errorCode": null,
+        "summary": "Extracted BestDoc (product) with 1 signal.",
+        "createdAt": 1789812895990
+      },
+      {
+        "stage": "evaluate",
+        "label": "entity.extracted",
+        "tool": "firecrawl.extract",
+        "errorCode": null,
+        "summary": "Extracted Heyshift (product) with 0 signals.",
+        "createdAt": 1789812898296
+      },
+      {
+        "stage": "evaluate",
+        "label": "entity.extracted",
+        "tool": "firecrawl.extract",
+        "errorCode": null,
+        "summary": "Extracted QGenda (product) with 0 signals.",
+        "createdAt": 1789812900676
+      },
+      {
+        "stage": "evaluate",
+        "label": "entity.snippet_fallback",
+        "tool": "firecrawl.extract",
+        "errorCode": "FIRECRAWL_RATE_LIMITED",
+        "summary": "Structured extraction unavailable (FIRECRAWL_RATE_LIMITED); kept a snippet-only entity for Automated Appointment Reminder Software for Clinics - Noterro.",
+        "createdAt": 1789812904540
+      },
+      {
+        "stage": "evaluate",
+        "label": "entity.snippet_fallback",
+        "tool": "firecrawl.extract",
+        "errorCode": "FIRECRAWL_RATE_LIMITED",
+        "summary": "Structured extraction unavailable (FIRECRAWL_RATE_LIMITED); kept a snippet-only entity for 12 Best Appointment Reminder Software Options for 2026 - Call Loop.",
+        "createdAt": 1789812908331
+      },
+      {
+        "stage": "evaluate",
+        "label": "entity.extraction_continues",
+        "tool": "firecrawl.extract",
+        "errorCode": null,
+        "summary": "Resolved 6 sources into entities; more scraped sources remain, so entity resolution continues before matches are explained.",
+        "createdAt": 1789812908439
+      },
+      {
+        "stage": "evaluate",
+        "label": "entity.snippet_fallback",
+        "tool": "firecrawl.extract",
+        "errorCode": "FIRECRAWL_RATE_LIMITED",
+        "summary": "Structured extraction unavailable (FIRECRAWL_RATE_LIMITED); kept a snippet-only entity for Best Appointment Reminder Software 2026 | Capterra.",
+        "createdAt": 1789812912507
+      },
+      {
+        "stage": "evaluate",
+        "label": "entity.snippet_fallback",
+        "tool": "firecrawl.extract",
+        "errorCode": "FIRECRAWL_RATE_LIMITED",
+        "summary": "Structured extraction unavailable (FIRECRAWL_RATE_LIMITED); kept a snippet-only entity for 5 Best Scheduling Software For ABA Therapists in 2026 - Passage Health.",
+        "createdAt": 1789812916301
+      },
+      {
+        "stage": "evaluate",
+        "label": "entity.snippet_fallback",
+        "tool": "firecrawl.extract",
+        "errorCode": "FIRECRAWL_RATE_LIMITED",
+        "summary": "Structured extraction unavailable (FIRECRAWL_RATE_LIMITED); kept a snippet-only entity for Patient Appointment Reminders System That Reduce No-Shows.",
+        "createdAt": 1789812920043
+      },
+      {
+        "stage": "evaluate",
+        "label": "entity.snippet_fallback",
+        "tool": "firecrawl.extract",
+        "errorCode": "FIRECRAWL_RATE_LIMITED",
+        "summary": "Structured extraction unavailable (FIRECRAWL_RATE_LIMITED); kept a snippet-only entity for 11 Best Patient Appointment Scheduling Software Solutions.",
+        "createdAt": 1789812923808
+      },
+      {
+        "stage": "evaluate",
+        "label": "entity.snippet_fallback",
+        "tool": "firecrawl.extract",
+        "errorCode": "FIRECRAWL_RATE_LIMITED",
+        "summary": "Structured extraction unavailable (FIRECRAWL_RATE_LIMITED); kept a snippet-only entity for 7 Top Healthcare Scheduling Apps & Software: Tested for 2026 - Blaze.tech.",
+        "createdAt": 1789812927679
+      },
+      {
+        "stage": "evaluate",
+        "label": "entity.snippet_fallback",
+        "tool": "firecrawl.extract",
+        "errorCode": "FIRECRAWL_RATE_LIMITED",
+        "summary": "Structured extraction unavailable (FIRECRAWL_RATE_LIMITED); kept a snippet-only entity for 6 Best Healthcare Staff Scheduling Software (In-Depth Comparison).",
+        "createdAt": 1789812931559
+      },
+      {
+        "stage": "evaluate",
+        "label": "entity.extraction_continues",
+        "tool": "firecrawl.extract",
+        "errorCode": null,
+        "summary": "Resolved 6 sources into entities; more scraped sources remain, so entity resolution continues before matches are explained.",
+        "createdAt": 1789812931658
+      },
+      {
+        "stage": "evaluate",
+        "label": "entity.extracted",
+        "tool": "firecrawl.extract",
+        "errorCode": null,
+        "summary": "Extracted Prosper AI (product) with 0 signals.",
+        "createdAt": 1789812937899
+      }
+    ],
+    "events": [
+      {
+        "type": "mission.created",
+        "stage": "intake",
+        "summary": "Mission created from natural language; awaiting AI intent classification.",
+        "createdAt": 1789812766637
+      },
+      {
+        "type": "intent.classified",
+        "stage": "interpret",
+        "summary": "Intent classified as find_solution.",
+        "createdAt": 1789812775086
+      },
+      {
+        "type": "plan.created",
+        "stage": "plan",
+        "summary": "Strategy-bearing mission plan created from the classified intent.",
+        "createdAt": 1789812792721
+      },
+      {
+        "type": "stage.context_check.started",
+        "stage": "context_check",
+        "summary": "Plan ready — checking whether Radar has enough information to proceed.",
+        "createdAt": 1789812792780
+      },
+      {
+        "type": "stage.plan_review.started",
+        "stage": "plan_review",
+        "summary": "Radar has enough information — plan ready.",
+        "createdAt": 1789812792896
+      },
+      {
+        "type": "plan_review.waiting",
+        "stage": "plan_review",
+        "summary": "Radar is waiting for you to review the plan.",
+        "createdAt": 1789812792927
+      },
+      {
+        "type": "plan.approved",
+        "stage": "discover",
+        "summary": "User approved the plan — starting discovery.",
+        "createdAt": 1789812795765
+      },
+      {
+        "type": "source.ready",
+        "stage": "evaluate",
+        "summary": "Firecrawl persisted 6 deduplicated sources.",
+        "createdAt": 1789812797993
+      },
+      {
+        "type": "stage.discover.resumed",
+        "stage": "discover",
+        "summary": "Resuming discovery: 3 queries remaining.",
+        "createdAt": 1789812800221
+      },
+      {
+        "type": "source.ready",
+        "stage": "evaluate",
+        "summary": "Firecrawl persisted 6 deduplicated sources.",
+        "createdAt": 1789812803272
+      },
+      {
+        "type": "stage.discover.resumed",
+        "stage": "discover",
+        "summary": "Resuming discovery: 2 queries remaining.",
+        "createdAt": 1789812805549
+      },
+      {
+        "type": "source.ready",
+        "stage": "evaluate",
+        "summary": "Firecrawl persisted 6 deduplicated sources.",
+        "createdAt": 1789812867705
+      },
+      {
+        "type": "stage.discover.resumed",
+        "stage": "discover",
+        "summary": "Resuming discovery: 1 query remaining.",
+        "createdAt": 1789812870016
+      },
+      {
+        "type": "source.ready",
+        "stage": "evaluate",
+        "summary": "Firecrawl persisted 6 deduplicated sources.",
+        "createdAt": 1789812873023
+      },
+      {
+        "type": "stage.approval.started",
+        "stage": "approval",
+        "summary": "Matches explained — review them and approve a draft before anything is sent.",
+        "createdAt": 1789813055349
+      },
+      {
+        "type": "mission.complete",
+        "stage": "complete",
+        "summary": "Radar found 15 credible solution(s) to the stated problem. This mission was about finding them, so no one has been contacted.",
+        "createdAt": 1789813055976
+      }
+    ],
+    "budget": {
+      "creditLimit": 5000,
+      "used": 875,
+      "remaining": 4125
+    }
+  },
+  "workspaceId": "demo-workspace",
+  "sendingInbox": "linked",
+  "missionId": "kd76s1rcyszqjx032p0sy2an398epdfg",
+  "updatedAt": "2026-09-19T10:17:43.586Z",
+  "terminal": "complete/complete"
+}
