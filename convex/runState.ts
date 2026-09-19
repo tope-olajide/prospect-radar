@@ -18,7 +18,10 @@ const allowedNextStages: Record<RunStage, RunStage[]> = {
   // external event (a reply) lands: the wake routes through observation rather
   // than straight to a new action, so the next step is decided from what
   // actually happened.
-  approval: ["execute", "observe", "wait", "complete"],
+  // `discover` is reachable from `approval` because the gate is where the agent
+  // decides it needs better evidence before acting: an investigation goes back
+  // round the loop rather than asking the user to do research for it.
+  approval: ["execute", "observe", "discover", "wait", "complete"],
   execute: ["observe", "approval", "wait", "complete"],
   observe: ["approval", "execute", "discover", "wait", "complete"],
   wait: ["discover", "evaluate", "approval", "execute", "observe", "complete"],

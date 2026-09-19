@@ -229,20 +229,18 @@ describe("runStage — stage dispatch", () => {
     expect(statuses).toContain("skipped");
   });
 
-  it("discover with an empty backlog advances to evaluate; evaluating with no sources blocks honestly", async () => {
+  it("discover with an empty backlog advances to evaluate on its own", async () => {
     stubFetch(() => llmReply({ explanations: [] }));
     const t = convexTest(schema, convexModules);
     const missionId = await seedMission(t);
     await forceStage(t, missionId, "discover", "active");
-    // First invocation: empty backlog → discover stage completes → check_in.
+    // An empty backlog means discovery is finished. Evaluating what was found is
+    // the agent's own work, so it moves on rather than parking for a human
+    // "continue" — the user's next decision point is the action gate.
     await t.action(internal.missionOrchestrator.runStage, { missionId: missionId as never });
-    let run = await getRun(t, missionId);
-    expect(run?.currentStage).toBe("check_in");
-    expect(run?.status).toBe("waiting");
-    // Second invocation: check_in is a waiting stage — the orchestrator no-ops.
-    await t.action(internal.missionOrchestrator.runStage, { missionId: missionId as never });
-    run = await getRun(t, missionId);
-    expect(run?.status).toBe("waiting");
+    const run = await getRun(t, missionId);
+    expect(run?.currentStage).toBe("evaluate");
+    expect(run?.status).toBe("active");
   });
 
   it("approval gate: opens the gate and waits — never advances", async () => {

@@ -245,13 +245,15 @@ export const runStage = internalAction({
         case "discover": {
           const pending = await ctx.runQuery(internal.orchestratorStore.pendingQueries, { missionId: args.missionId });
           if (pending.length === 0) {
+            // Discovery is not a human gate. Evaluating what was found is the
+            // agent's own job, and "click to continue" is exactly the kind of
+            // manual advance Radar exists to remove — the user's next decision
+            // point is the action gate, where there is something to approve.
+            // `check_in` stays reachable for anyone who deliberately pauses
+            // here, but the default path runs straight on.
             await ctx.runMutation(internal.orchestratorStore.stageDone, {
-              missionId: args.missionId, stage: "discover", nextStage: "check_in",
-              eventType: "stage.check_in.started", summary: "Discovery finished — here's what Radar found.",
-            });
-            await ctx.runMutation(internal.runs.transition, {
-              missionId: args.missionId, targetStage: "check_in", targetStatus: "waiting",
-              interruption: null, eventType: "check_in.waiting", safeSummary: "Radar is showing you what it found before evaluating.",
+              missionId: args.missionId, stage: "discover", nextStage: "evaluate",
+              eventType: "stage.evaluate.started", summary: "Discovery finished — evaluating what Radar found.",
             });
             return null;
           }
@@ -430,26 +432,52 @@ export const runStage = internalAction({
           // workspace has no sending inbox, this is a genuine human gate: the
           // user must link one before any draft can leave.
           let proposed = 0;
-          let reason: string | null = null;
+          let investigating = 0;
+          let topReason: string | null = null;
+          let topDetail: string | null = null;
           try {
-            const result = await ctx.runAction(internal.outreach.proposeForMission, {
+            const decided = await ctx.runAction(internal.actions.decideForMission, {
               missionId: args.missionId,
-              limit: 1,
             });
-            proposed = result.proposed;
-            reason = result.reason;
+            proposed = decided.proposed;
+            investigating = decided.investigating;
+            topReason = decided.topReason;
+            topDetail = decided.topDetail;
           } catch (error) {
-            reason = error instanceof Error ? error.message : "proposal failed";
+            topReason = "decision_failed";
+            topDetail = error instanceof Error ? error.message : "the action decision failed";
           }
+
+          // An investigation is not a human gate. The agent decided it needs
+          // better evidence or a reachable route, and it can get one, so it
+          // goes back round the loop. Bounded by actionDecision's investigation
+          // cap, so this cannot become an endless research spin.
+          if (investigating > 0) {
+            await ctx.runMutation(internal.runs.transition, {
+              missionId: args.missionId, targetStage: "discover", targetStatus: "active",
+              interruption: null, eventType: "stage.discover.resumed",
+              safeSummary: topDetail ?? "Radar decided it needs more evidence before acting, so it is looking deeper.",
+            });
+            await ctx.scheduler.runAfter(0, internal.missionOrchestrator.runStage, { missionId: args.missionId });
+            return null;
+          }
+
+          // A research-shaped mission (find a solution, map a set of businesses)
+          // is finished by producing its result, not by contacting anyone. Ask
+          // the completion policy rather than assuming outreach is the goal.
+          const completed = await ctx.runMutation(internal.orchestratorStore.checkCompletion, {
+            missionId: args.missionId,
+          });
+          if (completed) return null;
+
           // Hard stop: open the gate, then wait for the human.
           await ctx.runMutation(internal.runs.transition, {
             missionId: args.missionId, targetStage: "approval", targetStatus: "waiting",
             interruption: null, eventType: "approval.awaiting",
             safeSummary: proposed > 0
               ? `${proposed} action(s) prepared and awaiting your approval. Nothing sends until you approve the exact content.`
-              : reason === "no_inbox"
-                ? "Awaiting your approval, but no inbox is linked — link one and the mission can prepare the first message."
-                : "Awaiting your approval: no counterpart with a verified contact route was reached, so nothing has been drafted.",
+              : topDetail
+                ?? `Awaiting your approval: nothing has been drafted (${topReason ?? "no actionable match"}). Radar did not invent a route to contact anyone.`,
           });
           return null;
         }

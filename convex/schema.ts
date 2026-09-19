@@ -193,6 +193,29 @@ export default defineSchema({
     .index("by_discoveryId", ["discoveryId"])
     .index("by_sourceId", ["sourceId"]),
 
+  /**
+   * Why the agent chose what it chose, per candidate. Persisted rather than
+   * recomputed so the user can always ask "why did Radar not contact these?"
+   * and get the answer the agent actually used, and so a decision survives a
+   * re-evaluation instead of being silently overwritten by history.
+   */
+  actionDecisions: defineTable({
+    workspaceId: v.string(), missionId: v.id("missions"), matchId: v.id("matches"),
+    quality: v.string(),
+    decision: v.union(v.literal("send_email"), v.literal("submit_form"), v.literal("investigate"), v.literal("no_action")),
+    actionability: v.union(
+      v.literal("ready"), v.literal("investigate"), v.literal("blocked"),
+      v.literal("result_only"), v.literal("not_actionable"),
+    ),
+    /** Machine-readable code; `detail` is the sentence written for the user. */
+    reason: v.string(), detail: v.string(),
+    /** Where an investigation should look, when the decision is `investigate`. */
+    targetUrl: v.union(v.string(), v.null()),
+    createdAt: v.number(), updatedAt: v.number(),
+  }).index("by_missionId", ["missionId"])
+    .index("by_missionId_and_matchId", ["missionId", "matchId"])
+    .index("by_workspaceId", ["workspaceId"]),
+
   entities: defineTable({
     workspaceId: v.string(), missionId: v.id("missions"), sourceId: v.id("sourceRecords"),
     kind: entityKind, name: v.string(), nameLower: v.string(), canonicalUrl: v.string(),

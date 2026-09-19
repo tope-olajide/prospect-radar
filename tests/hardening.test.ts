@@ -220,7 +220,11 @@ describe("provider credit budget", () => {
     expect(steps.some((step) => step.label === "stage.discover.failed")).toBe(false);
   });
 
-  it("resumes the same stage once the cap is raised", async () => {
+  // Given a longer budget than the default: draining the backlog no longer parks
+  // the run at a "continue" gate, so the remaining `drive` iterations do real
+  // evaluation and decision work. That is the point of the change; this test is
+  // about the ledger, so it gets room rather than being trimmed to hide it.
+  it("resumes the same stage once the cap is raised", { timeout: 30_000 }, async () => {
     searchImpl = async () => oneResult();
     const t = convexTest(schema, convexModules);
     const missionId = await seedMissionWithBacklog(t, 2);
