@@ -38,6 +38,16 @@ const actionStatus = v.union(v.literal("draft"), v.literal("awaiting_approval"),
 const approvalStatus = v.union(v.literal("active"), v.literal("used"), v.literal("expired"), v.literal("revoked"));
 const outcomeStatus = v.union(v.literal("open"), v.literal("waiting"), v.literal("replied"), v.literal("positive"), v.literal("negative"), v.literal("closed"), v.literal("unknown"));
 const factStatus = v.union(v.literal("unreviewed"), v.literal("user_confirmed"), v.literal("user_corrected"), v.literal("user_rejected"));
+/**
+ * How a mission can succeed. `contact_and_wait` needs an executed action;
+ * the other two are satisfied by producing the finding itself, because not
+ * every objective is "reach someone".
+ */
+const successKind = v.union(
+  v.literal("contact_and_wait"),
+  v.literal("find_candidates"),
+  v.literal("present_solution"),
+);
 const factVisibility = v.union(v.literal("mission"), v.literal("workspace"));
 const factSource = v.union(v.literal("user_input"), v.literal("plan_extraction"), v.literal("source_extraction"), v.literal("agent_inference"));
 const queryKind = v.union(v.literal("search"), v.literal("crawl"));
@@ -110,6 +120,14 @@ export default defineSchema({
   missionPlans: defineTable({
     missionId: v.id("missions"), normalizedGoal: v.string(), mode: missionMode,
     strategyNotes: v.optional(v.string()),
+    /**
+     * What "done" means for this mission, decided when the plan is made and
+     * editable by the user. Optional so plans written before this existed — and
+     * a mission whose plan does not state it — fall back to the intent's
+     * default rather than having no objective at all.
+     */
+    successKind: v.optional(successKind),
+    targetCount: v.optional(v.number()),
     // Set when the user edits the agent's plan, so the UI can show which parts
     // of the brief are the agent's proposal and which are the user's decision.
     userEditedAt: v.optional(v.number()),
@@ -211,6 +229,21 @@ export default defineSchema({
     reason: v.string(), detail: v.string(),
     /** Where an investigation should look, when the decision is `investigate`. */
     targetUrl: v.union(v.string(), v.null()),
+    // ── The trace: why this decision, derived from its own inputs ──
+    /** The evidence the evaluation cited for this match. */
+    evidence: v.optional(v.array(v.string())),
+    /** The capability selected to carry the decision out, if any. */
+    capability: v.optional(v.string()),
+    /** The authorized context this decision may use when it acts. */
+    usedFacts: v.optional(v.array(v.object({ category: v.string(), value: v.string() }))),
+    /** Authorized artifacts the decision would attach. */
+    artifacts: v.optional(v.array(v.object({ sourceId: v.id("dataSources"), title: v.string() }))),
+    /** Options that were considered and why they were not chosen. */
+    alternatives: v.optional(v.array(v.object({ decision: v.string(), reason: v.string() }))),
+    /** The stage this decision sends the mission to next. */
+    nextStage: v.optional(v.string()),
+    /** For `investigate`: what the evidence was missing. */
+    missingEvidence: v.optional(v.string()),
     createdAt: v.number(), updatedAt: v.number(),
   }).index("by_missionId", ["missionId"])
     .index("by_missionId_and_matchId", ["missionId", "matchId"])
@@ -253,6 +286,12 @@ export default defineSchema({
     workspaceId: v.string(), agentmailInboxId: v.string(), clientRequestId: v.string(),
     providerDraftId: v.union(v.string(), v.null()), recipient: v.string(), subject: v.string(),
     body: v.string(), contentHash: v.string(), capability: v.literal("send_email"),
+    /**
+     * Authorized artifacts attached to this message. Part of the approval
+     * binding: the hash covers them, so an approval given for one set of
+     * attachments cannot be replayed against another.
+     */
+    artifactIds: v.optional(v.array(v.id("dataSources"))),
     status: actionStatus, outboundId: v.union(v.string(), v.null()),
     providerMessageId: v.union(v.string(), v.null()),
     threadId: v.union(v.string(), v.null()), inReplyTo: v.optional(v.string()),
@@ -425,6 +464,14 @@ export default defineSchema({
     workspaceId: v.string(),
     kind: dataSourceKind,
     title: v.string(),
+    /**
+     * Whether this source may be *represented* — sent to someone on the user's
+     * behalf, rather than merely read while reasoning. Reading a document and
+     * signing the user's name to it are different acts, so authorization is
+     * explicit and defaults to off; what Radar may use as evidence is a
+     * separate question from what it may present as the user's material.
+     */
+    representationAllowed: v.optional(v.boolean()),
     /** Website only: where the crawl starts. */
     url: v.union(v.string(), v.null()),
     /** Website only: crawl mode. */

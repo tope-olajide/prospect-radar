@@ -151,7 +151,7 @@ describe("runStage — stage dispatch", () => {
   });
 
   it("interpret: plans and materializes the discovery backlog, then moves to discover", async () => {
-    stubFetch(() => llmReply({ normalizedGoal: "Find companies needing React work.", mode: "opportunity", mustHave: ["need"], niceToHave: [], exclusions: [], missingFacts: [], recommendedSources: ["job boards"], proposedSteps: ["search"], completionPredicate: "one approved send", strategyNotes: "ok", searchQueries: ["companies hiring react", "startups needing frontend"], crawlTargets: ["https://example.com/careers"] }));
+    stubFetch(() => llmReply({ normalizedGoal: "Find companies needing React work.", mode: "opportunity", objective: { successKind: "contact_and_wait", targetCount: 1 }, mustHave: ["need"], niceToHave: [], exclusions: [], missingFacts: [], recommendedSources: ["job boards"], proposedSteps: ["search"], completionPredicate: "one approved send", strategyNotes: "ok", searchQueries: ["companies hiring react", "startups needing frontend"], crawlTargets: ["https://example.com/careers"] }));
     const t = convexTest(schema, convexModules);
     const missionId = await seedMission(t);
     await forceStage(t, missionId, "interpret", "active");
@@ -199,6 +199,10 @@ describe("runStage — stage dispatch", () => {
     expect(queries.some((q) => q.kind === "crawl")).toBe(true);
     const plan = await t.run(async (ctx) => ctx.db.query("missionPlans").withIndex("by_missionId", (q) => q.eq("missionId", missionId as never)).first());
     expect(plan?.normalizedGoal).toBe("Find companies needing React work.");
+    // The planner's objective is on the plan, which is where the action layer
+    // and the completion gate read what "done" means.
+    expect(plan?.successKind).toBe("contact_and_wait");
+    expect(plan?.targetCount).toBe(1);
   });
 
   it("discover: a provider refusal consumes its query and leaves the mission running", async () => {

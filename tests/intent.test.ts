@@ -274,7 +274,7 @@ describe("planMission — strategy-bearing planning driven by the classified int
     await classify(t, missionId);
 
     // Stage 2: plan — the strategy guidance for find_opportunity must be in the prompt.
-    stubFetch(() => llmReply({ normalizedGoal: "Find companies with publicly expressed React/Next.js development needs.", mode: "opportunity", mustHave: ["evidence of a current dev need"], niceToHave: ["remote-friendly"], exclusions: ["staffing agencies"], missingFacts: ["budget range"], recommendedSources: ["job boards", "company engineering blogs"], proposedSteps: ["search", "scrape", "rank"], completionPredicate: "3 sourced, explained matches approved for outreach.", strategyNotes: "Following guidance; prioritizing hiring signals.", searchQueries: ["companies hiring React developers", "nextjs rebuild in progress"], crawlTargets: ["https://example.com/careers"] }));
+    stubFetch(() => llmReply({ normalizedGoal: "Find companies with publicly expressed React/Next.js development needs.", mode: "opportunity", objective: { successKind: "contact_and_wait", targetCount: 3 }, mustHave: ["evidence of a current dev need"], niceToHave: ["remote-friendly"], exclusions: ["staffing agencies"], missingFacts: ["budget range"], recommendedSources: ["job boards", "company engineering blogs"], proposedSteps: ["search", "scrape", "rank"], completionPredicate: "3 sourced, explained matches approved for outreach.", strategyNotes: "Following guidance; prioritizing hiring signals.", searchQueries: ["companies hiring React developers", "nextjs rebuild in progress"], crawlTargets: ["https://example.com/careers"] }));
     const { planId } = await plan(t, missionId);
 
     const planPrompt = capturedPrompts[0] ?? "";
@@ -285,6 +285,10 @@ describe("planMission — strategy-bearing planning driven by the classified int
       const saved = await ctx.db.get(planId as never);
       expect(saved?.mode).toBe("opportunity");
       expect(saved?.strategyNotes).toContain("hiring signals");
+      // The objective the planner stated is persisted on the plan, which is
+      // where the action layer and the completion gate read it from.
+      expect(saved?.successKind).toBe("contact_and_wait");
+      expect(saved?.targetCount).toBe(3);
     });
   });
 
@@ -295,7 +299,7 @@ describe("planMission — strategy-bearing planning driven by the classified int
     stubFetch(() => llmReply({ intent: { primary: "find_opportunity", secondary: "find_client", confidence: 0.9, rationale: "x" }, targetEntity: "organization", relationshipGoal: "become_their_vendor", understanding: "y", clarificationNeeded: false, clarificationQuestion: null }));
     await classify(t, missionId);
 
-    stubFetch(() => llmReply({ normalizedGoal: "g", mode: "opportunity", mustHave: [], niceToHave: [], exclusions: [], missingFacts: [], recommendedSources: [], proposedSteps: [], completionPredicate: "c", strategyNotes: "ok", searchQueries: ["q"], crawlTargets: [] }));
+    stubFetch(() => llmReply({ normalizedGoal: "g", mode: "opportunity", objective: { successKind: "find_candidates", targetCount: 5 }, mustHave: [], niceToHave: [], exclusions: [], missingFacts: [], recommendedSources: [], proposedSteps: [], completionPredicate: "c", strategyNotes: "ok", searchQueries: ["q"], crawlTargets: [] }));
     await plan(t, missionId);
 
     expect(capturedPrompts[0]).toContain(intentStrategy.find_client.sourcePriorities[0]);
@@ -330,6 +334,9 @@ describe("structured output contract — required fields are enforced, not hoped
   const completePlan = {
     normalizedGoal: "Find companies with publicly expressed React/Next.js needs.",
     mode: "opportunity",
+    // What "done" means. The planner states it from the user's request, and it
+    // is what the action layer and the completion gate read back.
+    objective: { successKind: "contact_and_wait", targetCount: 3 },
     mustHave: ["a current dev need"],
     niceToHave: [],
     exclusions: [],
@@ -346,6 +353,7 @@ describe("structured output contract — required fields are enforced, not hoped
   const planWithoutQueries = {
     normalizedGoal: completePlan.normalizedGoal,
     mode: completePlan.mode,
+    objective: completePlan.objective,
     mustHave: completePlan.mustHave,
     niceToHave: completePlan.niceToHave,
     exclusions: completePlan.exclusions,
@@ -457,6 +465,7 @@ describe("planMission — crawl targets are URLs or nothing", () => {
   const basePlan = {
     normalizedGoal: "Find companies with publicly expressed React/Next.js needs.",
     mode: "opportunity",
+    objective: { successKind: "contact_and_wait", targetCount: 3 },
     mustHave: ["a current dev need"], niceToHave: [], exclusions: [], missingFacts: [],
     recommendedSources: ["job boards"], proposedSteps: ["Search job boards", "Crawl careers pages"],
     completionPredicate: "3 sourced matches approved.", strategyNotes: "Following guidance.",

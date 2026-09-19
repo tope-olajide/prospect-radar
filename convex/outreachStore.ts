@@ -38,6 +38,14 @@ export const draftView = v.object({
   providerMessageId: v.union(v.string(), v.null()),
   threadId: v.union(v.string(), v.null()),
   errorSummary: v.union(v.string(), v.null()),
+  /**
+   * The authorized documents this message carries, by title.
+   *
+   * Shown on the review card because the approval covers the whole action: the
+   * user is approving the words *and* the attachments, so the attachments have
+   * to be visible at the moment they approve.
+   */
+  attachments: v.array(v.object({ sourceId: v.id("dataSources"), title: v.string() })),
   approvalStatus: v.union(approvalStatus, v.null()),
   approvalExpiresAt: v.union(v.number(), v.null()),
   createdAt: v.number(),
@@ -99,6 +107,8 @@ export const prepareDraft = internalMutation({
     body: v.string(),
     contentHash: v.string(),
     inReplyTo: v.optional(v.string()),
+    /** Authorized artifacts attached to this message; covered by the hash. */
+    artifactIds: v.optional(v.array(v.id("dataSources"))),
   },
   returns: v.object({
     actionId: v.id("actionDrafts"),
@@ -144,6 +154,7 @@ export const prepareDraft = internalMutation({
       body: args.body,
       contentHash: args.contentHash,
       capability: "send_email",
+      artifactIds: args.artifactIds ?? [],
       status: "draft",
       outboundId: null,
       providerMessageId: null,
@@ -187,7 +198,11 @@ export const approve = mutation({
     if (["sent", "delivered", "executing"].includes(draftRow.status)) {
       throw new Error("APPROVAL_REQUIRED: this draft was already sent.");
     }
-    const hash = await contentHash(draftRow.recipient, draftRow.subject, draftRow.body);
+    // Recomputed from the stored draft *including its attachments*, so the
+    // approval the user gives is bound to the exact action they were shown.
+    const hash = await contentHash(
+      draftRow.recipient, draftRow.subject, draftRow.body, "send_email", draftRow.artifactIds ?? [],
+    );
     if (hash !== draftRow.contentHash) {
       throw new Error("APPROVAL_STALE: stored content hash mismatch; recreate the draft.");
     }
@@ -263,6 +278,8 @@ export const draftForSend = internalQuery({
     subject: v.string(),
     body: v.string(),
     contentHash: v.string(),
+    /** The approved attachment set; the send path materializes it. */
+    artifactIds: v.array(v.id("dataSources")),
     status: actionStatus,
     outboundId: v.union(v.string(), v.null()),
     providerDraftId: v.union(v.string(), v.null()),
@@ -283,6 +300,7 @@ export const draftForSend = internalQuery({
       subject: draftRow.subject,
       body: draftRow.body,
       contentHash: draftRow.contentHash,
+      artifactIds: draftRow.artifactIds ?? [],
       status: draftRow.status,
       outboundId: draftRow.outboundId ?? null,
       providerDraftId: draftRow.providerDraftId,
@@ -385,6 +403,37 @@ export const markSendFailed = internalMutation({
   },
 });
 
+/**
+ * The source record behind an approved attachment, read at send time.
+ *
+ * Returns `representationAllowed` so the send path can fail closed if the user
+ * has since withdrawn authorization: an approval to send a document is not
+ * permission to keep sending it after the permission is gone.
+ */
+export const artifactForSend = internalQuery({
+  args: { sourceId: v.id("dataSources") },
+  returns: v.union(v.object({
+    sourceId: v.id("dataSources"),
+    workspaceId: v.string(),
+    title: v.string(),
+    fileId: v.union(v.id("_storage"), v.null()),
+    text: v.union(v.string(), v.null()),
+    representationAllowed: v.boolean(),
+  }), v.null()),
+  handler: async (ctx, args) => {
+    const row = await ctx.db.get(args.sourceId);
+    if (!row) return null;
+    return {
+      sourceId: row._id,
+      workspaceId: row.workspaceId,
+      title: row.title,
+      fileId: row.fileId,
+      text: row.text,
+      representationAllowed: row.representationAllowed === true,
+    };
+  },
+});
+
 export const activeApprovalFor = internalQuery({
   args: { actionId: v.id("actionDrafts") },
   returns: v.union(v.object({
@@ -417,6 +466,13 @@ export const listDrafts = query({
       const approval = await ctx.db.query("approvals")
         .withIndex("by_actionId", (q) => q.eq("actionId", row._id))
         .first();
+      const attachments = [];
+      for (const sourceId of row.artifactIds ?? []) {
+        const source = await ctx.db.get(sourceId);
+        // A withdrawn authorization still shows, marked as such, rather than
+        // vanishing from a card the user may have already approved.
+        attachments.push({ sourceId, title: source?.title ?? "(removed document)" });
+      }
       result.push({
         _id: row._id,
         missionId: row.missionId,
@@ -432,6 +488,7 @@ export const listDrafts = query({
         providerMessageId: row.providerMessageId,
         threadId: row.threadId,
         errorSummary: row.errorSummary,
+        attachments,
         approvalStatus: approval ? approval.status : null,
         approvalExpiresAt: approval ? approval.expiresAt : null,
         createdAt: row.createdAt,

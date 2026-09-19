@@ -4,7 +4,7 @@ import { internalMutation, internalQuery, mutation } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { validateWorkspace } from "./model/auth";
 import { categoryForRequirement } from "./contextRequirements";
-import { successPolicyFor } from "./actionDecision";
+import { resolveSuccessPolicy } from "./actionDecision";
 
 /**
  * Transactional bookkeeping for the mission orchestrator. Kept in a
@@ -228,26 +228,34 @@ export const checkCompletion = internalMutation({
     if (!mission || ["complete", "cancelled"].includes(mission.status)) return false;
     const run = await ctx.db.query("agentRuns").withIndex("by_missionId", (q) => q.eq("missionId", args.missionId)).first();
     if (!run || run.status === "cancelled") return false;
-    // What "done" means depends on the mission, not on whether an email went
-    // out. A mission looking for a solution or mapping a market is satisfied by
-    // producing its result; assuming an action must be executed would make
-    // those missions impossible to finish truthfully.
+    // What "done" means comes from the mission's own objective, not from
+    // whether an email went out, and not from the intent alone. The plan states
+    // it (from the user's words, and editable by the user), so "find me 10
+    // clinics" and "get a reply" are measured against different finish lines;
+    // the intent's default only stands in for a plan that never stated one.
     const intentKey = mission.intent?.primary ?? mission.mode;
-    const policy = successPolicyFor(intentKey);
+    const plan = await ctx.db.query("missionPlans").withIndex("by_missionId", (q) => q.eq("missionId", args.missionId)).first();
+    const objective = resolveSuccessPolicy(plan, intentKey);
+    const policy = { success: objective };
     const matches = await ctx.db.query("matches").withIndex("by_missionId", (q) => q.eq("missionId", args.missionId)).collect();
     if (matches.length === 0) return false;
 
     let summary: string;
-    if (policy.kind === "contact_and_wait") {
-      // Satisfied by any executed action, not only an email. Checking
-      // actionDrafts alone made a form-only mission impossible to complete: the
-      // form path calls this on success, but no draft ever exists for it.
+    if (objective.kind === "contact_and_wait") {
+      // Counted across every action type, not only email. Checking actionDrafts
+      // alone made a form-only mission impossible to complete: the form path
+      // calls this on success, but no draft ever exists for it.
       const drafts = await ctx.db.query("actionDrafts").withIndex("by_missionId", (q) => q.eq("missionId", args.missionId)).collect();
-      const hasSentDraft = drafts.some((draft) => ["sent", "delivered"].includes(draft.status));
+      const sentDrafts = drafts.filter((draft) => ["sent", "delivered"].includes(draft.status)).length;
       const submissions = await ctx.db.query("formSubmissions").withIndex("by_missionId", (q) => q.eq("missionId", args.missionId)).collect();
-      const hasSubmittedForm = submissions.some((row) => row.status === "submitted");
-      if (!hasSentDraft && !hasSubmittedForm) return false;
-      summary = "Completion predicate satisfied: an approved action was executed against a sourced match.";
+      const submittedForms = submissions.filter((row) => row.status === "submitted").length;
+      const executed = sentDrafts + submittedForms;
+      // The objective says how many counterparts to contact, so "contact five
+      // clinics" is not finished after the first send.
+      if (executed < objective.targetCount) return false;
+      summary = executed === 1
+        ? "Completion predicate satisfied: an approved action was executed against a sourced match."
+        : `Completion predicate satisfied: ${executed} approved actions were executed against sourced matches.`;
     } else {
       // The deliverable is the finding itself. It is done when research has
       // stopped and enough usable candidates exist to hand over.
@@ -256,8 +264,8 @@ export const checkCompletion = internalMutation({
         .collect();
       if (pending.length > 0) return false;
       const usable = matches.filter((match) => ["stronger", "promising"].includes(match.label));
-      if (usable.length < policy.targetCount) return false;
-      summary = policy.kind === "present_solution"
+      if (usable.length < objective.targetCount) return false;
+      summary = objective.kind === "present_solution"
         ? `Radar found ${usable.length} credible solution(s) to the stated problem. This mission was about finding them, so no one has been contacted.`
         : `Radar assembled ${usable.length} business(es) matching the requested profile. This mission was about finding them, so no one has been contacted.`;
     }

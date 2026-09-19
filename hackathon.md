@@ -14,9 +14,62 @@
 - **Auth:** Convex Auth
 - **AI models:** any OpenAI-compatible model via OPENAI_BASE_URL / OPENAI_MODEL (DashScope qwen-max in production; provider recorded on plans and classifications)
 - **Started:** 2026-09-13T00:00:00Z
-- **Last updated:** 2026-09-19T21:10:00Z
+- **Last updated:** 2026-09-19T23:40:00Z
 
 ## Log
+
+### 2026-09-19 - working tree — Phase 5: the objective, the capability surface, and artifacts
+Three things the agent could previously only imply are now stated, shared, and
+enforced.
+
+**What "done" means now lives on the mission plan, not in the intent label.**
+The planner reads an objective off the user's own request —
+`contact_and_wait` / `find_candidates` / `present_solution` plus a
+`targetCount` — and the schema contract makes it a required field, so a plan
+cannot be created without one. "Find me ten veterinary clinics" and "get me a
+reply from three of them" are now different missions from the same intent. The
+user can correct the interpretation from the mission brief
+(`plans.setObjective`), and that decision survives a re-plan, because re-planning
+should rewrite the strategy beneath the goal, never move the goalposts. Both
+layers read it back through `resolveSuccessPolicy(plan, intent)`: the action
+decision layer (whether to contact anyone at all, and in what route order) and
+the completion gate (`executed actions >= targetCount` for contact missions,
+qualified candidates/solutions for the other two). `checkCompletion`'s
+"an email was sent" assumption is gone: a `find_customer` mission that asked for
+candidates finishes with nothing sent, and a `find_business` mission that asked
+to be in touch is not finished by a match existing.
+
+**The capability registry now drives the UI, not just the agent.**
+`actionDecision.CAPABILITIES` declares what Radar can do and what each entry
+needs at runtime (`sending_inbox`, `scrapable_target`, `research_budget`); the new
+public `capabilities.list` query resolves that against live workspace state —
+an inbox row, sources in front of the mission, the credit budget, and whether the
+deployment has a research provider — and the app renders disabled buttons with
+the actual reason instead of offering an action the backend would refuse. The
+decision layer reads the same registry, so the agent cannot propose what the app
+cannot execute, and the app cannot offer what the agent will not do.
+
+**An authorized artifact now travels inside the approved action.** Sources gain
+an explicit `representationAllowed` switch, owned by the user and separate from
+readability: reading a portfolio and signing the user's name to it are different
+acts. `dataSources.authorizedArtifactsFor` picks the authorized, goal-relevant
+documents for a mission; the draft carries them in `artifactIds`; the approval
+hash covers the attachment set (`contentHash(..., capability, artifactIds)`), so
+approving a message with a portfolio attached cannot be replayed as approving one
+without it, and order is not part of the binding while membership is. The send
+path materializes the real bytes from Convex storage and fails closed
+(`ARTIFACT_UNAVAILABLE`) if the user withdrew authorization after approving —
+sending less than what was approved would be a different action than the one
+approved. The review card shows the attachments at the moment of approving.
+
+Verification: `tests/objectivePolicy.test.ts` (26 tests) covers the objective's
+precedence, bounds and fallback; completion measured against it in both
+directions; the registry's availability rules and its agreement with the
+decision layer; and the artifact path end to end, including the withdrawn-
+authorization failure. Fixtures across `intent.test.ts` and `orchestrator.test.ts`
+now assert the objective reaches the durable plan. 267 tests passing (19 files),
+both typechecks clean. Nothing deployed — Phase 0 (environment/credential
+separation) remains the gate, and no runtime data has been touched.
 
 ### 2026-09-19 - working tree — Phase 4: autonomous action intelligence
 Added the decision layer between "what did Radar find?" and "what did Radar do

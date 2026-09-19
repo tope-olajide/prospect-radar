@@ -220,6 +220,11 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
   const [briefEditing, setBriefEditing] = useState(false);
   const [briefNotice, setBriefNotice] = useState("");
   const [briefDraft, setBriefDraft] = useState({ normalizedGoal: "", mustHave: "", niceToHave: "", exclusions: "", recommendedSources: "", completionPredicate: "" });
+  // What "done" means for this mission. Empty means "untouched", so the control
+  // shows the plan's own objective until the user changes it.
+  const [objectiveKind, setObjectiveKind] = useState("");
+  const [objectiveCount, setObjectiveCount] = useState(1);
+  const [objectiveNotice, setObjectiveNotice] = useState("");
   const [budgetLimitDraft, setBudgetLimitDraft] = useState("");
   const [budgetNotice, setBudgetNotice] = useState("");
 
@@ -254,6 +259,12 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
   const entities = useQuery(api.entityStore.listForMission, backendConnected && missionId ? { missionId } : "skip");
   const missionSignals = useQuery(api.entityStore.listSignalsForMission, backendConnected && missionId ? { missionId } : "skip");
   const inbox = useQuery(api.outreachStore.getInbox, backendConnected && workspaceId ? { workspaceId } : "skip");
+  // The same registry the decision layer reads, resolved against this
+  // workspace and mission — so the app never offers an action Radar cannot do.
+  const capabilities = useQuery(
+    api.capabilities.list,
+    backendConnected && workspaceId ? { workspaceId, missionId: missionId ?? undefined } : "skip",
+  );
   const drafts = useQuery(api.outreachStore.listDrafts, backendConnected && missionId ? { workspaceId, missionId } : "skip");
   const threads = useQuery(api.inbox.listThreads, backendConnected && workspaceId ? { workspaceId, missionId: null } : "skip");
   const threadMessages = useQuery(api.inbox.listMessages, backendConnected && selectedThreadId ? { workspaceId, threadId: selectedThreadId } : "skip");
@@ -304,7 +315,19 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
   const deleteFact = useMutation(api.context.deleteFact);
   const setThreadLabel = useMutation(api.inbox.setLabel);
   const updateBrief = useMutation(api.plans.updateBrief);
+  const setObjective = useMutation(api.plans.setObjective);
+  const setRepresentationAllowed = useMutation(api.dataSources.setRepresentationAllowed);
   const setBudgetLimit = useMutation(api.budget.setLimit);
+
+  // Capability state, read from the registry rather than guessed at the button.
+  // While the query has not answered, buttons stay enabled: an unanswered
+  // question about availability is not evidence that something is unavailable.
+  const capability = (key: string) => (capabilities ?? []).find((entry) => entry.key === key) ?? null;
+  const emailCapability = capability("send_email");
+  const formCapability = capability("submit_form");
+  const blockerFor = (entry: ReturnType<typeof capability>) => (entry && !entry.available ? entry.unavailableReason ?? entry.label : null);
+  const emailBlocker = blockerFor(emailCapability);
+  const formBlocker = blockerFor(formCapability);
 
   const latestJob = jobs?.[0];
   const pendingDrafts = (drafts ?? []).filter((draft) => ["draft", "awaiting_approval", "approved", "executing"].includes(draft.status));
@@ -589,6 +612,48 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
       setBriefNotice("Brief saved — the run's completion gate now uses your predicate.");
     } catch (error) {
       setBriefNotice(error instanceof Error ? error.message : "Could not save the brief.");
+    }
+  }
+
+  /**
+   * Sets what finished means for this mission.
+   *
+   * The planner reads an objective off the user's request; this is how the user
+   * corrects it — "give me ten of them" or "I want a reply, not a list" — and
+   * both the action layer and the completion gate read it back from the plan.
+   */
+  async function onSetObjective() {
+    if (!missionId || !plan) return;
+    const kind = (objectiveKind || plan.successKind || "contact_and_wait") as
+      | "contact_and_wait"
+      | "find_candidates"
+      | "present_solution";
+    const count = Math.max(1, Math.min(Math.floor(objectiveCount || 1), 100));
+    setObjectiveNotice("");
+    try {
+      await setObjective({ workspaceId, missionId, successKind: kind, targetCount: count });
+      setObjectiveNotice(
+        kind === "contact_and_wait"
+          ? `Understood: contact ${count} and wait for a reply.`
+          : kind === "present_solution"
+            ? `Understood: present ${count} credible solution${count === 1 ? "" : "s"}.`
+            : `Understood: assemble ${count} qualified candidate${count === 1 ? "" : "s"}.`,
+      );
+    } catch (error) {
+      setObjectiveNotice(error instanceof Error ? error.message : "Could not set the objective.");
+    }
+  }
+
+  async function onToggleRepresentation(sourceId: Id<"dataSources">, allowed: boolean) {
+    try {
+      await setRepresentationAllowed({ workspaceId, sourceId, allowed });
+      setSnippetNotice(
+        allowed
+          ? "Radar may now attach this document to messages it proposes. You still approve each exact message."
+          : "Radar will no longer attach this document to anything it proposes.",
+      );
+    } catch (error) {
+      setSnippetNotice(error instanceof Error ? error.message : "Could not change that.");
     }
   }
 
@@ -1456,11 +1521,12 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
                         <>
                           <p><b>Nothing to approve yet.</b> Radar's strongest reachable match is {draftTarget.entity?.name ?? draftTarget.subject}. Ask it to draft the first message and it will appear here for your approval.</p>
                           <div className="inline-actions">
-                            <button type="button" className="btn" onClick={() => onDraftTopMatch(draftTarget._id)} disabled={aiDraftingMatchId === draftTarget._id}>
+                            <button type="button" className="btn" onClick={() => onDraftTopMatch(draftTarget._id)} disabled={aiDraftingMatchId === draftTarget._id || emailCapability?.available === false}>
                               {aiDraftingMatchId === draftTarget._id ? "Drafting…" : "Draft outreach for the top match"}
                             </button>
                             <button type="button" className="btn ghost" onClick={() => selectView("discover")}>Choose another match →</button>
                           </div>
+                          {emailBlocker && <p className="stage-note">{emailBlocker} Radar will not offer outreach until that is resolved.</p>}
                         </>
                       ) : (
                         <>
@@ -1674,6 +1740,39 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
                               {plan.exclusions.length > 0 && <p className="stage-note">Excluding: {plan.exclusions.join(" · ")}</p>}
                               {plan.recommendedSources.length > 0 && <p className="stage-note">Preferred sources: {plan.recommendedSources.join(" · ")}</p>}
                               <p className="stage-note">Completion: {plan.completionPredicate}</p>
+                              {/* What finished means. The planner reads it off the
+                                  request; the user can change it, and it is what the
+                                  action layer and the completion gate measure. */}
+                              <div className="objective-row">
+                                <label className="field-label" htmlFor="objective-kind">Finished when</label>
+                                <select
+                                  id="objective-kind"
+                                  value={objectiveKind || plan.successKind || "contact_and_wait"}
+                                  onChange={(event) => {
+                                    setObjectiveKind(event.target.value);
+                                    setObjectiveCount(plan.targetCount ?? 1);
+                                  }}
+                                >
+                                  <option value="contact_and_wait">they have been contacted and replied</option>
+                                  <option value="find_candidates">enough candidates are assembled</option>
+                                  <option value="present_solution">a solution is found and presented</option>
+                                </select>
+                                <input
+                                  aria-label="How many"
+                                  type="number"
+                                  min={1}
+                                  max={100}
+                                  value={objectiveCount || plan.targetCount || 1}
+                                  onChange={(event) => setObjectiveCount(Number(event.target.value))}
+                                />
+                                <button type="button" className="btn ghost" onClick={onSetObjective}>Set</button>
+                              </div>
+                              <p className="stage-note">
+                                {plan.successKind
+                                  ? `Radar is measuring this mission against: ${plan.successKind === "contact_and_wait" ? `contacting ${plan.targetCount ?? 1} and waiting for a reply` : plan.successKind === "present_solution" ? `presenting ${plan.targetCount ?? 1} credible solution(s)` : `assembling ${plan.targetCount ?? 3} qualified candidate(s)`}${plan.userEditedAt ? " (your decision)" : " (read from your request)"}.`
+                                  : "This plan did not state an objective, so the default for this kind of request stands until you set one."}
+                              </p>
+                              {objectiveNotice && <p className="stage-note" role="status">{objectiveNotice}</p>}
                               <div className="inline-actions">
                                 <button type="button" className="btn ghost" onClick={startBriefEdit}>Edit brief</button>
                               </div>
@@ -1878,7 +1977,12 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
                         {draft.matchId && matches?.find((match) => match._id === draft.matchId) && (
                           <p className="stage-note">Context used: match “{matches.find((match) => match._id === draft.matchId)?.subject}”</p>
                         )}
-                        <p className="stage-note">Side effect: one email from the linked AgentMail inbox to {draft.recipient}. Nothing else.</p>
+                        {/* The approval covers the whole action, so the documents it
+                            carries are shown at the moment of approving. */}
+                        {draft.attachments.length > 0 && (
+                          <p className="stage-note">Attached, because you authorized it: {draft.attachments.map((attachment) => attachment.title).join(" · ")}</p>
+                        )}
+                        <p className="stage-note">Side effect: one email from the linked AgentMail inbox to {draft.recipient}{draft.attachments.length > 0 ? `, carrying ${draft.attachments.length} of your document${draft.attachments.length === 1 ? "" : "s"}` : ""}. Nothing else.</p>
                         {draft.errorSummary && <p className="stage-note error">{draft.errorSummary}</p>}
                         <div className="inline-actions">
                           {![ "sent", "delivered", "executing" ].includes(draft.status) && (
@@ -1887,7 +1991,7 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
                             </button>
                           )}
                           {draft.status === "approved" && (
-                            <button type="button" className="btn" onClick={() => onSend(draft._id)} disabled={sendingActionId === draft._id}>
+                            <button type="button" className="btn" onClick={() => onSend(draft._id)} disabled={sendingActionId === draft._id || emailCapability?.available === false}>
                               {sendingActionId === draft._id ? "Sending…" : "Send via AgentMail"}
                             </button>
                           )}
@@ -2281,7 +2385,7 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
                           <option key={source._id} value={source._id}>{source.title.slice(0, 60)} — {hostLabel(source.url)}</option>
                         ))}
                       </select>
-                      <button type="button" className="btn" disabled={!backendConnected || !formSourceId || scouting} onClick={onScoutForm}>{scouting ? "Scouting…" : "Scout form"}</button>
+                      <button type="button" className="btn" disabled={!backendConnected || !formSourceId || scouting || formCapability?.available === false} onClick={onScoutForm}>{scouting ? "Scouting…" : "Scout form"}</button>
                     </div>
                     {formNotice && <p className="stage-note">{formNotice}</p>}
                   </section>
@@ -2316,7 +2420,7 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
                                   ))}
                                 </ul>
                                 <div className="inline-actions">
-                                  <button type="button" className="btn" disabled={!backendConnected || proposing} onClick={() => onProposeFill(template._id)}>{proposing ? "Proposing…" : "Propose fill"}</button>
+                                  <button type="button" className="btn" disabled={!backendConnected || proposing || formCapability?.available === false} onClick={() => onProposeFill(template._id)}>{proposing ? "Proposing…" : "Propose fill"}</button>
                                   <a className="source-link" href={template.url} target="_blank" rel="noreferrer">Open the form</a>
                                 </div>
                               </>
@@ -2523,9 +2627,20 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
                           <strong><span className={`kind-pill kind-${source.kind}`}>{source.kind}</span> {source.title}</strong>
                           <em>{source.summary || source.url || ""}</em>
                           <span className="muted">{source.chunkCount} chunks · {source.pageCount} pages</span>
+                          {/* Reading a document and signing the user's name to it are
+                              different acts, so attaching is opt-in per document. */}
+                          <span className="muted">{source.representationAllowed ? "Radar may attach this to a message you approve" : "Radar may read this, but not attach it"}</span>
                         </div>
                         <div className="inline-actions">
                           <span className={`status-pill status-${source.status}`}>{source.status}</span>
+                          <button
+                            type="button"
+                            className={`btn ghost${source.representationAllowed ? " active" : ""}`}
+                            disabled={!backendConnected}
+                            onClick={() => void onToggleRepresentation(source._id, !source.representationAllowed)}
+                          >
+                            {source.representationAllowed ? "✓ Attachable" : "Allow attaching"}
+                          </button>
                           {source.kind === "website" && source.status !== "syncing" && <button type="button" className="btn ghost" disabled={!backendConnected || resyncingId === source._id} onClick={() => void onResync(source._id)}>{resyncingId === source._id ? "Syncing…" : "Resync"}</button>}
                           {source.url && <a className="source-link" href={source.url} target="_blank" rel="noreferrer">Open</a>}
                           <button type="button" className="btn ghost" onClick={() => void onRemoveSource(source._id, source.title)}>Remove</button>

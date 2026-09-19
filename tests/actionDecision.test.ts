@@ -69,6 +69,10 @@ function mission(overrides: Partial<MissionInput> = {}): MissionInput {
     hasInbox: true,
     investigationsUsed: 0,
     budgetAllowed: true,
+    // No stated objective means the intent's default stands, which is what the
+    // cases below are about; the objective's own precedence is asserted in
+    // `objectivePolicy.test.ts`.
+    objective: null,
     ...overrides,
   };
 }
@@ -170,13 +174,13 @@ describe("decideAction — match quality is not actionability", () => {
     );
     expect(decision.decision).toBe("no_action");
     expect(decision.actionability).toBe("result_only");
-    expect(decision.reason).toBe("intent_presents_result");
+    expect(decision.reason).toBe("objective_presents_result");
   });
 
   it("G: find_business collects candidates without contacting them", () => {
     const decision = decideAction(candidate({ label: "promising" }), mission({ intent: "find_business" }));
     expect(decision.decision).toBe("no_action");
-    expect(decision.reason).toBe("intent_collects_candidates");
+    expect(decision.reason).toBe("objective_collects_candidates");
   });
 
   it("refuses a route Radar has no capability for", () => {

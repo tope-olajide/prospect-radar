@@ -151,6 +151,69 @@ export const evidenceForTerms = internalQuery({
   },
 });
 
+/**
+ * Sources the user has authorized Radar to *represent* them with.
+ *
+ * Authorization is deliberately separate from readability: every source can
+ * inform research, but only an authorized one may be attached to a message sent
+ * on the user's behalf. Reading a portfolio and signing the user's name to it
+ * are different acts.
+ *
+ * Relevance is matched against the mission's goal so a mission does not attach
+ * an unrelated document, and the result is bounded because an approval should
+ * stay small enough to actually read.
+ */
+export const authorizedArtifactsFor = internalQuery({
+  args: { workspaceId: v.string(), goal: v.string(), limit: v.optional(v.number()) },
+  returns: v.array(v.object({
+    sourceId: v.id("dataSources"),
+    title: v.string(),
+    kind: v.string(),
+    fileId: v.union(v.id("_storage"), v.null()),
+  })),
+  handler: async (ctx, args) => {
+    const rows = await ctx.db
+      .query("dataSources")
+      .withIndex("by_workspaceId", (q) => q.eq("workspaceId", args.workspaceId))
+      .order("desc")
+      .take(60);
+    const terms = [...new Set(
+      args.goal.toLowerCase().split(/[^a-z0-9+#.]+/).filter((word) => word.length >= 4),
+    )];
+    const limit = Math.max(0, Math.min(args.limit ?? 3, 5));
+    const out: Array<{ sourceId: Id<"dataSources">; title: string; kind: string; fileId: Id<"_storage"> | null }> = [];
+    for (const row of rows) {
+      if (row.representationAllowed !== true) continue;
+      if (row.status !== "ready") continue;
+      const haystack = `${row.title} ${row.text ?? ""}`.toLowerCase();
+      if (terms.length > 0 && !terms.some((term) => haystack.includes(term))) continue;
+      out.push({ sourceId: row._id, title: row.title, kind: row.kind, fileId: row.fileId });
+      if (out.length >= limit) break;
+    }
+    return out;
+  },
+});
+
+/**
+ * Grants or withdraws permission to represent the user with a source.
+ *
+ * An artifact may inform reasoning without authorizing any claim drawn from it,
+ * so this is an explicit switch the user owns, and it is revoked the same way.
+ */
+export const setRepresentationAllowed = mutation({
+  args: { workspaceId: v.string(), sourceId: v.id("dataSources"), allowed: v.boolean() },
+  returns: v.object({ sourceId: v.id("dataSources"), representationAllowed: v.boolean() }),
+  handler: async (ctx, args) => {
+    await validateWorkspace(ctx, args.workspaceId);
+    const row = await ctx.db.get(args.sourceId);
+    if (!row || row.workspaceId !== args.workspaceId) {
+      throw new Error("FORBIDDEN_SCOPE: source is not in this workspace.");
+    }
+    await ctx.db.patch(args.sourceId, { representationAllowed: args.allowed, updatedAt: Date.now() });
+    return { sourceId: args.sourceId, representationAllowed: args.allowed };
+  },
+});
+
 /** Everything the source list row needs — no document bodies. */
 export const list = query({
   args: { workspaceId: v.string() },
@@ -166,6 +229,7 @@ export const list = query({
     pageCount: v.number(),
     lastSyncedAt: v.union(v.number(), v.null()),
     syncError: v.union(v.string(), v.null()),
+    representationAllowed: v.boolean(),
     createdAt: v.number(),
   })),
   handler: async (ctx, args) => {
@@ -198,6 +262,7 @@ export const list = query({
         pageCount: row.pageCount,
         lastSyncedAt: row.lastSyncedAt,
         syncError: row.syncError,
+        representationAllowed: row.representationAllowed === true,
         createdAt: row.createdAt,
       });
     }
