@@ -265,6 +265,78 @@ describe("planMission — strategy-bearing planning driven by the classified int
     await expect(plan(t, missionId)).rejects.toThrow("intent classification before planning");
   });
 
+  it("survives a model that phrases the objective in its own words", async () => {
+    // Live regression: the production model returned "outreach_then_wait" where
+    // the schema asked for one of three literals, a strict validator rejected
+    // the reply, and the mission blocked at `interpret` — over a field that only
+    // decides how the finish line is measured.
+    const t = convexTest(schema, convexModules);
+    const missionId = await seedMission(t, "Find companies that need React development.");
+    stubFetch(() => llmReply({ intent: { primary: "find_opportunity", secondary: null, confidence: 0.9, rationale: "x" }, targetEntity: "organization", relationshipGoal: "become_their_vendor", understanding: "y", clarificationNeeded: false, clarificationQuestion: null }));
+    await classify(t, missionId);
+    const shapedPlan = {
+      normalizedGoal: "Find companies with publicly expressed React needs.",
+      mode: "opportunity",
+      mustHave: ["a current dev need"], niceToHave: [], exclusions: [], missingFacts: [],
+      recommendedSources: ["job boards"], proposedSteps: ["search"],
+      completionPredicate: "3 sourced matches approved.", strategyNotes: "ok",
+      searchQueries: ["companies hiring React developers"], crawlTargets: [],
+    };
+    stubFetch(() => llmReply({ ...shapedPlan, objective: { successKind: "outreach_then_wait", targetCount: 4 } }));
+    await plan(t, missionId);
+    const saved = await t.run((ctx) => ctx.db.query("missionPlans").first());
+    expect(saved?.successKind).toBe("contact_and_wait");
+    expect(saved?.targetCount).toBe(4);
+  });
+
+  it("survives a model that folds the objective into the completion predicate", async () => {
+    // Second live shape, from the same provider: `completionPredicate` came back
+    // as an object carrying the objective ("Value does not match validator. Path:
+    // .completionPredicate") and the mission blocked on a field the user only
+    // ever reads. It is salvaged: the sentence is read out, and so is the
+    // objective.
+    const t = convexTest(schema, convexModules);
+    const missionId = await seedMission(t, "Find a scheduling solution.");
+    stubFetch(() => llmReply({ intent: { primary: "find_solution", secondary: null, confidence: 0.9, rationale: "x" }, targetEntity: "organization", relationshipGoal: "become_their_vendor", understanding: "y", clarificationNeeded: false, clarificationQuestion: null }));
+    await classify(t, missionId);
+    stubFetch(() => llmReply({
+      normalizedGoal: "Find scheduling solutions for a six-site clinic group.",
+      mode: "solution",
+      completionPredicate: { objective: "Identify and shortlist at least three suitable scheduling solutions.", successKind: "evaluate_and_shortlist" },
+      mustHave: ["multi-location rosters"], niceToHave: [], exclusions: [], missingFacts: [],
+      recommendedSources: ["vendor comparison sites"], proposedSteps: ["search", "compare"],
+      strategyNotes: "ok", searchQueries: ["clinic scheduling software multi-site"], crawlTargets: [],
+    }));
+    const { planId } = await plan(t, missionId);
+    const saved = await t.run((ctx) => ctx.db.get(planId as never));
+    // The objective survives, translated into the vocabulary the loop acts on.
+    expect(saved?.successKind).toBe("find_candidates");
+    // And the user-visible sentence is a sentence, not an object.
+    expect(typeof saved?.completionPredicate).toBe("string");
+    expect(saved?.completionPredicate).toContain("shortlist");
+  });
+
+  it("survives a model that states no objective at all", async () => {
+    // The objective is a preference, not a data-integrity requirement: with none
+    // stated, the intent's default stands in and the plan is still usable.
+    const t = convexTest(schema, convexModules);
+    const missionId = await seedMission(t, "Find companies that need React development.");
+    stubFetch(() => llmReply({ intent: { primary: "find_opportunity", secondary: null, confidence: 0.9, rationale: "x" }, targetEntity: "organization", relationshipGoal: "become_their_vendor", understanding: "y", clarificationNeeded: false, clarificationQuestion: null }));
+    await classify(t, missionId);
+    stubFetch(() => llmReply({
+      normalizedGoal: "Find companies with publicly expressed React needs.",
+      mode: "opportunity",
+      mustHave: ["a current dev need"], niceToHave: [], exclusions: [], missingFacts: [],
+      recommendedSources: ["job boards"], proposedSteps: ["search"],
+      completionPredicate: "3 sourced matches approved.", strategyNotes: "ok",
+      searchQueries: ["companies hiring React developers"], crawlTargets: [],
+    }));
+    const { planId } = await plan(t, missionId);
+    const saved = await t.run((ctx) => ctx.db.get(planId as never));
+    expect(saved?.successKind).toBeUndefined();
+    expect(saved?.normalizedGoal).toBeTruthy();
+  });
+
   it("passes the intent strategy guidance into the plan prompt and persists a strategy-bearing plan", async () => {
     const t = convexTest(schema, convexModules);
     const missionId = await seedMission(t, "Find companies that need React development.");

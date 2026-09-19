@@ -9,7 +9,8 @@
  */
 
 import { v } from "convex/values";
-import { internalMutation, internalQuery } from "./_generated/server";
+import { internalMutation, internalQuery, query } from "./_generated/server";
+import { validateWorkspace } from "./model/auth";
 
 const decisionValue = v.union(
   v.literal("send_email"),
@@ -121,6 +122,62 @@ export const decisionsForMission = internalQuery({
       missingEvidence: row.missingEvidence ?? null,
       createdAt: row.createdAt,
     }));
+  },
+});
+
+/**
+ * The decisions made for a mission, as the UI and the trace read them.
+ *
+ * A read-only view over the same rows `decisionsForMission` returns: the
+ * explanation of *why* Radar chose to act, investigate, or do nothing is part
+ * of the product, not only of the test suite.
+ */
+export const decisions = query({
+  args: { workspaceId: v.string(), missionId: v.id("missions") },
+  returns: v.array(v.object({
+    _id: v.id("actionDecisions"),
+    matchId: v.id("matches"),
+    quality: v.string(),
+    decision: decisionValue,
+    actionability: actionabilityValue,
+    reason: v.string(),
+    detail: v.string(),
+    evidence: v.array(v.string()),
+    capability: v.union(v.string(), v.null()),
+    usedFacts: v.array(v.object({ category: v.string(), value: v.string() })),
+    artifacts: v.array(v.object({ sourceId: v.id("dataSources"), title: v.string() })),
+    alternatives: v.array(v.object({ decision: v.string(), reason: v.string() })),
+    nextStage: v.union(v.string(), v.null()),
+    missingEvidence: v.union(v.string(), v.null()),
+    createdAt: v.number(),
+  })),
+  handler: async (ctx, args) => {
+    await validateWorkspace(ctx, args.workspaceId);
+    const mission = await ctx.db.get(args.missionId);
+    if (!mission || mission.workspaceId !== args.workspaceId) return [];
+    const rows = await ctx.db
+      .query("actionDecisions")
+      .withIndex("by_missionId", (q) => q.eq("missionId", args.missionId))
+      .collect();
+    return rows
+      .sort((a, b) => a.createdAt - b.createdAt)
+      .map((row) => ({
+        _id: row._id,
+        matchId: row.matchId,
+        quality: row.quality,
+        decision: row.decision,
+        actionability: row.actionability,
+        reason: row.reason,
+        detail: row.detail,
+        evidence: row.evidence ?? [],
+        capability: row.capability ?? null,
+        usedFacts: row.usedFacts ?? [],
+        artifacts: row.artifacts ?? [],
+        alternatives: row.alternatives ?? [],
+        nextStage: row.nextStage ?? null,
+        missingEvidence: row.missingEvidence ?? null,
+        createdAt: row.createdAt,
+      }));
   },
 });
 

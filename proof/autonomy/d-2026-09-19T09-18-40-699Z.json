@@ -1,0 +1,157 @@
+{
+  "capturedAt": "2026-09-19T09:18:40.698Z",
+  "scenario": "d",
+  "label": "D — finding-oriented objective (a solution, not a contact)",
+  "convexUrl": "https://wry-walrus-528.convex.cloud",
+  "freshUser": true,
+  "goal": "Find a scheduling solution for a six-site outpatient clinic group that needs multi-location rosters, recurring appointments and reminders.",
+  "harnessCalls": [
+    {
+      "at": "2026-09-19T09:18:41.729Z",
+      "kind": "mutation",
+      "name": "users.provisionWorkspace"
+    },
+    {
+      "at": "2026-09-19T09:18:42.443Z",
+      "kind": "query",
+      "name": "context.list"
+    },
+    {
+      "at": "2026-09-19T09:18:43.249Z",
+      "kind": "mutation",
+      "name": "context.add"
+    },
+    {
+      "at": "2026-09-19T09:18:43.573Z",
+      "kind": "query",
+      "name": "context.list"
+    },
+    {
+      "at": "2026-09-19T09:18:43.868Z",
+      "kind": "mutation",
+      "name": "context.add"
+    },
+    {
+      "at": "2026-09-19T09:18:44.288Z",
+      "kind": "query",
+      "name": "context.list"
+    },
+    {
+      "at": "2026-09-19T09:18:44.634Z",
+      "kind": "mutation",
+      "name": "missions.create"
+    },
+    {
+      "at": "2026-09-19T09:18:44.993Z",
+      "kind": "mutation",
+      "name": "orchestratorStore.runPipeline"
+    },
+    {
+      "at": "2026-09-19T09:19:00.217Z",
+      "kind": "mutation",
+      "name": "orchestratorStore.approvePlan"
+    }
+  ],
+  "timeline": [
+    {
+      "at": "2026-09-19T09:18:42.129Z",
+      "kind": "user",
+      "detail": "signed up and provisioned workspace px79n6xx…"
+    },
+    {
+      "at": "2026-09-19T09:18:43.864Z",
+      "kind": "context",
+      "detail": "problem confirmed by the user"
+    },
+    {
+      "at": "2026-09-19T09:18:44.629Z",
+      "kind": "context",
+      "detail": "constraints confirmed by the user"
+    },
+    {
+      "at": "2026-09-19T09:18:45.515Z",
+      "kind": "started",
+      "detail": "runPipeline → {\"stage\":\"intake\",\"started\":true}"
+    }
+  ],
+  "gates": [
+    {
+      "gate": "plan_review",
+      "at": "2026-09-19T09:19:00.217Z",
+      "objective": {
+        "successKind": "present_solution",
+        "targetCount": 1
+      },
+      "normalizedGoal": "Find a scheduling solution for a six-site outpatient clinic group that needs multi-location rosters, recurring appointments, and reminders.",
+      "model": "qwen-max"
+    }
+  ],
+  "autonomousTransitions": [
+    {
+      "at": "2026-09-19T09:18:47.030Z",
+      "status": "queued",
+      "stage": "intake",
+      "interruption": null
+    },
+    {
+      "at": "2026-09-19T09:18:53.504Z",
+      "status": "active",
+      "stage": "interpret",
+      "interruption": null
+    },
+    {
+      "at": "2026-09-19T09:19:00.213Z",
+      "status": "waiting",
+      "stage": "plan_review",
+      "interruption": null
+    },
+    {
+      "at": "2026-09-19T09:19:01.426Z",
+      "status": "active",
+      "stage": "discover",
+      "interruption": null
+    },
+    {
+      "at": "2026-09-19T09:19:08.191Z",
+      "status": "active",
+      "stage": "evaluate",
+      "interruption": null
+    },
+    {
+      "at": "2026-09-19T09:19:15.595Z",
+      "status": "active",
+      "stage": "discover",
+      "interruption": null
+    },
+    {
+      "at": "2026-09-19T09:19:22.652Z",
+      "status": "active",
+      "stage": "evaluate",
+      "interruption": null
+    },
+    {
+      "at": "2026-09-19T09:19:29.480Z",
+      "status": "active",
+      "stage": "discover",
+      "interruption": null
+    },
+    {
+      "at": "2026-09-19T09:19:36.537Z",
+      "status": "active",
+      "stage": "evaluate",
+      "interruption": null
+    },
+    {
+      "at": "2026-09-19T09:23:37.824Z",
+      "status": "complete",
+      "stage": "complete",
+      "interruption": null
+    }
+  ],
+  "errors": [],
+  "final": {},
+  "updatedAt": "2026-09-19T09:23:37.839Z",
+  "workspaceId": "px79n6xxnnfw6t1cn2yp16ghnd8eqc6e",
+  "sendingInbox": "none",
+  "missionId": "kd72nm20p23m3qd5datgpknhes8eqxwy"
+}

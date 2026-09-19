@@ -209,6 +209,42 @@ export function objectiveNeedsContact(policy: IntentActionPolicy["success"]): bo
   return policy.kind === "contact_and_wait";
 }
 
+/**
+ * Reads the objective a model stated, in whatever words it used.
+ *
+ * A live run proved why this exists: the planner was asked for one of three
+ * literals and returned its own phrase instead, which a strict validator
+ * rejected — and the mission died at `interpret` over a field that only decides
+ * how the finish line is measured. The objective is a preference, not an
+ * integrity constraint, so an unrecognised phrase is *translated* when it is
+ * unambiguous and dropped when it is not, leaving the intent's sensible default
+ * in force.
+ *
+ * Ambiguity reads as `contact_and_wait`: that is the cautious interpretation,
+ * because it requires the user's approval before anything leaves the workspace.
+ * Nothing here can invent an action — it only decides what "done" means.
+ */
+const SUCCESS_KIND_ALIASES: Array<{ kind: SuccessKind; pattern: RegExp }> = [
+  { kind: "contact_and_wait", pattern: /contact|outreach|reach(?:ing)? out|reply|replies|respond|conversation|message them|get in touch|email/ },
+  { kind: "present_solution", pattern: /solution|compare|comparison|recommend|present|options/ },
+  { kind: "find_candidates", pattern: /candidate|shortlist|assemble|collect|compile|list of|leads|prospects|set of|map the market|identify/ },
+];
+
+export function normaliseSuccessKind(value: unknown): SuccessKind | null {
+  if (typeof value !== "string") return null;
+  const literal = value.trim().toLowerCase().replace(/[\s-]+/g, "_");
+  if (literal === "contact_and_wait" || literal === "find_candidates" || literal === "present_solution") {
+    return literal;
+  }
+  // Underscores and dashes are how a model writes a literal-looking phrase
+  // ("get_in_touch"), so they are folded to spaces before matching the prose.
+  const prose = value.trim().toLowerCase().replace(/[_-]+/g, " ");
+  for (const alias of SUCCESS_KIND_ALIASES) {
+    if (alias.pattern.test(prose)) return alias.kind;
+  }
+  return null;
+}
+
 // ── Decision input ───────────────────────────────────────────────────
 
 export type MatchQuality = "stronger" | "promising" | "uncertain" | "insufficient";

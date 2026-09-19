@@ -1,0 +1,243 @@
+{
+  "capturedAt": "2026-09-19T09:13:56.484Z",
+  "scenario": "d",
+  "label": "D — finding-oriented objective (a solution, not a contact)",
+  "convexUrl": "https://wry-walrus-528.convex.cloud",
+  "freshUser": true,
+  "goal": "Find a scheduling solution for a six-site outpatient clinic group that needs multi-location rosters, recurring appointments and reminders.",
+  "harnessCalls": [
+    {
+      "at": "2026-09-19T09:13:57.699Z",
+      "kind": "mutation",
+      "name": "users.provisionWorkspace"
+    },
+    {
+      "at": "2026-09-19T09:13:58.370Z",
+      "kind": "query",
+      "name": "context.list"
+    },
+    {
+      "at": "2026-09-19T09:13:59.019Z",
+      "kind": "mutation",
+      "name": "context.add"
+    },
+    {
+      "at": "2026-09-19T09:13:59.401Z",
+      "kind": "query",
+      "name": "context.list"
+    },
+    {
+      "at": "2026-09-19T09:13:59.704Z",
+      "kind": "mutation",
+      "name": "context.add"
+    },
+    {
+      "at": "2026-09-19T09:14:00.003Z",
+      "kind": "query",
+      "name": "context.list"
+    },
+    {
+      "at": "2026-09-19T09:14:00.310Z",
+      "kind": "mutation",
+      "name": "missions.create"
+    },
+    {
+      "at": "2026-09-19T09:14:00.666Z",
+      "kind": "mutation",
+      "name": "orchestratorStore.runPipeline"
+    }
+  ],
+  "timeline": [
+    {
+      "at": "2026-09-19T09:13:58.069Z",
+      "kind": "user",
+      "detail": "signed up and provisioned workspace px79e1gw…"
+    },
+    {
+      "at": "2026-09-19T09:13:59.700Z",
+      "kind": "context",
+      "detail": "problem confirmed by the user"
+    },
+    {
+      "at": "2026-09-19T09:14:00.302Z",
+      "kind": "context",
+      "detail": "constraints confirmed by the user"
+    },
+    {
+      "at": "2026-09-19T09:14:00.992Z",
+      "kind": "started",
+      "detail": "runPipeline → {\"stage\":\"intake\",\"started\":true}"
+    },
+    {
+      "at": "2026-09-19T09:29:06.178Z",
+      "kind": "timeout",
+      "detail": "waited 900s for a gate or completion"
+    }
+  ],
+  "gates": [],
+  "autonomousTransitions": [
+    {
+      "at": "2026-09-19T09:14:02.099Z",
+      "status": "queued",
+      "stage": "intake",
+      "interruption": null
+    },
+    {
+      "at": "2026-09-19T09:14:08.825Z",
+      "status": "active",
+      "stage": "interpret",
+      "interruption": null
+    },
+    {
+      "at": "2026-09-19T09:14:22.472Z",
+      "status": "blocked",
+      "stage": "interpret",
+      "interruption": "PROVIDER_ERROR"
+    },
+    {
+      "at": "2026-09-19T09:14:48.776Z",
+      "status": "active",
+      "stage": "interpret",
+      "interruption": null
+    },
+    {
+      "at": "2026-09-19T09:15:02.295Z",
+      "status": "blocked",
+      "stage": "interpret",
+      "interruption": "PROVIDER_ERROR"
+    },
+    {
+      "at": "2026-09-19T09:16:01.972Z",
+      "status": "active",
+      "stage": "interpret",
+      "interruption": null
+    },
+    {
+      "at": "2026-09-19T09:16:15.645Z",
+      "status": "blocked",
+      "stage": "interpret",
+      "interruption": "PROVIDER_ERROR"
+    }
+  ],
+  "errors": [
+    {
+      "kind": "blocked",
+      "stage": "interpret",
+      "interruption": "PROVIDER_ERROR",
+      "lastStep": {
+        "_id": "m572rxnycp8qze8w912t8rhnsx8eptyq",
+        "createdAt": 1789809370414,
+        "errorCode": "PROVIDER_ERROR",
+        "label": "stage.interpret.failed",
+        "reference": null,
+        "stage": "interpret",
+        "summary": "Uncaught Error: ArgumentValidationError: Value does not match validator.\nPath: .completionPredicate\nValue: {objective: \"Shortlist at least three scheduling solutions that fit the specified requirements.\", successKind: \"evaluate_and_shortlist\"}\nValidator: v.string()\n\n\n",
+        "tool": "orchestrator"
+      }
+    }
+  ],
+  "final": {
+    "run": {
+      "status": "blocked",
+      "currentStage": "interpret",
+      "interruption": "PROVIDER_ERROR"
+    },
+    "plan": null,
+    "research": {
+      "jobs": [],
+      "sources": []
+    },
+    "entities": [],
+    "matches": [],
+    "decisions": [],
+    "drafts": [],
+    "steps": [
+      {
+        "stage": "interpret",
+        "label": "intent.find_solution",
+        "tool": "llm.classify",
+        "errorCode": null,
+        "summary": "You're looking for a scheduling solution that can handle multi-location rosters, recurring appointments, and reminders for a six-site outpatient clinic group.",
+        "createdAt": 1789809246718
+      },
+      {
+        "stage": "interpret",
+        "label": "stage.interpret.failed",
+        "tool": "orchestrator",
+        "errorCode": "PROVIDER_ERROR",
+        "summary": "Uncaught Error: ArgumentValidationError: Value does not match validator.\nPath: .completionPredicate\nValue: {objective: \"Identify and shortlist at least three suitable scheduling solutions for the six-site outpatient clinic group.\", successKind: \"find_solution\"}\nValidator: v.string()\n\n\n",
+        "createdAt": 1789809255910
+      },
+      {
+        "stage": "interpret",
+        "label": "stage.interpret.failed",
+        "tool": "orchestrator",
+        "errorCode": "PROVIDER_ERROR",
+        "summary": "Uncaught Error: ArgumentValidationError: Value does not match validator.\nPath: .completionPredicate\nValue: {objective: \"find_solution\", successKind: \"evaluate_and_shortlist\", targetCount: 1.0}\nValidator: v.string()\n\n\n",
+        "createdAt": 1789809294503
+      },
+      {
+        "stage": "interpret",
+        "label": "stage.interpret.failed",
+        "tool": "orchestrator",
+        "errorCode": "PROVIDER_ERROR",
+        "summary": "Uncaught Error: ArgumentValidationError: Value does not match validator.\nPath: .completionPredicate\nValue: {objective: \"Shortlist at least three scheduling solutions that fit the specified requirements.\", successKind: \"evaluate_and_shortlist\"}\nValidator: v.string()\n\n\n",
+        "createdAt": 1789809370414
+      }
+    ],
+    "events": [
+      {
+        "type": "mission.created",
+        "stage": "intake",
+        "summary": "Mission created from natural language; awaiting AI intent classification.",
+        "createdAt": 1789809240275
+      },
+      {
+        "type": "intent.classified",
+        "stage": "interpret",
+        "summary": "Intent classified as find_solution.",
+        "createdAt": 1789809246748
+      },
+      {
+        "type": "stage.interpret.failed",
+        "stage": "interpret",
+        "summary": "interpret stage failed: Uncaught Error: ArgumentValidationError: Value does not match validator.\nPath: .completionPredicate\nValue: {objective: \"Identify and shortlist at least three suitable scheduling solutions for the six-",
+        "createdAt": 1789809255875
+      },
+      {
+        "type": "stage.interpret.retrying",
+        "stage": "interpret",
+        "summary": "Retrying this stage automatically after a transient provider failure.",
+        "createdAt": 1789809285985
+      },
+      {
+        "type": "stage.interpret.failed",
+        "stage": "interpret",
+        "summary": "interpret stage failed: Uncaught Error: ArgumentValidationError: Value does not match validator.\nPath: .completionPredicate\nValue: {objective: \"find_solution\", successKind: \"evaluate_and_shortlist\", targetCount: 1.0}\nValidat",
+        "createdAt": 1789809294459
+      },
+      {
+        "type": "stage.interpret.retrying",
+        "stage": "interpret",
+        "summary": "Retrying this stage automatically after a transient provider failure.",
+        "createdAt": 1789809354596
+      },
+      {
+        "type": "stage.interpret.failed",
+        "stage": "interpret",
+        "summary": "interpret stage failed: Uncaught Error: ArgumentValidationError: Value does not match validator.\nPath: .completionPredicate\nValue: {objective: \"Shortlist at least three scheduling solutions that fit the specified requirement",
+        "createdAt": 1789809370379
+      }
+    ],
+    "budget": {
+      "creditLimit": 400,
+      "used": 0,
+      "remaining": 400
+    }
+  },
+  "updatedAt": "2026-09-19T09:29:07.567Z",
+  "workspaceId": "px79e1gw8xzcvb8vmfvb7h4xs58eqjcq",
+  "sendingInbox": "none",
+  "missionId": "kd7aewewajsf5aakh3k1rddpf98eqyxy",
+  "terminal": "interpret/blocked"
+}
