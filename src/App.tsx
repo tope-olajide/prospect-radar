@@ -169,6 +169,9 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
   const [clarifyAnswer, setClarifyAnswer] = useState("");
   const [contextCheckAnswer, setContextCheckAnswer] = useState("");
   const [contextCheckKey, setContextCheckKey] = useState("");
+  // Which competing value the user picked for a conflicting requirement.
+  const [conflictChoice, setConflictChoice] = useState<Record<string, string>>({});
+  const [contextArtifactUploading, setContextArtifactUploading] = useState("");
   const [editingUnderstanding, setEditingUnderstanding] = useState(false);
   const [understandingDraft, setUnderstandingDraft] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -484,17 +487,44 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
     } finally { setPlanning(false); }
   }
 
-  async function onContextCheckSubmit(key: string) {
-    if (!missionId || !contextCheckAnswer.trim()) return;
+  async function onContextCheckSubmit(key: string, options?: { answer?: string; supersedes?: Id<"contextFacts">[] }) {
+    if (!missionId) return;
+    const raw = options?.answer ?? (contextCheckKey === key ? contextCheckAnswer : "");
+    const answer = raw.trim();
+    if (!answer) return;
     setPlanning(true);
     try {
-      await answerContextCheck({ workspaceId, missionId, key, answer: contextCheckAnswer.trim() });
+      await answerContextCheck({ workspaceId, missionId, key, answer, supersedes: options?.supersedes });
       setContextCheckAnswer("");
       setContextCheckKey("");
+      setConflictChoice({});
       setPlanNotice("Answer saved — Radar is re-checking its readiness.");
     } catch (error) {
       setPlanNotice(error instanceof Error ? error.message : "Failed to save answer.");
     } finally { setPlanning(false); }
+  }
+
+  /**
+   * Attaches a file as evidence for a requirement that wants an artifact rather
+   * than a sentence (a portfolio, a product page, case studies). The source is
+   * ingested and chunked before the mission re-checks readiness, so the new
+   * evidence is visible to the very next pass.
+   */
+  async function onContextArtifactUpload(key: string, file: File | null) {
+    if (!file || !backendConnected || !missionId) return;
+    setContextArtifactUploading(key);
+    setPlanNotice("");
+    try {
+      const { sourceId, uploadUrl } = await addFileSource({ workspaceId, title: file.name, sizeBytes: file.size });
+      const response = await fetch(uploadUrl, { method: "POST", body: file, headers: { "Content-Type": file.type || "application/octet-stream" } });
+      if (!response.ok) throw new Error(`Upload failed (${response.status}).`);
+      const { storageId } = (await response.json()) as { storageId: string };
+      await fileReady({ workspaceId, sourceId, storageId: storageId as Id<"_storage"> });
+      await answerContextCheck({ workspaceId, missionId, key, sourceAdded: true });
+      setPlanNotice(`${file.name} attached — Radar is re-checking its readiness.`);
+    } catch (error) {
+      setPlanNotice(error instanceof Error ? error.message : "Upload failed.");
+    } finally { setContextArtifactUploading(""); }
   }
 
   async function onUnderstandingSave() {
@@ -1173,33 +1203,92 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
                   {/* Context check — Radar asks for missing information */}
                   {run?.status === "waiting" && run.currentStage === "context_check" && readiness && (
                     <div className="thread-ask">
-                      {readiness.missingRequired.length > 0 && (
+                      {readiness.conflictCount > 0 ? (
+                        <>
+                          <p><b>Radar found conflicting information. Which should it use?</b></p>
+                          <p className="muted">Radar will not pick a side on its own — this is your call to make.</p>
+                        </>
+                      ) : readiness.missingRequired.length > 0 ? (
                         <>
                           <p><b>Radar needs {readiness.missingRequired.length} detail{readiness.missingRequired.length > 1 ? "s" : ""} before it can plan:</b></p>
                           <p className="muted">These help Radar understand your situation so it can search effectively.</p>
                         </>
-                      )}
-                      {readiness.missingRequired.length === 0 && readiness.missingImportant.length > 0 && (
+                      ) : readiness.missingImportant.length > 0 ? (
                         <p><b>Radar could use one more detail to search better (optional):</b></p>
-                      )}
-                      {/* Show each missing requirement */}
+                      ) : null}
+                      {/* Each unresolved requirement: a conflict to settle, a question to answer, or an artifact to attach */}
                       {readiness.requirements.filter((r) => !r.satisfied && r.criticality !== "nice_to_have").map((req) => (
                         <div key={req.key} style={{ marginBottom: "0.75rem" }}>
                           <p style={{ marginBottom: "0.25rem" }}><b>{req.question}</b></p>
-                          {req.evidence && (
-                            <p className="stage-note" style={{ marginBottom: "0.25rem" }}>Radar found related info in: {req.evidence}</p>
+                          {req.why && <p className="stage-note" style={{ marginBottom: "0.25rem" }}>{req.why}</p>}
+
+                          {req.conflictValues && req.conflictValues.length > 0 ? (
+                            <>
+                              {req.evidence && <p className="stage-note" style={{ marginBottom: "0.25rem" }}>In your sources: {req.evidence}</p>}
+                              <div className="control-row" style={{ flexWrap: "wrap" }}>
+                                {req.conflictValues.map((option) => (
+                                  <label key={option.value} className="muted" style={{ display: "inline-flex", gap: "0.35rem", alignItems: "center" }}>
+                                    <input
+                                      type="radio"
+                                      name={`conflict-${req.key}`}
+                                      checked={conflictChoice[req.key] === option.value}
+                                      onChange={() => setConflictChoice((prev) => ({ ...prev, [req.key]: option.value }))}
+                                    />
+                                    {option.value} <span className="stage-note">({option.origin})</span>
+                                  </label>
+                                ))}
+                              </div>
+                              <div className="control-row">
+                                <button
+                                  type="button"
+                                  className="btn"
+                                  disabled={!conflictChoice[req.key] || planning}
+                                  onClick={() => onContextCheckSubmit(req.key, { answer: conflictChoice[req.key], supersedes: req.supersedes ?? undefined })}
+                                >
+                                  {planning ? "Saving…" : "Use this"}
+                                </button>
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              {req.evidence && (
+                                <p className="stage-note" style={{ marginBottom: "0.25rem" }}>Radar found related info in: {req.evidence}</p>
+                              )}
+                              <div className="control-row">
+                                <input
+                                  value={contextCheckKey === req.key ? contextCheckAnswer : ""}
+                                  onChange={(e) => { setContextCheckKey(req.key); setContextCheckAnswer(e.target.value); }}
+                                  placeholder="Your answer…"
+                                  aria-label={req.question}
+                                />
+                                <button
+                                  type="button"
+                                  className="btn"
+                                  disabled={!contextCheckAnswer.trim() || contextCheckKey !== req.key || planning}
+                                  onClick={() => onContextCheckSubmit(req.key, { supersedes: req.supersedes ?? undefined })}
+                                >
+                                  {planning ? "Saving…" : "Submit"}
+                                </button>
+                              </div>
+                              {req.artifactLabel && (req.artifactKinds ?? []).includes("file") && (
+                                <div className="control-row" style={{ marginTop: "0.35rem" }}>
+                                  <label className="stage-note">
+                                    or attach your {req.artifactLabel}:{" "}
+                                    <input
+                                      type="file"
+                                      disabled={contextArtifactUploading === req.key}
+                                      onChange={(e) => {
+                                        const file = e.target.files?.[0] ?? null;
+                                        e.target.value = "";
+                                        void onContextArtifactUpload(req.key, file);
+                                      }}
+                                    />
+                                  </label>
+                                  {contextArtifactUploading === req.key && <span className="stage-note">Uploading…</span>}
+                                </div>
+                              )}
+                            </>
                           )}
-                          <div className="control-row">
-                            <input
-                              value={contextCheckKey === req.key ? contextCheckAnswer : ""}
-                              onChange={(e) => { setContextCheckKey(req.key); setContextCheckAnswer(e.target.value); }}
-                              placeholder="Your answer…"
-                              aria-label={req.question}
-                            />
-                            <button type="button" className="btn" disabled={!contextCheckAnswer.trim() || contextCheckKey !== req.key || planning} onClick={() => onContextCheckSubmit(req.key)}>
-                              {planning ? "Saving…" : "Submit"}
-                            </button>
-                          </div>
                         </div>
                       ))}
                       <p className="stage-note">Radar will continue automatically after you answer.</p>

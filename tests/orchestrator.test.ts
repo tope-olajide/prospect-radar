@@ -165,20 +165,23 @@ describe("runStage — stage dispatch", () => {
         mode: "opportunity",
         clarification: null,
       });
-      // Seed a confirmed skill fact so the context_check readiness passes.
-      await ctx.db.insert("contextFacts", {
-        workspaceId: WORKSPACE,
-        missionId: null,
-        category: "skills",
-        value: "React development",
-        sourceType: "user_input",
-        sourceReference: null,
-        confidence: 1,
-        verificationStatus: "user_confirmed",
-        visibility: "workspace",
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-      });
+      // Seed the facts find_opportunity requires, so context_check passes:
+      // skills (category "skills") and engagement type (category "engagement").
+      for (const [category, value] of [["skills", "React development"], ["engagement", "Contract work"]] as const) {
+        await ctx.db.insert("contextFacts", {
+          workspaceId: WORKSPACE,
+          missionId: null,
+          category,
+          value,
+          sourceType: "user_input",
+          sourceReference: null,
+          confidence: 1,
+          verificationStatus: "user_confirmed",
+          visibility: "workspace",
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+      }
     });
     await t.action(internal.missionOrchestrator.runStage, { missionId: missionId as never });
     const run1 = await getRun(t, missionId);

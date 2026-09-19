@@ -14,9 +14,62 @@
 - **Auth:** Convex Auth
 - **AI models:** any OpenAI-compatible model via OPENAI_BASE_URL / OPENAI_MODEL (DashScope qwen-max in production; provider recorded on plans and classifications)
 - **Started:** 2026-09-13T00:00:00Z
-- **Last updated:** 2026-09-18T22:00:07Z
+- **Last updated:** 2026-09-19T18:30:00Z
 
 ## Log
+
+### 2026-09-19 - working tree — Phase 3 closed: conflict resolution, artifacts, authorized vs. source-backed
+Finished the three gaps that kept Phase 3 from being a real trust layer.
+
+**Conflicts are now a blocking interaction, not a flag.** The resolver compares a
+requirement's confirmed facts against the user's own evidence and reports a
+conflict only on a genuine contradiction, via two conservative rules: two
+different mutually-exclusive values on the same axis with an exclusivity marker
+("full-time" in the profile vs. "only contract" in a portfolio), or an explicit
+negation of a confirmed value ("no React experience"). Detail that merely adds
+information ("React" vs. "React + Next.js") is deliberately *not* a conflict,
+because over-blocking would be worse than under-blocking. Conflicts block at
+`required` and `important` and never at `nice_to_have`.
+
+Settling one is a first-class action: the gate renders the competing values as
+choices plus a free-text answer, and `answerContextCheck` now takes `supersedes`
+— the confirmed facts the user overruled are marked `user_rejected`, so they stay
+visible to the user while being excluded from agent reasoning. A negation has no
+clean pair of labels to choose between, so it is answered in the user's own words
+rather than letting an excerpt become a fact value.
+
+**Artifact requests are first-class.** A requirement can declare the artifact that
+would answer it (a product page, a portfolio, case studies), and when nothing is
+found the gate offers an upload instead of only a text box. The file is ingested
+and chunked before the mission re-checks readiness (`sourceAdded`), so the new
+evidence is visible to the very next pass and the run resumes itself. Website
+sources are deliberately not offered here yet: a crawl is asynchronous and
+nothing wakes a parked `context_check` when it lands, so offering it would strand
+the mission. That needs a wake path first.
+
+**`usable` and `authorized` are now separate.** Source-backed evidence can
+satisfy a requirement for research and matching, but it is never authorized to
+represent the user. The orchestrator records a `context_check.source_backed`
+step when that happens, so the transcript states plainly that Radar will not
+assert it as the user's claim until confirmed. This is the boundary Phase 4's
+action selector will read.
+
+Also fixed a real bug the new tests found: answers were persisted under the
+requirement *key* ("engagement_type") while the resolver read the requirement
+*category* ("engagement"), so every requirement whose key differed from its
+category — i.e. all of them except `skills` — could never be satisfied. The
+per-intent table moved to `convex/contextRequirements.ts` so the resolver and the
+answer path share one key→category mapping the client cannot decouple.
+
+New `tests/contextReadiness.test.ts` (10 tests) covers the acceptance scenarios:
+confirmed fact satisfies with no question; a missing required detail blocks, is
+answered, persists, and resumes; the answer is reused by a later mission;
+evidence satisfies without asking; evidence never becomes a confirmed fact;
+contradictory information blocks until settled; negation resolves by typed
+answer; added detail is not a conflict; an artifact upload is requested; and
+unreviewed/rejected facts never satisfy a requirement. Verified: tsc clean on
+both configs, **212 tests passing** (17 files). No deploy — Phase 0 gate remains
+open.
 
 ### 2026-09-18 - working tree — Phase 3: Context + Artifact Intelligence
 Extended the readiness check into a full Context Resolver that reads three
