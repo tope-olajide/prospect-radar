@@ -48,6 +48,15 @@ async function getRun(t: TestT, missionId: string) {
   });
 }
 
+async function eventsFor(t: TestT, missionId: string) {
+  return t.run(async (ctx) => {
+    const run = await ctx.db.query("agentRuns").withIndex("by_missionId", (q) => q.eq("missionId", missionId as never)).first();
+    if (!run) return [];
+    const events = await ctx.db.query("runEvents").withIndex("by_runId", (q) => q.eq("runId", run._id)).collect();
+    return events.map((event) => event.type);
+  });
+}
+
 async function stepsFor(t: TestT, missionId: string) {
   return t.run(async (ctx) => {
     const run = await ctx.db.query("agentRuns").withIndex("by_missionId", (q) => q.eq("missionId", missionId as never)).first();
@@ -216,6 +225,68 @@ describe("crawl failure recovery", () => {
       return list.map((entry) => entry.type);
     });
     expect(events).toContain("stage.discover.retrying");
+  });
+
+  it("wakes the parked run when a crawl completes successfully, not just when one fails", async () => {
+    // The live regression: a mission parked in `wait` had its run moved to
+    // `evaluate` by this callback and nothing scheduled, so it sat `active`
+    // with no invocation in flight for fifteen minutes until it was nudged by
+    // hand. The failure branch always scheduled; the success branch did not.
+    const t = convexTest(schema, convexModules);
+    const missionId = await seedMission(t);
+    await forceStage(t, missionId, "wait", "waiting");
+    const jobId = await seedCrawlJob(t, missionId, { storedSources: 2 });
+
+    await t.run((ctx) =>
+      ctx.runMutation(internal.researchStore.crawlCompleted, {
+        crawlId: "crawl_indeed", jobId: jobId as never, status: "completed", pageCount: 2,
+        context: { missionId, jobId },
+      }),
+    );
+
+    // The callback moved the run...
+    const moved = await getRun(t, missionId);
+    expect(moved?.status).toBe("active");
+    expect(moved?.currentStage).toBe("evaluate");
+
+    // ...and scheduling is what turns that move into actual work. Draining the
+    // scheduler here runs exactly what the callback queued. With nothing queued
+    // the run stays untouched at `evaluate` and the only event in its history
+    // is the callback's own; the stage's conclusion is what proves it ran.
+    await t.finishAllScheduledFunctions(() => {});
+    const events = await eventsFor(t, missionId);
+    expect(
+      events.some((type) => type === "stage.approval.started" || type === "stage.evaluate.failed"),
+    ).toBe(true);
+    const run = await getRun(t, missionId);
+    expect(run?.status === "active" && run?.currentStage === "evaluate").toBe(false);
+  });
+
+  it("never parks a run whose crawl already finished", async () => {
+    // The race in the other direction: a fast crawl can complete before the
+    // await commits. Parking then would drag a working run back into `wait`
+    // with no crawl left to wait for.
+    const t = convexTest(schema, convexModules);
+    const missionId = await seedMission(t);
+    await forceStage(t, missionId, "discover", "active");
+    const jobId = await seedCrawlJob(t, missionId, { storedSources: 1, pendingQueries: 1 });
+
+    await t.run((ctx) =>
+      ctx.runMutation(internal.researchStore.crawlCompleted, {
+        crawlId: "crawl_indeed", jobId: jobId as never, status: "completed", pageCount: 1,
+        context: { missionId, jobId },
+      }),
+    );
+    const queryId = await t.run(async (ctx) =>
+      (await ctx.db.query("missionQueries").withIndex("by_missionId", (q) => q.eq("missionId", missionId as never)).first())!._id,
+    );
+    await t.run((ctx) => ctx.runMutation(internal.orchestratorStore.awaitCrawl, {
+      queryId, missionId: missionId as never, host: "www.indeed.com", jobId: jobId as never,
+    }));
+
+    const run = await getRun(t, missionId);
+    expect(run?.currentStage).toBe("evaluate");
+    expect(run?.status).toBe("active");
   });
 
   it("a retry resume never steals a run the user owns (stopped, budget-blocked, or re-classified)", async () => {

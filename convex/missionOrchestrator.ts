@@ -276,10 +276,12 @@ export const runStage = internalAction({
             // Durable crawl: startCrawlJob keeps the run in discover, the
             // crawl runs asynchronously, and its completion callback
             // (crawlCompleted → completeCrawl) wakes the run.
+            let crawlJobId: Id<"researchJobs">;
             try {
-              await ctx.runAction(api.research.startCrawl, {
+              const started = await ctx.runAction(api.research.startCrawl, {
                 missionId: args.missionId, requestId: crypto.randomUUID(), url: parsed.toString(), limit: 25,
               });
+              crawlJobId = started.jobId;
             } catch (error) {
               // A host Firecrawl will not crawl (robots.txt, unsupported
               // scheme) is a missing source, not a dead mission: consume the
@@ -297,7 +299,7 @@ export const runStage = internalAction({
               return null;
             }
             await ctx.runMutation(internal.orchestratorStore.awaitCrawl, {
-              queryId: next._id, missionId: args.missionId, host: parsed.hostname,
+              queryId: next._id, missionId: args.missionId, host: parsed.hostname, jobId: crawlJobId,
             });
             return null;
           }

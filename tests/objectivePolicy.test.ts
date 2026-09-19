@@ -22,6 +22,7 @@ import { internal } from "../convex/_generated/api";
 import schema from "../convex/schema";
 import { contentHash } from "../convex/hash";
 import {
+  normaliseSuccessKind,
   resolveCapabilities,
   resolveSuccessPolicy,
   type CapabilityRuntime,
@@ -304,6 +305,28 @@ describe("what done means comes from the plan", () => {
     // wait", because that requires the user's approval before anything leaves.
     expect(resolveSuccessPolicy({ successKind: "spam_everyone", targetCount: 5 }, "find_customer"))
       .toEqual({ kind: "contact_and_wait", targetCount: 5 });
+  });
+
+  it("reads the objective a model phrased its own way instead of failing on it", () => {
+    // Live regression: the production model answered with its own wording
+    // ("outreach_then_wait") and a strict validator killed the mission at
+    // `interpret`. The objective decides how the finish line is measured; it
+    // must never be able to fail a mission.
+    expect(normaliseSuccessKind("outreach_then_wait")).toBe("contact_and_wait");
+    expect(normaliseSuccessKind("contact them and wait for a reply")).toBe("contact_and_wait");
+    expect(normaliseSuccessKind("get_in_touch")).toBe("contact_and_wait");
+    expect(normaliseSuccessKind("shortlist_candidates")).toBe("find_candidates");
+    expect(normaliseSuccessKind("assemble a set of clinics")).toBe("find_candidates");
+    expect(normaliseSuccessKind("compare solutions")).toBe("present_solution");
+    expect(normaliseSuccessKind("recommend_options")).toBe("present_solution");
+    // Exact literals pass through untouched.
+    expect(normaliseSuccessKind("contact_and_wait")).toBe("contact_and_wait");
+    expect(normaliseSuccessKind("find_candidates")).toBe("find_candidates");
+    expect(normaliseSuccessKind("present_solution")).toBe("present_solution");
+    // Nothing recognisable is dropped, not guessed at.
+    expect(normaliseSuccessKind("¯_(ツ)_/¯")).toBeNull();
+    expect(normaliseSuccessKind(undefined)).toBeNull();
+    expect(normaliseSuccessKind(42)).toBeNull();
   });
 
   it("makes the decision layer stop at the finding when the objective says so", () => {

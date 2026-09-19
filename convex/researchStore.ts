@@ -496,6 +496,14 @@ async function completeCrawl(
           eventType: "source.ready",
           safeSummary: `Firecrawl crawl persisted ${resultCount} deduplicated page${resultCount === 1 ? "" : "s"}.`,
         });
+        // The transition alone wakes nothing. A mission that started a durable
+        // crawl is parked in `wait` with no invocation in flight, so moving it
+        // to `evaluate` without scheduling the stage leaves it `active` with
+        // nothing to run — the exact state the stale-run reaper exists to
+        // clean up, and a lie to every reader that treats `active` as working.
+        // A live mission sat that way for fifteen minutes until it was nudged
+        // by hand. The failure branch below always scheduled; this one did not.
+        await ctx.scheduler.runAfter(0, internal.missionOrchestrator.runStage, { missionId: job.missionId });
       } else {
         // A crawl that ends without completing is a missing source, not a dead
         // mission. If this mission already holds evidence — or still has

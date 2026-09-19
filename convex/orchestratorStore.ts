@@ -194,7 +194,7 @@ export const failQuery = internalMutation({
  * discovery or proceeds to explanation.
  */
 export const awaitCrawl = internalMutation({
-  args: { queryId: v.id("missionQueries"), missionId: v.id("missions"), host: v.string() },
+  args: { queryId: v.id("missionQueries"), missionId: v.id("missions"), host: v.string(), jobId: v.id("researchJobs") },
   returns: v.null(),
   handler: async (ctx, args) => {
     await ctx.db.patch(args.queryId, { status: "done", resultCount: null });
@@ -203,6 +203,12 @@ export const awaitCrawl = internalMutation({
       summary: `Durable crawl of ${args.host} started; Radar continues automatically when it completes.`,
       reference: null, errorCode: null, tool: "firecrawl.crawl",
     });
+    // A fast crawl can finish before this mutation commits. Its completion
+    // callback has already moved the run to `evaluate` and scheduled the stage,
+    // so parking here would drag a working run back into `wait` with no crawl
+    // left to wait for — the same silent stall, in the other direction.
+    const job = await ctx.db.get(args.jobId);
+    if (!job || job.status === "complete" || job.status === "failed") return null;
     const run = await ctx.db.query("agentRuns").withIndex("by_missionId", (q) => q.eq("missionId", args.missionId)).first();
     if (run && advanceable(run.status, run.currentStage)) {
       await ctx.runMutation(internal.runs.transition, {

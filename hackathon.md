@@ -18,6 +18,30 @@
 
 ## Log
 
+### 2026-09-19 - working tree — live proof: scheduling fixes for the autonomous loop
+Two real bugs found and fixed during the first live proof pass. Both were the
+same class: an async callback transitions a parked run into `evaluate` but
+forgets to schedule `runStage`, leaving it `active` with nothing scheduled.
+
+**Crawl success callback** (`researchStore.completeCrawl`): a durable crawl
+that completes successfully moves `wait → evaluate` but did not schedule the
+orchestrator, so the mission sat abandoned for fifteen minutes until manually
+nudged. The failure branch always scheduled; the success branch did not.
+Fix: schedule `runStage` after the transition, mirroring the failure branch.
+
+**Reply wake callback** (`outreachStore.wakeRunOnReply`): an inbound reply
+arrival moves `wait → evaluate` but did not schedule the orchestrator, so the
+agent would never read what the counterpart wrote. Fix: schedule `runStage`
+after the transition.
+
+**Race guard** (`orchestratorStore.awaitCrawl`): a fast crawl can finish
+before `awaitCrawl` commits. Without the guard, parking the run after the
+callback already advanced it would drag a working run back into `wait`.
+Fix: accept the `jobId` and skip parking when the job is already terminal.
+
+Both regressions have regression tests that fail without the fix and pass
+with it (`crawlRecovery.test.ts`, `trust.test.ts`).
+
 ### 2026-09-19 - working tree — Phase 5: the objective, the capability surface, and artifacts
 Three things the agent could previously only imply are now stated, shared, and
 enforced.

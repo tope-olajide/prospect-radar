@@ -1,0 +1,150 @@
+{
+  "capturedAt": "2026-09-19T09:31:02.788Z",
+  "scenario": "a",
+  "label": "A — contact mission with a reachable email route",
+  "convexUrl": "https://wry-walrus-528.convex.cloud",
+  "freshUser": false,
+  "goal": "Find a small clinic group that runs several sites and could use multi-location scheduling software, then get in touch with them. I know they publish a partner page here: https://raw.githubusercontent.com/tope-olajide/prospect-radar/main/proof/test-partner/index.html",
+  "harnessCalls": [
+    {
+      "at": "2026-09-19T09:31:03.951Z",
+      "kind": "query",
+      "name": "context.list"
+    },
+    {
+      "at": "2026-09-19T09:31:04.237Z",
+      "kind": "mutation",
+      "name": "context.add"
+    },
+    {
+      "at": "2026-09-19T09:31:04.540Z",
+      "kind": "query",
+      "name": "context.list"
+    },
+    {
+      "at": "2026-09-19T09:31:04.846Z",
+      "kind": "mutation",
+      "name": "context.add"
+    },
+    {
+      "at": "2026-09-19T09:31:05.144Z",
+      "kind": "query",
+      "name": "context.list"
+    },
+    {
+      "at": "2026-09-19T09:31:05.463Z",
+      "kind": "mutation",
+      "name": "context.add"
+    },
+    {
+      "at": "2026-09-19T09:31:05.786Z",
+      "kind": "query",
+      "name": "context.list"
+    },
+    {
+      "at": "2026-09-19T09:31:06.115Z",
+      "kind": "mutation",
+      "name": "missions.create"
+    },
+    {
+      "at": "2026-09-19T09:31:06.438Z",
+      "kind": "mutation",
+      "name": "orchestratorStore.runPipeline"
+    },
+    {
+      "at": "2026-09-19T09:31:21.748Z",
+      "kind": "mutation",
+      "name": "orchestratorStore.approvePlan"
+    }
+  ],
+  "timeline": [
+    {
+      "at": "2026-09-19T09:31:04.841Z",
+      "kind": "context",
+      "detail": "product confirmed by the user"
+    },
+    {
+      "at": "2026-09-19T09:31:05.458Z",
+      "kind": "context",
+      "detail": "target_customer confirmed by the user"
+    },
+    {
+      "at": "2026-09-19T09:31:06.111Z",
+      "kind": "context",
+      "detail": "location confirmed by the user"
+    },
+    {
+      "at": "2026-09-19T09:31:06.759Z",
+      "kind": "started",
+      "detail": "runPipeline → {\"stage\":\"intake\",\"started\":true}"
+    }
+  ],
+  "gates": [
+    {
+      "gate": "plan_review",
+      "at": "2026-09-19T09:31:21.747Z",
+      "objective": {
+        "successKind": "contact_and_wait",
+        "targetCount": 1
+      },
+      "normalizedGoal": "Identify a small clinic group with multiple locations that could benefit from multi-location scheduling software and initiate contact.",
+      "model": "qwen-max"
+    }
+  ],
+  "autonomousTransitions": [
+    {
+      "at": "2026-09-19T09:31:07.982Z",
+      "status": "queued",
+      "stage": "intake",
+      "interruption": null
+    },
+    {
+      "at": "2026-09-19T09:31:14.814Z",
+      "status": "active",
+      "stage": "interpret",
+      "interruption": null
+    },
+    {
+      "at": "2026-09-19T09:31:21.742Z",
+      "status": "waiting",
+      "stage": "plan_review",
+      "interruption": null
+    },
+    {
+      "at": "2026-09-19T09:31:22.651Z",
+      "status": "active",
+      "stage": "discover",
+      "interruption": null
+    },
+    {
+      "at": "2026-09-19T09:31:29.447Z",
+      "status": "active",
+      "stage": "evaluate",
+      "interruption": null
+    },
+    {
+      "at": "2026-09-19T09:31:36.398Z",
+      "status": "active",
+      "stage": "discover",
+      "interruption": null
+    },
+    {
+      "at": "2026-09-19T09:31:50.162Z",
+      "status": "waiting",
+      "stage": "wait",
+      "interruption": null
+    },
+    {
+      "at": "2026-09-19T09:32:04.311Z",
+      "status": "active",
+      "stage": "evaluate",
+      "interruption": null
+    }
+  ],
+  "errors": [],
+  "final": {},
+  "workspaceId": "demo-workspace",
+  "sendingInbox": "linked",
+  "updatedAt": "2026-09-19T09:32:04.312Z",
+  "missionId": "kd78g6tcrx51a3wgg2z70y16ts8eqyj0"
+}

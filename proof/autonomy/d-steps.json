@@ -1,0 +1,372 @@
+[
+  {
+    "_id": "m574k23sah5956fhggvnk5exb18ep362",
+    "createdAt": 1789809530095,
+    "errorCode": null,
+    "label": "intent.find_solution",
+    "reference": null,
+    "stage": "interpret",
+    "summary": "You're looking for a scheduling solution that can handle multi-location rosters, recurring appointments, and reminders for a six-site outpatient clinic group.",
+    "tool": "llm.classify"
+  },
+  {
+    "_id": "m573szfq8ekwgbsrjpt772bzdx8eq9qx",
+    "createdAt": 1789809538168,
+    "errorCode": null,
+    "label": "plan.created",
+    "reference": "k97fc7h1syqjd84fsgw60y3cy98eps93",
+    "stage": "plan",
+    "summary": "Strategy: products, services, or providers that solve the stated problem — the best solution type is discovered, not assumed · finished means presenting 1 credible solution(s) · 5 search queries queued.",
+    "tool": "llm.plan"
+  },
+  {
+    "_id": "m57f2e5z4e8tjbspvde2xsyd0x8eqx53",
+    "createdAt": 1789809545903,
+    "errorCode": null,
+    "label": "discover.query.done",
+    "reference": null,
+    "stage": "discover",
+    "summary": "Discovery query returned 6 deduplicated sources.",
+    "tool": "firecrawl.search"
+  },
+  {
+    "_id": "m57fzxqrcp1x6tnnewg5hdpwfn8eqvz9",
+    "createdAt": 1789809550522,
+    "errorCode": null,
+    "label": "discover.query.done",
+    "reference": null,
+    "stage": "discover",
+    "summary": "Discovery query returned 6 deduplicated sources.",
+    "tool": "firecrawl.search"
+  },
+  {
+    "_id": "m5720s3c9zk28snyb4xyvb42k18eqqqf",
+    "createdAt": 1789809558581,
+    "errorCode": null,
+    "label": "discover.query.done",
+    "reference": null,
+    "stage": "discover",
+    "summary": "Discovery query returned 6 deduplicated sources.",
+    "tool": "firecrawl.search"
+  },
+  {
+    "_id": "m57d9f5ftbx8a38mxz5exmy1cd8epy8e",
+    "createdAt": 1789809568679,
+    "errorCode": null,
+    "label": "discover.query.done",
+    "reference": null,
+    "stage": "discover",
+    "summary": "Discovery query returned 6 deduplicated sources.",
+    "tool": "firecrawl.search"
+  },
+  {
+    "_id": "m57cxhrgserhfycazjfcb0cq0d8epqtt",
+    "createdAt": 1789809573623,
+    "errorCode": null,
+    "label": "discover.query.done",
+    "reference": null,
+    "stage": "discover",
+    "summary": "Discovery query returned 6 deduplicated sources.",
+    "tool": "firecrawl.search"
+  },
+  {
+    "_id": "m57afs6cgqhpbk99rrxmhk5y598epg8x",
+    "createdAt": 1789809578053,
+    "errorCode": null,
+    "label": "entity.extracted",
+    "reference": "m971aqazjjqd7v63x2p2jnk5ch8eq71t",
+    "stage": "evaluate",
+    "summary": "Extracted Square Appointments (product) with 0 signals.",
+    "tool": "firecrawl.extract"
+  },
+  {
+    "_id": "m573n3dej5gzhagz1310d8fc718eqszd",
+    "createdAt": 1789809585126,
+    "errorCode": null,
+    "label": "entity.extracted",
+    "reference": "m974jwsqnf14ekx2zs6wm9c8mh8epacm",
+    "stage": "evaluate",
+    "summary": "Extracted Shyft Technologies, inc. (organization) with 0 signals.",
+    "tool": "firecrawl.extract"
+  },
+  {
+    "_id": "m57c8ratrbck1pqdrepxta36c58epxts",
+    "createdAt": 1789809587419,
+    "errorCode": null,
+    "label": "entity.extracted",
+    "reference": "m97bdd41a3ajeskd1r0fq1yq098eq7qr",
+    "stage": "evaluate",
+    "summary": "Extracted VectorCare (product) with 0 signals.",
+    "tool": "firecrawl.extract"
+  },
+  {
+    "_id": "m577wjt0j7sf3nbegng7fmn9ex8epe65",
+    "createdAt": 1789809589758,
+    "errorCode": null,
+    "label": "entity.extracted",
+    "reference": "m974sapb2v2pz05rg9htp94nx98eq88h",
+    "stage": "evaluate",
+    "summary": "Extracted Confido Health (product) with 0 signals.",
+    "tool": "firecrawl.extract"
+  },
+  {
+    "_id": "m572g3f0w03dq6f27p55xprx0d8eq6sh",
+    "createdAt": 1789809592153,
+    "errorCode": null,
+    "label": "entity.extracted",
+    "reference": "m977xt12ahtrc5xwnx3y61yr5s8eqesx",
+    "stage": "evaluate",
+    "summary": "Extracted Pabau (product) with 0 signals.",
+    "tool": "firecrawl.extract"
+  },
+  {
+    "_id": "m57dgb40mmc18mwgfy6zdapsjd8epypg",
+    "createdAt": 1789809606227,
+    "errorCode": null,
+    "label": "entity.extracted",
+    "reference": "m973xn3k2tez8bcbwmfj13xg4s8eq60c",
+    "stage": "evaluate",
+    "summary": "Extracted Square (product) with 0 signals.",
+    "tool": "firecrawl.extract"
+  },
+  {
+    "_id": "m578a5g65hzrmwvxn1mfta6cjx8eq25x",
+    "createdAt": 1789809606371,
+    "errorCode": null,
+    "label": "entity.extraction_continues",
+    "reference": null,
+    "stage": "evaluate",
+    "summary": "Resolved 6 sources into entities; more scraped sources remain, so entity resolution continues before matches are explained.",
+    "tool": "firecrawl.extract"
+  },
+  {
+    "_id": "m579aqk8ve9xv8wf2zh05veh0s8eqgax",
+    "createdAt": 1789809609254,
+    "errorCode": null,
+    "label": "entity.extracted",
+    "reference": "m9716r7st4avrsrvkedw21perx8epkbq",
+    "stage": "evaluate",
+    "summary": "Extracted Acuity Scheduling (product) with 1 signal.",
+    "tool": "firecrawl.extract"
+  },
+  {
+    "_id": "m575hrrh1qt2nn0qgcrn3s3yfn8epw7w",
+    "createdAt": 1789809612887,
+    "errorCode": null,
+    "label": "entity.extracted",
+    "reference": "m97bkwegz7jrtvf9cj6y5b6dbd8ep3fq",
+    "stage": "evaluate",
+    "summary": "Extracted Setmore (product) with 0 signals.",
+    "tool": "firecrawl.extract"
+  },
+  {
+    "_id": "m57243sea7c28sr00zg9byp7c18eqpjk",
+    "createdAt": 1789809616362,
+    "errorCode": null,
+    "label": "entity.extracted",
+    "reference": "m97aty7gmz439hh12z0sfhwf358eqa04",
+    "stage": "evaluate",
+    "summary": "Extracted Lunacal (product) with 0 signals.",
+    "tool": "firecrawl.extract"
+  },
+  {
+    "_id": "m57c5g1g6ybqd1vhbgdvypwp298epmd7",
+    "createdAt": 1789809621294,
+    "errorCode": null,
+    "label": "entity.extracted",
+    "reference": "m97815zs1tky2qjnbpcy8t37r58eqvp8",
+    "stage": "evaluate",
+    "summary": "Extracted Calendly (product) with 0 signals.",
+    "tool": "firecrawl.extract"
+  },
+  {
+    "_id": "m573jebkb0m9x8q83k1gn3508n8ep4ap",
+    "createdAt": 1789809625141,
+    "errorCode": "FIRECRAWL_RATE_LIMITED",
+    "label": "entity.snippet_fallback",
+    "reference": "m97bh1xzpdarjpk2trsfwjr02s8eqqcz",
+    "stage": "evaluate",
+    "summary": "Structured extraction unavailable (FIRECRAWL_RATE_LIMITED); kept a snippet-only entity for 11 Best Patient Scheduling Software in 2026 - WaitWell.",
+    "tool": "firecrawl.extract"
+  },
+  {
+    "_id": "m5741da8t5anh00tqmbnvnyshx8eqvyw",
+    "createdAt": 1789809628940,
+    "errorCode": "FIRECRAWL_RATE_LIMITED",
+    "label": "entity.snippet_fallback",
+    "reference": "m97ejn2bfhn6jj0ktgtk7r1f6d8eqpzf",
+    "stage": "evaluate",
+    "summary": "Structured extraction unavailable (FIRECRAWL_RATE_LIMITED); kept a snippet-only entity for Top 11 Healthcare Staff Scheduling Software for 2026 | VH - Vars Health.",
+    "tool": "firecrawl.extract"
+  },
+  {
+    "_id": "m57d1fp6k4s7tn1y09tn02tys98epmh3",
+    "createdAt": 1789809629033,
+    "errorCode": null,
+    "label": "entity.extraction_continues",
+    "reference": null,
+    "stage": "evaluate",
+    "summary": "Resolved 6 sources into entities; more scraped sources remain, so entity resolution continues before matches are explained.",
+    "tool": "firecrawl.extract"
+  },
+  {
+    "_id": "m575p63jeyspt2mhwpemfwjv6d8eq2pp",
+    "createdAt": 1789809633020,
+    "errorCode": "FIRECRAWL_RATE_LIMITED",
+    "label": "entity.snippet_fallback",
+    "reference": "m976sd6j02xm6xy81wn0tcdmqh8epg8x",
+    "stage": "evaluate",
+    "summary": "Structured extraction unavailable (FIRECRAWL_RATE_LIMITED); kept a snippet-only entity for Patient Scheduling Software - WellSky.",
+    "tool": "firecrawl.extract"
+  },
+  {
+    "_id": "m570xnfm8vg9fj0920ac3tzven8eqkyy",
+    "createdAt": 1789809639235,
+    "errorCode": null,
+    "label": "entity.extracted",
+    "reference": "m977q77pcw4h5dn98dhthdyfr98eqbxh",
+    "stage": "evaluate",
+    "summary": "Extracted Virto Shared Calendar (product) with 0 signals.",
+    "tool": "firecrawl.extract"
+  },
+  {
+    "_id": "m5789da0vrm81kddryapz0kwbs8eqjmw",
+    "createdAt": 1789809641320,
+    "errorCode": null,
+    "label": "entity.extracted",
+    "reference": "m975pnfxwaqc345hzp4tvqwvbs8epxft",
+    "stage": "evaluate",
+    "summary": "Extracted Perspecta Roster Management (product) with 0 signals.",
+    "tool": "firecrawl.extract"
+  },
+  {
+    "_id": "m5755hcjfn0rfrwapkq1zvfay18ep3ch",
+    "createdAt": 1789809643538,
+    "errorCode": null,
+    "label": "entity.extracted",
+    "reference": "m97cash1v934brrc6enrjjwyed8eq3mk",
+    "stage": "evaluate",
+    "summary": "Extracted Outpatient Management Software (OMS) (product) with 0 signals.",
+    "tool": "firecrawl.extract"
+  },
+  {
+    "_id": "m57cdw4awt2ya7gscgmfvn2hz98eq6ah",
+    "createdAt": 1789809645488,
+    "errorCode": null,
+    "label": "entity.extracted",
+    "reference": "m9706pm3777mr95apy3qwtwthn8epyvz",
+    "stage": "evaluate",
+    "summary": "Extracted Assured (product) with 0 signals.",
+    "tool": "firecrawl.extract"
+  },
+  {
+    "_id": "m57a406f322ae0c746pm6c72558eqch3",
+    "createdAt": 1789809648032,
+    "errorCode": null,
+    "label": "entity.extracted",
+    "reference": "m979t6wszc6fqpsgpsqdc39ysx8eq7cj",
+    "stage": "evaluate",
+    "summary": "Extracted A Method for Balancing Provider Schedules in Outpatient Specialty Clinics (product) with 0 signals.",
+    "tool": "firecrawl.extract"
+  },
+  {
+    "_id": "m579z62qbdqgyf7x8bvgvj7gb58ep89c",
+    "createdAt": 1789809648141,
+    "errorCode": null,
+    "label": "entity.extraction_continues",
+    "reference": null,
+    "stage": "evaluate",
+    "summary": "Resolved 6 sources into entities; more scraped sources remain, so entity resolution continues before matches are explained.",
+    "tool": "firecrawl.extract"
+  },
+  {
+    "_id": "m57dxvp8n70qdnygtdkhscmx418ep2mn",
+    "createdAt": 1789809650239,
+    "errorCode": null,
+    "label": "entity.extracted",
+    "reference": "m97d40bs1tmt7fd7a7kf49ytbh8eqewb",
+    "stage": "evaluate",
+    "summary": "Extracted Lunacal (product) with 0 signals · merged into an existing entity.",
+    "tool": "firecrawl.extract"
+  },
+  {
+    "_id": "m5764nnwfchpk3dfr251b62zex8eqbn9",
+    "createdAt": 1789809653646,
+    "errorCode": null,
+    "label": "entity.extracted",
+    "reference": "m970w4h3vp9nw7zvrktsags3d18epwm9",
+    "stage": "evaluate",
+    "summary": "Extracted PracticeSuite (product) with 0 signals.",
+    "tool": "firecrawl.extract"
+  },
+  {
+    "_id": "m576zdq95jghc8xgm1s44dkbws8eqje1",
+    "createdAt": 1789809657871,
+    "errorCode": null,
+    "label": "entity.extracted",
+    "reference": "m974x9hd4vpmey3zzdw7ndj4w98epsnb",
+    "stage": "evaluate",
+    "summary": "Extracted Promptly (product) with 0 signals.",
+    "tool": "firecrawl.extract"
+  },
+  {
+    "_id": "m571p0hxtp8n21e504gs9w2kk58eq5wm",
+    "createdAt": 1789809657980,
+    "errorCode": null,
+    "label": "entity.extraction_continues",
+    "reference": null,
+    "stage": "evaluate",
+    "summary": "Resolved 3 sources into entities; more scraped sources remain, so entity resolution continues before matches are explained.",
+    "tool": "firecrawl.extract"
+  },
+  {
+    "_id": "m577qf9rkjt82n0eybkzwwndj58epn01",
+    "createdAt": 1789809660384,
+    "errorCode": null,
+    "label": "entity.extracted",
+    "reference": "m97d40bs1tmt7fd7a7kf49ytbh8eqewb",
+    "stage": "evaluate",
+    "summary": "Extracted Lunacal (product) with 0 signals · merged into an existing entity.",
+    "tool": "firecrawl.extract"
+  },
+  {
+    "_id": "m57db1tayz146v100hftzj5sa18epexv",
+    "createdAt": 1789809660473,
+    "errorCode": null,
+    "label": "entity.extraction_continues",
+    "reference": null,
+    "stage": "evaluate",
+    "summary": "Resolved 1 source into entities; more scraped sources remain, so entity resolution continues before matches are explained.",
+    "tool": "firecrawl.extract"
+  },
+  {
+    "_id": "m57cf5swrewk03hbwqxebgahex8eqxgr",
+    "createdAt": 1789809662675,
+    "errorCode": null,
+    "label": "entity.extracted",
+    "reference": "m97d40bs1tmt7fd7a7kf49ytbh8eqewb",
+    "stage": "evaluate",
+    "summary": "Extracted Lunacal (product) with 0 signals · merged into an existing entity.",
+    "tool": "firecrawl.extract"
+  },
+  {
+    "_id": "m5757ns3dc2cgdj9gr4xx6znwh8ep3pc",
+    "createdAt": 1789809662759,
+    "errorCode": null,
+    "label": "entity.extraction_continues",
+    "reference": null,
+    "stage": "evaluate",
+    "summary": "Resolved 1 source into entities; more scraped sources remain, so entity resolution continues before matches are explained.",
+    "tool": "firecrawl.extract"
+  },
+  {
+    "_id": "m57ah614gm72j93knybkta4b518epfvx",
+    "createdAt": 1789809666692,
+    "errorCode": "FIRECRAWL_RATE_LIMITED",
+    "label": "entity.snippet_fallback",
+    "reference": "m97d40bs1tmt7fd7a7kf49ytbh8eqewb",
+    "stage": "evaluate",
+    "summary": "Structured extraction unavailable (FIRECRAWL_RATE_LIMITED); kept a snippet-only entity for Top 6 Medical Appointment Scheduling Software - Lunacal.ai.",
+    "tool": "firecrawl.extract"
+  }
+]

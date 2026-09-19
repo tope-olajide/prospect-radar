@@ -288,6 +288,94 @@ describe("webhook ingest idempotency", () => {
     expect(providerEvents).toHaveLength(1);
   });
 
+  it("wakes a parked mission when a reply is classified, so the agent reads it", async () => {
+    // The reply is the whole point of a contact mission: the webhook lands on a
+    // mission parked in `wait` with no invocation in flight, so persisting the
+    // classification is not enough — the wake has to hand the mission back to
+    // the orchestrator or the agent never reads what the counterpart wrote.
+    const t = convexTest(schema, convexModules);
+    lastTest = t;
+    // Seed a mission via the public API (same as crawl-success regression test)
+    // so the pipeline converges cleanly when evaluate runs.
+    const missionId = await t.run(async (ctx) => {
+      const { missionId } = await ctx.runMutation(api.missions.create, {
+        workspaceId: WORKSPACE,
+        title: "Find design partners",
+        rawGoal: "Find design partners",
+        constraints: [],
+        sourceScope: "public-web",
+        completionPredicate: "one positive reply",
+      });
+      return missionId as unknown as string;
+    });
+    // Patch the run to wait/waiting (simulates a parked mission).
+    await t.run(async (ctx) => {
+      const run = await ctx.db.query("agentRuns").withIndex("by_missionId", (q) => q.eq("missionId", missionId as never)).first();
+      await ctx.db.patch(run!._id, { status: "waiting" as never, currentStage: "wait" as never });
+    });
+    const messageId = await t.run(async (ctx) =>
+      ctx.db.insert("inboxMessages", {
+        workspaceId: WORKSPACE,
+        agentmailInboxId: "inbox_test",
+        missionId: missionId as never,
+        threadId: "thread_abc",
+        messageId: "m_reply",
+        eventId: "evt_reply",
+        direction: "received" as never,
+        sender: "jordan@example.test",
+        recipients: ["radar@example.test"],
+        subject: "Re: Partnership intro",
+        preview: "Thanks for reaching out — I am interested in learning more.",
+        searchText: "interested",
+        createdAt: Date.now(),
+      }),
+    );
+
+    await t.run((ctx) =>
+      ctx.runMutation(internal.outreachStore.saveClassification, {
+        messageId,
+        label: "interested" as never,
+        confidence: 0.9,
+        summary: "They are interested and want to talk.",
+        suggestedNextAction: "Propose a call.",
+        suggestedDraftId: null,
+        provider: "openai" as never,
+        model: "test-model",
+      }),
+    );
+
+    // The classification moved the run...
+    const moved = await t.run(async (ctx) => {
+      const run = await ctx.db.query("agentRuns").withIndex("by_missionId", (q) => q.eq("missionId", missionId as never)).first();
+      return run ? { status: run.status, currentStage: run.currentStage } : null;
+    });
+    expect({ stage: moved?.currentStage, status: moved?.status }).toEqual({ stage: "evaluate", status: "active" });
+
+    // The wake scheduled runStage — not just moved the label. Draining the
+    // scheduler runs exactly what the wake queued; with nothing queued the run
+    // stays untouched and no stage conclusion event appears. Unset the LLM key
+    // so the evaluate stage fails fast with a non-retryable error instead of
+    // retrying a failed provider call indefinitely.
+    const key = process.env.OPENAI_API_KEY;
+    delete process.env.OPENAI_API_KEY;
+    try {
+      await t.finishAllScheduledFunctions(() => {});
+    } finally {
+      if (key) process.env.OPENAI_API_KEY = key;
+    }
+    const events = await t.run(async (ctx) => {
+      const run = await ctx.db.query("agentRuns").withIndex("by_missionId", (q) => q.eq("missionId", missionId as never)).first();
+      const list = await ctx.db.query("runEvents").withIndex("by_runId", (q) => q.eq("runId", run!._id)).collect();
+      return list.map((entry) => entry.type);
+    });
+    // The evaluate stage must have run and produced its own conclusion.
+    expect(
+      events.some((type) => type === "stage.approval.started" || type === "stage.evaluate.failed"),
+    ).toBe(true);
+    const classification = await t.run(async (ctx) => ctx.db.query("replyClassifications").collect());
+    expect(classification).toHaveLength(1);
+  });
+
   it("ignores a different event type that reuses a known event_id", async () => {
     const t = convexTest(schema, convexModules);
     await seedDraft(t);

@@ -723,6 +723,12 @@ async function wakeRunOnReply(
         eventType: "reply.classified",
         safeSummary: summary,
       });
+      // Waking a parked run means more than moving it: the run had no
+      // invocation in flight, so without this the reply would leave the
+      // mission `active` at `evaluate` with nothing scheduled and the agent
+      // would never read what the counterpart wrote. The webhook that woke it
+      // has to hand the mission back to the orchestrator itself.
+      await ctx.scheduler.runAfter(0, internal.missionOrchestrator.runStage, { missionId });
       return;
     } catch {
       // Fall through to the advisory event below.
