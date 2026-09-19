@@ -20,6 +20,9 @@ import { validateWorkspace } from "./model/auth";
 const SOURCE_TITLE_MAX = 120;
 const SNIPPET_MAX = 20_000;
 
+/** How many of a workspace's chunks a readiness check may scan. */
+const EVIDENCE_CHUNK_LIMIT = 200;
+
 /**
  * Retrieval: the mission-relevant chunks of the user's own sources.
  *
@@ -54,6 +57,81 @@ export const relevantChunks = internalQuery({
       .sort((a, b) => b.rank - a.rank)
       .slice(0, 5)
       .map(({ title, kind, text }) => ({ title, kind, text }));
+  },
+});
+
+/**
+ * Deterministic evidence scan for the context-readiness resolver.
+ *
+ * `relevantChunks` ranks one query against the full-text index, which is the
+ * right tool for a mission goal. Readiness is a different question: it asks
+ * "does any of this user's own material mention X?" for several requirements at
+ * once, and it must be able to see the sentence *around* a match — a negation
+ * ("no React") or an exclusivity marker ("only contract work") is what turns a
+ * mention into a conflict. So this reads a bounded slice of the workspace's
+ * chunks once and returns matched excerpts, tagged with the probe term that
+ * found them and the source they came from.
+ *
+ * Terms arrive in priority order; the first term to hit a chunk claims it, so
+ * the caller's most specific probe wins. Bounded on both axes (chunks read and
+ * excerpt length) because a workspace with many sources must not make a
+ * readiness check unbounded.
+ */
+export const evidenceForTerms = internalQuery({
+  args: { workspaceId: v.string(), terms: v.array(v.string()) },
+  returns: v.array(v.object({
+    term: v.string(),
+    sourceId: v.id("dataSources"),
+    title: v.string(),
+    kind: v.string(),
+    excerpt: v.string(),
+  })),
+  handler: async (ctx, args) => {
+    const needles = [...new Set(args.terms.map((t) => t.trim().toLowerCase()).filter(Boolean))];
+    if (needles.length === 0) return [];
+
+    const chunks = await ctx.db
+      .query("dataSourceChunks")
+      .withIndex("by_workspaceId", (q) => q.eq("workspaceId", args.workspaceId))
+      .take(EVIDENCE_CHUNK_LIMIT);
+    if (chunks.length === 0) return [];
+
+    const matches: Array<{ term: string; sourceId: Id<"dataSources">; start: number; text: string }> = [];
+    for (const chunk of chunks) {
+      const haystack = chunk.text.toLowerCase();
+      for (const needle of needles) {
+        const at = haystack.indexOf(needle);
+        if (at === -1) continue;
+        matches.push({ term: needle, sourceId: chunk.sourceId, start: at, text: chunk.text });
+        break; // one probe per chunk keeps the result bounded
+      }
+    }
+    if (matches.length === 0) return [];
+
+    const sources = new Map(
+      (await Promise.all([...new Set(matches.map((m) => m.sourceId))].map((id) => ctx.db.get(id))))
+        .filter((s): s is NonNullable<typeof s> => s !== null)
+        .map((s) => [s._id, s]),
+    );
+
+    const out: Array<{ term: string; sourceId: Id<"dataSources">; title: string; kind: string; excerpt: string }> = [];
+    const seen = new Set<string>();
+    for (const match of matches) {
+      const source = sources.get(match.sourceId);
+      if (!source || source.status === "archived") continue;
+      const key = `${match.sourceId}:${match.term}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({
+        term: match.term,
+        sourceId: match.sourceId,
+        title: source.title,
+        kind: source.kind,
+        // The window around the hit carries the negation/exclusivity signal.
+        excerpt: boundedText(match.text.slice(Math.max(0, match.start - 90), match.start + 170), 260),
+      });
+    }
+    return out;
   },
 });
 

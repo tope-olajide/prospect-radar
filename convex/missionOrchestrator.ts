@@ -194,16 +194,19 @@ export const runStage = internalAction({
           // and ask for exactly what is missing.
           const readiness = await ctx.runQuery(internal.contextCheck.readinessForMission, { missionId: args.missionId });
           if (!readiness.ready) {
-            const missingRequired = readiness.missingRequired;
-            const questions = readiness.requirements
-              .filter((r) => !r.satisfied && r.criticality !== "nice_to_have")
-              .map((r) => r.question);
-            const summary = questions.length > 0
-              ? `Radar needs a few details before it can plan: ${questions[0]}`
-              : "Radar needs more information before it can plan.";
+            // A conflict is a different ask from a gap: Radar has two answers and
+            // needs the user to settle which is true. Lead with it.
+            const conflicts = readiness.requirements.filter((r) => r.trustLevel === "conflict");
+            const asks = readiness.requirements.filter((r) => !r.satisfied && r.criticality !== "nice_to_have");
+            const summary = conflicts.length > 0
+              ? `Radar found conflicting information it needs you to settle: ${conflicts[0].question}`
+              : asks.length > 0
+                ? `Radar needs ${asks.length === 1 ? "one detail" : `${asks.length} details`} before it can plan: ${asks[0].question}`
+                : "Radar needs more information before it can plan.";
             await ctx.runMutation(internal.orchestratorStore.stageDone, {
               missionId: args.missionId, stage: "context_check", nextStage: "context_check",
-              eventType: "context_check.waiting", summary,
+              eventType: conflicts.length > 0 ? "context_check.conflict" : "context_check.waiting",
+              summary,
             });
             await ctx.runMutation(internal.runs.transition, {
               missionId: args.missionId, targetStage: "context_check", targetStatus: "waiting",
@@ -212,10 +215,26 @@ export const runStage = internalAction({
             });
             return null;
           }
+          // Ready. Evidence-only items are recorded, because they change what
+          // Radar may do later: research yes, represent the user no.
+          if (readiness.unauthorized.length > 0) {
+            await ctx.runMutation(internal.runs.recordStepForAction, {
+              missionId: args.missionId,
+              stage: "context_check",
+              label: "context_check.source_backed",
+              summary: `${readiness.unauthorized.join(", ")} came from your sources, not from you. Radar will use ${readiness.unauthorized.length === 1 ? "it" : "them"} to research and match, but will not state ${readiness.unauthorized.length === 1 ? "it" : "them"} as your claim until you confirm.`,
+              reference: null,
+              errorCode: null,
+              tool: "context",
+            });
+          }
           // All required info is present — proceed to plan review.
           await ctx.runMutation(internal.orchestratorStore.stageDone, {
             missionId: args.missionId, stage: "context_check", nextStage: "plan_review",
-            eventType: "stage.plan_review.started", summary: "Radar has enough information — plan ready.",
+            eventType: "stage.plan_review.started",
+            summary: readiness.unauthorized.length > 0
+              ? "Radar has enough information to research — plan ready."
+              : "Radar has enough information — plan ready.",
           });
           await ctx.runMutation(internal.runs.transition, {
             missionId: args.missionId, targetStage: "plan_review", targetStatus: "waiting",

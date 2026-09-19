@@ -3,6 +3,7 @@ import type { Id } from "./_generated/dataModel";
 import { internalMutation, internalQuery, mutation } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { validateWorkspace } from "./model/auth";
+import { categoryForRequirement } from "./contextRequirements";
 
 /**
  * Transactional bookkeeping for the mission orchestrator. Kept in a
@@ -355,49 +356,92 @@ export const advanceToExecute = internalMutation({
  * can reuse it across future missions without asking again.
  */
 export const answerContextCheck = mutation({
-  args: { workspaceId: v.string(), missionId: v.id("missions"), key: v.string(), answer: v.string() },
-  returns: v.object({ factId: v.id("contextFacts"), resumed: v.boolean() }),
-  handler: async (ctx, args): Promise<{ factId: Id<"contextFacts">; resumed: boolean }> => {
+  args: {
+    workspaceId: v.string(),
+    missionId: v.id("missions"),
+    key: v.string(),
+    /** Omitted when the user attached a source instead of typing an answer. */
+    answer: v.optional(v.string()),
+    /** Confirmed facts the user overruled while settling a conflict. */
+    supersedes: v.optional(v.array(v.id("contextFacts"))),
+    /** Set when the user attached a source instead of answering, so the mission
+     * re-checks readiness against the newly ingested evidence. */
+    sourceAdded: v.optional(v.boolean()),
+  },
+  returns: v.object({
+    factId: v.union(v.id("contextFacts"), v.null()),
+    rejected: v.number(),
+    resumed: v.boolean(),
+  }),
+  handler: async (ctx, args): Promise<{ factId: Id<"contextFacts"> | null; rejected: number; resumed: boolean }> => {
     await validateWorkspace(ctx, args.workspaceId);
     const mission = await ctx.db.get(args.missionId);
     if (!mission || mission.workspaceId !== args.workspaceId) {
       throw new Error("FORBIDDEN_SCOPE: mission is not in this workspace.");
     }
-    const answer = args.answer.trim().slice(0, 600);
-    if (!answer) throw new Error("INVALID_ARGUMENT: an answer is required.");
     const now = Date.now();
+    const answer = args.answer?.trim().slice(0, 600) ?? "";
+    // The requirement key is the user-facing handle; the fact category is what
+    // the resolver reads. Translating here means the client cannot store an
+    // answer under a category that no requirement ever inspects.
+    const category = categoryForRequirement(mission.intent?.primary ?? mission.mode, args.key);
 
-    // Persist the answer as a confirmed workspace fact, so it persists across
-    // missions. The category mirrors the requirement key so the readiness
-    // checker can match it.
-    const factId = await ctx.db.insert("contextFacts", {
-      workspaceId: args.workspaceId,
-      missionId: null, // workspace-wide: reusable across missions
-      category: args.key,
-      value: answer,
-      sourceType: "user_input",
-      sourceReference: null,
-      confidence: 1,
-      verificationStatus: "user_confirmed",
-      visibility: "workspace",
-      createdAt: now,
-      updatedAt: now,
-    });
+    // Persist the answer as a confirmed workspace fact, so it outlives this
+    // mission and satisfies the same requirement on future ones.
+    let factId: Id<"contextFacts"> | null = null;
+    if (answer) {
+      factId = await ctx.db.insert("contextFacts", {
+        workspaceId: args.workspaceId,
+        missionId: null, // workspace-wide: reusable across missions
+        category,
+        value: answer,
+        sourceType: "user_input",
+        sourceReference: null,
+        confidence: 1,
+        verificationStatus: "user_confirmed",
+        visibility: "workspace",
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
 
-    // Log the answer as a run event.
+    // Settling a conflict is a rejection of the losing value, not a deletion:
+    // rejected facts stay visible to the user and are excluded from agent
+    // reasoning, which is exactly the outcome wanted here.
+    let rejected = 0;
+    for (const id of args.supersedes ?? []) {
+      const fact = await ctx.db.get(id);
+      if (!fact || fact.workspaceId !== args.workspaceId) continue;
+      if (fact.verificationStatus === "user_rejected") continue;
+      await ctx.db.patch(id, { verificationStatus: "user_rejected", updatedAt: now });
+      rejected += 1;
+    }
+
+    // An empty call with nothing to show for it is a client bug, not a resume.
+    if (!answer && rejected === 0 && !args.sourceAdded) {
+      throw new Error("INVALID_ARGUMENT: an answer, a resolution, or an added source is required.");
+    }
+
+    // Log the interaction as a run event.
     const run = await ctx.db.query("agentRuns").withIndex("by_missionId", (q) => q.eq("missionId", args.missionId)).first();
     if (run) {
+      const summary = answer
+        ? `Provided: ${args.key} = ${answer.slice(0, 80)}${rejected > 0 ? ` (overruled ${rejected} earlier fact${rejected === 1 ? "" : "s"})` : ""}`
+        : rejected > 0
+          ? `Resolved the conflict over ${args.key} by rejecting ${rejected} earlier fact${rejected === 1 ? "" : "s"}`
+          : `Added a source for ${args.key}`;
       await ctx.db.insert("runEvents", {
         missionId: args.missionId,
         runId: run._id,
-        type: "context_check.answered",
+        type: rejected > 0 ? "context_check.conflict_resolved" : "context_check.answered",
         stage: "context_check" as Stage,
-        safeSummary: `Provided: ${args.key} = ${answer.slice(0, 80)}`,
+        safeSummary: summary,
         createdAt: now,
       });
     }
 
-    // Resume: re-run the readiness check, which will now see the new fact.
+    // Resume: re-run the readiness check, which now sees the new fact, the
+    // rejected one, or the newly ingested source.
     let resumed = false;
     if (run) {
       try {
@@ -414,7 +458,7 @@ export const answerContextCheck = mutation({
         await ctx.scheduler.runAfter(0, internal.missionOrchestrator.runStage, { missionId: args.missionId });
       }
     }
-    return { factId, resumed };
+    return { factId, rejected, resumed };
   },
 });
 
