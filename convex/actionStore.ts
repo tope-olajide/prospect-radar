@@ -37,6 +37,14 @@ export const saveDecision = internalMutation({
     reason: v.string(),
     detail: v.string(),
     targetUrl: v.union(v.string(), v.null()),
+    // ── The trace ──
+    evidence: v.optional(v.array(v.string())),
+    capability: v.optional(v.union(v.string(), v.null())),
+    usedFacts: v.optional(v.array(v.object({ category: v.string(), value: v.string() }))),
+    artifacts: v.optional(v.array(v.object({ sourceId: v.id("dataSources"), title: v.string() }))),
+    alternatives: v.optional(v.array(v.object({ decision: v.string(), reason: v.string() }))),
+    nextStage: v.optional(v.string()),
+    missingEvidence: v.optional(v.union(v.string(), v.null())),
   },
   returns: v.id("actionDecisions"),
   handler: async (ctx, args) => {
@@ -55,6 +63,13 @@ export const saveDecision = internalMutation({
       reason: args.reason,
       detail: args.detail,
       targetUrl: args.targetUrl,
+      evidence: args.evidence,
+      capability: args.capability ?? undefined,
+      usedFacts: args.usedFacts,
+      artifacts: args.artifacts,
+      alternatives: args.alternatives,
+      nextStage: args.nextStage,
+      missingEvidence: args.missingEvidence ?? undefined,
       updatedAt: now,
     };
     if (existing) {
@@ -75,6 +90,14 @@ export const decisionsForMission = internalQuery({
     actionability: actionabilityValue,
     reason: v.string(),
     detail: v.string(),
+    evidence: v.array(v.string()),
+    capability: v.union(v.string(), v.null()),
+    usedFacts: v.array(v.object({ category: v.string(), value: v.string() })),
+    artifacts: v.array(v.object({ sourceId: v.id("dataSources"), title: v.string() })),
+    alternatives: v.array(v.object({ decision: v.string(), reason: v.string() })),
+    nextStage: v.union(v.string(), v.null()),
+    missingEvidence: v.union(v.string(), v.null()),
+    createdAt: v.number(),
   })),
   handler: async (ctx, args) => {
     const rows = await ctx.db
@@ -89,7 +112,40 @@ export const decisionsForMission = internalQuery({
       actionability: row.actionability,
       reason: row.reason,
       detail: row.detail,
+      evidence: row.evidence ?? [],
+      capability: row.capability ?? null,
+      usedFacts: row.usedFacts ?? [],
+      artifacts: row.artifacts ?? [],
+      alternatives: row.alternatives ?? [],
+      nextStage: row.nextStage ?? null,
+      missingEvidence: row.missingEvidence ?? null,
+      createdAt: row.createdAt,
     }));
+  },
+});
+
+/**
+ * The authorized context an action may represent the user with.
+ *
+ * This is the same set the draft and form paths draw on — user-confirmed or
+ * user-corrected facts, workspace-wide or scoped to this mission — recorded on
+ * the decision so the trace states which context the action had available,
+ * rather than leaving it to be inferred later.
+ */
+export const authorizedContextFor = internalQuery({
+  args: { workspaceId: v.string(), missionId: v.id("missions") },
+  returns: v.array(v.object({ category: v.string(), value: v.string() })),
+  handler: async (ctx, args) => {
+    const rows = await ctx.db
+      .query("contextFacts")
+      .withIndex("by_workspaceId", (q) => q.eq("workspaceId", args.workspaceId))
+      .take(200);
+    return rows
+      .filter((row) =>
+        ["user_confirmed", "user_corrected"].includes(row.verificationStatus) &&
+        (row.missionId === null || row.missionId === args.missionId))
+      .slice(0, 20)
+      .map((row) => ({ category: row.category, value: row.value }));
   },
 });
 
@@ -134,6 +190,7 @@ export const candidateInputs = internalQuery({
     alreadyActioned: v.boolean(),
     investigateUrl: v.union(v.string(), v.null()),
     evidenceCount: v.number(),
+    evidence: v.array(v.string()),
   })),
   handler: async (ctx, args) => {
     const matches = await ctx.db
@@ -185,6 +242,9 @@ export const candidateInputs = internalQuery({
         // counterpart's own site first, then the page Radar matched.
         investigateUrl: entity?.canonicalUrl || source.url || null,
         evidenceCount: match.positiveEvidence.length,
+        // The cited evidence itself, so the persisted decision can show what it
+        // rested on rather than only how much there was.
+        evidence: match.positiveEvidence.slice(0, 5),
       });
     }
     return out;

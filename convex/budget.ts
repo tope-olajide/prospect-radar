@@ -139,6 +139,19 @@ export const charge = internalMutation({
  * The pre-flight gate. Called before any provider call the orchestrator is
  * about to make; returns whether the estimate fits inside the remaining budget.
  */
+/**
+ * Whether an estimated call fits inside the remaining budget.
+ *
+ * Extracted so read-only surfaces — the capability query the UI reads — can ask
+ * the same question the orchestrator asks before spending, without duplicating
+ * the arithmetic and drifting from it.
+ */
+export async function allowedFor(ctx: QueryCtx, workspaceId: string, estimate: number): Promise<boolean> {
+  const creditLimit = await limitFor(ctx, workspaceId);
+  const used = await usedFor(ctx, workspaceId);
+  return Math.max(0, creditLimit - used) >= Math.max(0, Math.floor(estimate));
+}
+
 export const check = internalQuery({
   args: { workspaceId: v.string(), estimate: v.number() },
   returns: v.object({ allowed: v.boolean(), creditLimit: v.number(), used: v.number(), remaining: v.number(), estimate: v.number() }),

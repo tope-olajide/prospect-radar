@@ -14,6 +14,7 @@ import type * as actions from "../actions.js";
 import type * as ai from "../ai.js";
 import type * as auth from "../auth.js";
 import type * as budget from "../budget.js";
+import type * as capabilities from "../capabilities.js";
 import type * as claimGuard from "../claimGuard.js";
 import type * as commandCenter from "../commandCenter.js";
 import type * as context from "../context.js";
@@ -66,6 +67,7 @@ declare const fullApi: ApiFromModules<{
   ai: typeof ai;
   auth: typeof auth;
   budget: typeof budget;
+  capabilities: typeof capabilities;
   claimGuard: typeof claimGuard;
   commandCenter: typeof commandCenter;
   context: typeof context;

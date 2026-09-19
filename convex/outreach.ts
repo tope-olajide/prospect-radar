@@ -146,6 +146,56 @@ type SendResult = {
  * `null`: it selects drafts by mission through an internal query, so there is no
  * client-supplied scope to check, and inventing one would assert nothing.
  */
+/** Attachments larger than this are refused rather than silently dropped. */
+const MAX_ATTACHMENT_BYTES = 8 * 1024 * 1024;
+
+/**
+ * Materializes the authorized artifacts an approved draft carries.
+ *
+ * Fails closed. If the user approved a message *with a portfolio attached*, the
+ * approval is for that action; sending the message without the attachment would
+ * be a different action than the one approved. So an unreadable or oversized
+ * artifact aborts the send and surfaces why, rather than quietly sending less
+ * than was approved.
+ */
+async function buildAttachments(
+  ctx: ActionCtx,
+  artifactIds: Id<"dataSources">[],
+): Promise<Array<{ filename: string; content: string; content_type?: string }>> {
+  const out: Array<{ filename: string; content: string; content_type?: string }> = [];
+  for (const sourceId of artifactIds) {
+    const source = await ctx.runQuery(internal.outreachStore.artifactForSend, { sourceId });
+    if (!source || source.representationAllowed !== true) {
+      throw new Error("ARTIFACT_UNAVAILABLE: an approved attachment is no longer authorized; approve the action again.");
+    }
+    const filename = source.title || "attachment";
+    if (source.fileId) {
+      const blob = await ctx.storage.get(source.fileId);
+      if (!blob) throw new Error(`ARTIFACT_UNAVAILABLE: ${filename} could not be read from storage.`);
+      const bytes = await blob.arrayBuffer();
+      if (bytes.byteLength > MAX_ATTACHMENT_BYTES) {
+        throw new Error(`ARTIFACT_TOO_LARGE: ${filename} is larger than ${Math.floor(MAX_ATTACHMENT_BYTES / (1024 * 1024))}MB.`);
+      }
+      out.push({
+        filename,
+        content: Buffer.from(bytes).toString("base64"),
+        content_type: blob.type || undefined,
+      });
+      continue;
+    }
+    if (source.text) {
+      const bytes = Buffer.from(source.text, "utf8");
+      if (bytes.byteLength > MAX_ATTACHMENT_BYTES) {
+        throw new Error(`ARTIFACT_TOO_LARGE: ${filename} is larger than ${Math.floor(MAX_ATTACHMENT_BYTES / (1024 * 1024))}MB.`);
+      }
+      out.push({ filename, content: bytes.toString("base64"), content_type: "text/plain" });
+      continue;
+    }
+    throw new Error(`ARTIFACT_UNAVAILABLE: ${filename} has no content to attach.`);
+  }
+  return out;
+}
+
 async function performSend(
   ctx: ActionCtx,
   args: { actionId: Id<"actionDrafts">; expectedWorkspaceId: string | null },
@@ -169,8 +219,11 @@ async function performSend(
     const approval = await ctx.runQuery(internal.outreachStore.activeApprovalFor, { actionId: args.actionId });
     if (!approval) throw new Error("APPROVAL_REQUIRED: no active approval exists for this draft.");
     // Recompute the hash from the stored content at send time: an approval is
-    // bound to exact bytes, so any drift between approval and draft fails closed.
-    const sendTimeHash = await contentHash(draftRow.recipient, draftRow.subject, draftRow.body);
+    // bound to exact bytes — and to the exact attachments — so any drift between
+    // approval and draft fails closed.
+    const sendTimeHash = await contentHash(
+      draftRow.recipient, draftRow.subject, draftRow.body, "send_email", draftRow.artifactIds ?? [],
+    );
     if (approval.contentHash !== sendTimeHash || draftRow.contentHash !== sendTimeHash) {
       throw new Error("APPROVAL_STALE: draft changed after approval; approve again.");
     }
@@ -181,10 +234,14 @@ async function performSend(
       return { actionId: draftRow._id, status: "executing" as const, outboundId: null, providerMessageId: null, threadId: null };
     }
     try {
+      // Authorized artifacts travel with the message, not beside it: what the
+      // user approved is the whole action, attachments included.
+      const attachments = await buildAttachments(ctx, draftRow.artifactIds ?? []);
       const payload = {
         to: draftRow.recipient,
         subject: draftRow.subject,
         text: draftRow.body,
+        ...(attachments.length > 0 ? { attachments } : {}),
       };
       const outboundId = draftRow.inReplyTo
         ? await agentmail.replyToMessage(componentCtx(ctx), draftRow.agentmailInboxId, draftRow.inReplyTo, payload)

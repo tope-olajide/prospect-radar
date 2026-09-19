@@ -3,8 +3,20 @@ export async function contentHash(
   subject: string,
   body: string,
   capability = "send_email",
+  artifactIds: string[] = [],
 ) {
-  const canonical = JSON.stringify({ capability, recipient: recipient.trim(), subject: subject.trim(), body });
+  // An approval covers the *whole* action, attachments included: approving a
+  // message that carries a portfolio is a different act from approving one that
+  // does not, so the attachment set is part of the binding. The key is omitted
+  // when there is nothing attached, so hashes for attachment-free drafts are
+  // unchanged and approvals given before artifacts existed still verify.
+  const canonical = JSON.stringify({
+    capability,
+    recipient: recipient.trim(),
+    subject: subject.trim(),
+    body,
+    ...(artifactIds.length > 0 ? { artifacts: [...new Set(artifactIds)].sort() } : {}),
+  });
   const bytes = new TextEncoder().encode(canonical);
   const digest = await crypto.subtle.digest("SHA-256", bytes);
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");

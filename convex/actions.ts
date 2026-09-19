@@ -24,7 +24,7 @@ import {
   MAX_PROPOSALS_PER_PASS,
   decideAction,
   decisionRank,
-  policyForIntent,
+  resolveSuccessPolicy,
   type CandidateInput,
   type RouteKind,
 } from "./actionDecision";
@@ -75,13 +75,35 @@ export const decideForMission = internalAction({
     const candidates = await ctx.runQuery(internal.actionStore.candidateInputs, {
       missionId: args.missionId,
     });
+    // Everything the action may *represent* the user with, and the artifacts it
+    // may attach, resolved once and recorded on the decision so the trace states
+    // what context an action had rather than leaving it to be inferred.
+    const authorizedContext = await ctx.runQuery(internal.actionStore.authorizedContextFor, {
+      workspaceId: mission.workspaceId,
+      missionId: args.missionId,
+    });
+    const artifacts = await ctx.runQuery(internal.dataSources.authorizedArtifactsFor, {
+      workspaceId: mission.workspaceId,
+      goal: mission.rawGoal,
+    });
 
     const intent = mission.intent?.primary ?? mission.mode;
+    // The finish line comes from the plan when it states one, so a user who
+    // asked for ten clinics gets a finding mission and one who asked for a
+    // reply gets an outreach mission — the intent label only decides the shape
+    // of the work, not whether Radar contacts anyone.
+    const plannedObjective = await ctx.runQuery(internal.plans.objectiveFor, { missionId: args.missionId });
+    const objective = resolveSuccessPolicy(plannedObjective, intent);
+    const firecrawlKey = process.env.FIRECRAWL_API_KEY;
     const missionInput = {
       intent,
       hasInbox: Boolean(inbox),
       investigationsUsed,
       budgetAllowed: budget.allowed,
+      objective,
+      // Only a readable empty value counts as "no provider"; an unreadable env
+      // must not make the agent give up on research it could actually do.
+      researchConfigured: typeof firecrawlKey === "string" ? firecrawlKey.trim().length > 0 : true,
     };
 
     // Decide for every candidate, so the reasons are all on the record even
@@ -98,8 +120,12 @@ export const decideForMission = internalAction({
         alreadyActioned: candidate.alreadyActioned,
         investigateUrl: candidate.investigateUrl,
         evidenceCount: candidate.evidenceCount,
+        evidence: candidate.evidence,
       };
       const decision = decideAction(input, missionInput);
+      // Only an action that carries the user's material records the context and
+      // artifacts it would use; a blocked or research-only decision uses none.
+      const carriesUserMaterial = decision.decision === "send_email" || decision.decision === "submit_form";
       await ctx.runMutation(internal.actionStore.saveDecision, {
         workspaceId: mission.workspaceId,
         missionId: args.missionId,
@@ -110,6 +136,13 @@ export const decideForMission = internalAction({
         reason: decision.reason,
         detail: decision.detail,
         targetUrl: decision.targetUrl,
+        evidence: candidate.evidence,
+        capability: decision.capability,
+        usedFacts: carriesUserMaterial ? authorizedContext : [],
+        artifacts: carriesUserMaterial && decision.decision === "send_email" ? artifacts.map((row) => ({ sourceId: row.sourceId, title: row.title })) : [],
+        alternatives: decision.alternatives,
+        nextStage: decision.nextStage,
+        missingEvidence: decision.missingEvidence,
       });
       decided.push({ decision, sourceId: candidate.sourceId });
     }
@@ -160,6 +193,7 @@ export const decideForMission = internalAction({
             matchId: decision.matchId as never,
             agentmailInboxId: inbox.agentmailInboxId,
             clientRequestId: `mission-${args.missionId}-match-${decision.matchId}`,
+            artifactIds: artifacts.map((row) => row.sourceId),
           });
           if (!result.actionId) {
             // The model produced a message but no address could be verified, or
@@ -184,7 +218,7 @@ export const decideForMission = internalAction({
             missionId: args.missionId,
             stage: "approval",
             label: "action.proposed",
-            summary: `Proposed outreach to ${result.recipient} (${decision.quality} match): ${result.subject}. Nothing sends until you approve the exact content.`,
+            summary: `Proposed outreach to ${result.recipient} (${decision.quality} match): ${result.subject}${result.artifactIds.length > 0 ? `, with ${result.artifactIds.length} of your document(s) attached` : ""}. Nothing sends until you approve the exact content.`,
             reference: result.subject,
             errorCode: null,
             tool: "openai.draft",
@@ -276,11 +310,10 @@ export const decideForMission = internalAction({
     const unactioned = decided.find((row) =>
       row.decision.decision === "no_action" && !attempted.has(row.decision.matchId),
     );
-    const policy = policyForIntent(intent);
     const fallback = decided.length === 0
       ? { reason: "no_candidates", detail: "Radar found no candidates for this goal." }
-      : resultOnly > 0 && policy.success.kind !== "contact_and_wait"
-        ? { reason: policy.success.kind, detail: "This mission is about finding the result, not contacting anyone." }
+      : resultOnly > 0 && objective.kind !== "contact_and_wait"
+        ? { reason: objective.kind, detail: "This mission is about finding the result, not contacting anyone." }
         : { reason: null, detail: null };
 
     return {
