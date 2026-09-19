@@ -985,43 +985,6 @@ export const matchDraftContext = internalQuery({
   },
 });
 
-/**
- * The best email-reachable matches for a mission, best first.
- *
- * This is what lets the agent choose who is worth contacting instead of asking
- * the user to pick from a list. Ranking mirrors the explanation labels; a match
- * is only offered when its resolved entity has a **verified email route**, so
- * the agent never proposes outreach it cannot actually address. Form-only
- * entities are deliberately excluded — submitting a form is a different action
- * type with its own approval path, not an email.
- */
-export const actionableMatches = internalQuery({
-  args: { missionId: v.id("missions") },
-  returns: v.array(v.object({ matchId: v.id("matches"), label: v.string() })),
-  handler: async (ctx, args) => {
-    const rank: Record<string, number> = { stronger: 0, promising: 1, uncertain: 2 };
-    const matches = await ctx.db.query("matches")
-      .withIndex("by_missionId", (q) => q.eq("missionId", args.missionId))
-      .collect();
-    const ranked: Array<{ matchId: Id<"matches">; label: string; rank: number }> = [];
-    for (const match of matches) {
-      const order = rank[match.label];
-      if (order === undefined) continue; // "insufficient": evidence does not support the goal
-      const source = await ctx.db.get(match.sourceId);
-      if (!source) continue;
-      const entity = await ctx.db.query("entities")
-        .withIndex("by_sourceId", (q) => q.eq("sourceId", source._id))
-        .first();
-      const route = entity?.contactRoute;
-      if (!route || route.kind !== "email") continue;
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(route.value)) continue;
-      ranked.push({ matchId: match._id, label: match.label, rank: order });
-    }
-    ranked.sort((a, b) => a.rank - b.rank);
-    return ranked.map(({ matchId, label }) => ({ matchId, label }));
-  },
-});
-
 const componentCrawlStatus = v.union(v.literal("scraping"), v.literal("completed"), v.literal("failed"), v.literal("cancelled"));
 
 export const latestCrawlProgress = query({

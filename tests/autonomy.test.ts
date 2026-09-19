@@ -14,10 +14,15 @@ import { contentHash } from "../convex/hash";
  *
  *   1. approving content resumes the mission — execution is scheduled by the
  *      state machine, not by a page calling `send`;
- *   2. the agent proposes an action only when it has somewhere to send from and
- *      a counterpart it can actually reach — otherwise it asks.
+ *   2. a clarification answer becomes reusable context and the run resumes
+ *      itself rather than sitting `active` with nothing scheduled.
  *
  * Both use real persisted state. Nothing here fakes progress.
+ *
+ * The action-selection guarantees that used to live here (propose only with a
+ * sending inbox and a verifiably reachable counterpart) have moved to
+ * `actionDecision.test.ts`, where the decision layer that now owns them is
+ * tested against seeded candidates instead of a bare mission.
  */
 
 const convexModules = import.meta.glob("../convex/**/*.*s");
@@ -269,29 +274,5 @@ describe("answering a clarification resumes the mission", () => {
       ctx.db.query("runEvents").withIndex("by_missionId", (q) => q.eq("missionId", missionId)).collect(),
     );
     expect(events.some((event) => event.type === "clarification.answered")).toBe(true);
-  });
-});
-
-describe("the agent proposes actions on its own terms", () => {
-  it("refuses to propose without a sending inbox, and drafts nothing", async () => {
-    const t = convexTest(schema, convexModules);
-    const { missionId } = await seedGate(t, { inbox: false });
-
-    const result = await t.action(internal.outreach.proposeForMission, { missionId });
-
-    expect(result).toEqual({ proposed: 0, reason: "no_inbox" });
-    const drafts = await t.run(async (ctx) => ctx.db.query("actionDrafts").collect());
-    expect(drafts).toHaveLength(1); // only the seeded draft; no invented recipient
-  });
-
-  it("proposes nothing when no match has a verified reachable channel", async () => {
-    const t = convexTest(schema, convexModules);
-    const { missionId } = await seedGate(t);
-
-    const result = await t.action(internal.outreach.proposeForMission, { missionId });
-
-    // An inbox exists, but no match with an email route does: Radar asks rather
-    // than addressing a message to a counterpart it cannot reach.
-    expect(result).toEqual({ proposed: 0, reason: "no_reachable_match" });
   });
 });

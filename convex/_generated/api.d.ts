@@ -8,9 +8,13 @@
  * @module
  */
 
+import type * as actionDecision from "../actionDecision.js";
+import type * as actionStore from "../actionStore.js";
+import type * as actions from "../actions.js";
 import type * as ai from "../ai.js";
 import type * as auth from "../auth.js";
 import type * as budget from "../budget.js";
+import type * as claimGuard from "../claimGuard.js";
 import type * as commandCenter from "../commandCenter.js";
 import type * as context from "../context.js";
 import type * as contextCheck from "../contextCheck.js";
@@ -56,9 +60,13 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  actionDecision: typeof actionDecision;
+  actionStore: typeof actionStore;
+  actions: typeof actions;
   ai: typeof ai;
   auth: typeof auth;
   budget: typeof budget;
+  claimGuard: typeof claimGuard;
   commandCenter: typeof commandCenter;
   context: typeof context;
   contextCheck: typeof contextCheck;

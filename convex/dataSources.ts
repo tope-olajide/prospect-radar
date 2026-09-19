@@ -37,10 +37,26 @@ export const relevantChunks = internalQuery({
   handler: async (ctx, args) => {
     const trimmed = args.query.trim();
     if (!trimmed) return [];
-    const rows = await ctx.db
-      .query("dataSourceChunks")
-      .withSearchIndex("search_text", (q) => q.search("searchText", trimmed).eq("workspaceId", args.workspaceId))
-      .take(12);
+    // The full-text index is the ranked path. If it is unavailable, fall back to
+    // a bounded scan that keeps any chunk mentioning a goal term, so a missing
+    // index degrades retrieval rather than failing the caller that asked for
+    // context (the outreach draft path cannot do its job without it).
+    let rows: Array<{ sourceId: Id<"dataSources">; text: string; _creationTime: number }> = [];
+    try {
+      rows = await ctx.db
+        .query("dataSourceChunks")
+        .withSearchIndex("search_text", (q) => q.search("searchText", trimmed).eq("workspaceId", args.workspaceId))
+        .take(12);
+    } catch {
+      const probe = [...new Set(trimmed.toLowerCase().split(/\s+/).filter((word) => word.length >= 4))];
+      const scanned = await ctx.db
+        .query("dataSourceChunks")
+        .withIndex("by_workspaceId", (q) => q.eq("workspaceId", args.workspaceId))
+        .take(EVIDENCE_CHUNK_LIMIT);
+      rows = scanned
+        .filter((chunk) => probe.length === 0 || probe.some((word) => chunk.text.toLowerCase().includes(word)))
+        .slice(0, 12);
+    }
     if (rows.length === 0) return [];
     const sources = new Map(
       (await Promise.all([...new Set(rows.map((r) => r.sourceId))].map((id) => ctx.db.get(id))))

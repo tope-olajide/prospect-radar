@@ -14,9 +14,83 @@
 - **Auth:** Convex Auth
 - **AI models:** any OpenAI-compatible model via OPENAI_BASE_URL / OPENAI_MODEL (DashScope qwen-max in production; provider recorded on plans and classifications)
 - **Started:** 2026-09-13T00:00:00Z
-- **Last updated:** 2026-09-19T18:30:00Z
+- **Last updated:** 2026-09-19T21:10:00Z
 
 ## Log
+
+### 2026-09-19 - working tree — Phase 4: autonomous action intelligence
+Added the decision layer between "what did Radar find?" and "what did Radar do
+about it?", and made it generic rather than outreach-only.
+
+**Match quality and actionability are now separate facts.** A candidate carries
+its evaluated fit and, independently, whether anything can legitimately be done
+about it: `ready`, `investigate`, `blocked`, `result_only` or `not_actionable`,
+with a machine-readable reason persisted per (mission, match) in the new
+`actionDecisions` table. A strong match with no verifiable route is `blocked`,
+not acted on; a vague match on thin evidence is worth investigating; a wrong fit
+is not actionable at all. `no_action` with a reason is a legitimate outcome, and
+for research-shaped intents it is the *correct* one.
+
+**Intent changes what success is, not just what to search for.**
+`find_solution` and `find_business` do not cold-contact anyone: a good solution
+found is the deliverable. This is proven rather than asserted — `find_solution`
+produces a `result_only` decision and the mission completes on its finding with
+zero drafts, while a contact-shaped mission is not completed by finding a match
+alone. `checkCompletion` is now policy-driven, so "one email sent" stopped being
+the universal definition of done.
+
+**Capabilities are declared.** `actionDecision.CAPABILITIES` records what Radar
+can actually execute (email, forms, deeper research) and what it cannot yet
+(meetings, LinkedIn, SMS). A counterpart reachable only through an unsupported
+route is reported as such rather than silently turned into an email, because an
+agent that promises an action the backend cannot perform is worse than one that
+says it cannot.
+
+**The system prompt alone no longer holds the trust boundary.** `draftMessage`
+now receives two explicitly separate blocks — `authorizedProfile` (the only
+material a message may assert about the user) and `senderOwnMaterial` (background
+for relevance, never a claim) — and `convex/claimGuard.ts` checks the finished
+draft. A first-person assertion that leans on a term appearing only in the user's
+unconfirmed documents triggers one rewrite, and if it survives the draft is
+withheld with `ungrounded_claim` instead of signed with the user's name. The
+check deliberately ignores the counterpart's page content, so "I noticed you're
+hiring React engineers" is never flagged for repeating the recipient's own site.
+
+**The approval gate now owns autonomous investigation.** When the decision is
+`investigate`, the dispatcher queues an ordinary pending crawl query — same budget
+guard, same durable crawl job, same completion callback that wakes the run and
+re-evaluates — and the orchestrator moves `approval → discover` instead of
+parking. Investigation is the agent choosing to go round the loop it already has,
+not a special code path. It is bounded twice over: `MAX_INVESTIGATIONS` (2) per
+mission, enforced from the run-step transcript, plus the existing credit budget,
+and a URL already researched is never queued again.
+
+**Discovery is no longer a human gate.** `discover` used to park at `check_in`
+and wait for a "continue" click before evaluating. Evaluating what was found is
+the agent's own work and a click to advance is exactly the manual step Radar
+exists to remove, so the default path runs straight through to `evaluate`. The
+user's next decision point is the action gate, where there is something to
+approve. `check_in` remains reachable for anyone who deliberately pauses there.
+
+Also fixed a real bug found while testing: a verified address that ended a
+sentence ("…reach me at a@b.com.") failed the recipient check because the
+trailing period was compared as part of the address, so a perfectly addressable
+draft was withheld. Addresses are now compared with sentence punctuation
+stripped. `relevantChunks` also degrades to a bounded scan when the full-text
+index is unavailable, instead of failing the draft path that depends on it.
+
+Removed `outreach.proposeForMission` and `researchStore.actionableMatches`: the
+decision layer owns candidate selection now, and leaving an email-only selection
+path beside it would mean two competing answers to "who is worth contacting?".
+The two autonomy tests that covered them moved to `tests/actionDecision.test.ts`
+against seeded candidates.
+
+New `tests/actionDecision.test.ts` (31 tests): the decision matrix as a pure
+function (scenarios A–G, unsupported routes, already-actioned counterparts,
+investigation caps and budget), the claim guard, and the durable dispatch path
+where decisions reach real drafts, real blocked states and real completion.
+Verified: tsc clean on both configs, **241 tests passing** (18 files). Not
+deployed — Phase 0 gate remains open.
 
 ### 2026-09-19 - working tree — Phase 3 closed: conflict resolution, artifacts, authorized vs. source-backed
 Finished the three gaps that kept Phase 3 from being a real trust layer.

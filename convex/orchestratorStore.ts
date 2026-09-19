@@ -4,6 +4,7 @@ import { internalMutation, internalQuery, mutation } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { validateWorkspace } from "./model/auth";
 import { categoryForRequirement } from "./contextRequirements";
+import { successPolicyFor } from "./actionDecision";
 
 /**
  * Transactional bookkeeping for the mission orchestrator. Kept in a
@@ -55,6 +56,46 @@ export const pendingQueries = internalQuery({
       .withIndex("by_missionId_and_status", (q) => q.eq("missionId", args.missionId).eq("status", "pending"))
       .collect();
     return rows.sort((a, b) => a.createdAt - b.createdAt).map(({ _id, query, kind }) => ({ _id, query, kind }));
+  },
+});
+
+/**
+ * Queues a bounded investigation chosen by the action-decision layer.
+ *
+ * The work is deliberately expressed as an ordinary pending crawl query, so it
+ * flows through the existing discover stage — same budget guard, same durable
+ * crawl job, same completion callback that wakes the run and re-evaluates. An
+ * investigation is therefore not a special code path; it is the agent choosing
+ * to go back round the loop it already has.
+ *
+ * Returns false when the same URL is already queued, so a re-decided match
+ * cannot stack duplicate crawls.
+ */
+export const queueInvestigation = internalMutation({
+  args: { missionId: v.id("missions"), url: v.string(), reason: v.string() },
+  returns: v.boolean(),
+  handler: async (ctx, args) => {
+    const run = await ctx.db
+      .query("agentRuns")
+      .withIndex("by_missionId", (q) => q.eq("missionId", args.missionId))
+      .first();
+    if (!run || ["cancelled", "complete", "failed"].includes(run.status)) return false;
+    const existing = await ctx.db
+      .query("missionQueries")
+      .withIndex("by_missionId", (q) => q.eq("missionId", args.missionId))
+      .collect();
+    if (existing.some((row) => row.query === args.url && row.status === "pending")) return false;
+    const prior = existing.some((row) => row.query === args.url);
+    if (prior) return false; // already researched; investigating again would repeat it
+    await ctx.db.insert("missionQueries", {
+      missionId: args.missionId,
+      query: args.url,
+      kind: "crawl",
+      status: "pending",
+      resultCount: null,
+      createdAt: Date.now(),
+    });
+    return true;
   },
 });
 
@@ -187,23 +228,47 @@ export const checkCompletion = internalMutation({
     if (!mission || ["complete", "cancelled"].includes(mission.status)) return false;
     const run = await ctx.db.query("agentRuns").withIndex("by_missionId", (q) => q.eq("missionId", args.missionId)).first();
     if (!run || run.status === "cancelled") return false;
-    // A mission is satisfied by any executed action, not only an email. Checking
-    // actionDrafts alone made a form-only mission impossible to complete: the
-    // form path calls this on success, but no draft ever exists for it.
-    const drafts = await ctx.db.query("actionDrafts").withIndex("by_missionId", (q) => q.eq("missionId", args.missionId)).collect();
-    const hasSentDraft = drafts.some((draft) => ["sent", "delivered"].includes(draft.status));
-    const submissions = await ctx.db.query("formSubmissions").withIndex("by_missionId", (q) => q.eq("missionId", args.missionId)).collect();
-    const hasSubmittedForm = submissions.some((row) => row.status === "submitted");
-    if (!hasSentDraft && !hasSubmittedForm) return false;
+    // What "done" means depends on the mission, not on whether an email went
+    // out. A mission looking for a solution or mapping a market is satisfied by
+    // producing its result; assuming an action must be executed would make
+    // those missions impossible to finish truthfully.
+    const intentKey = mission.intent?.primary ?? mission.mode;
+    const policy = successPolicyFor(intentKey);
     const matches = await ctx.db.query("matches").withIndex("by_missionId", (q) => q.eq("missionId", args.missionId)).collect();
     if (matches.length === 0) return false;
+
+    let summary: string;
+    if (policy.kind === "contact_and_wait") {
+      // Satisfied by any executed action, not only an email. Checking
+      // actionDrafts alone made a form-only mission impossible to complete: the
+      // form path calls this on success, but no draft ever exists for it.
+      const drafts = await ctx.db.query("actionDrafts").withIndex("by_missionId", (q) => q.eq("missionId", args.missionId)).collect();
+      const hasSentDraft = drafts.some((draft) => ["sent", "delivered"].includes(draft.status));
+      const submissions = await ctx.db.query("formSubmissions").withIndex("by_missionId", (q) => q.eq("missionId", args.missionId)).collect();
+      const hasSubmittedForm = submissions.some((row) => row.status === "submitted");
+      if (!hasSentDraft && !hasSubmittedForm) return false;
+      summary = "Completion predicate satisfied: an approved action was executed against a sourced match.";
+    } else {
+      // The deliverable is the finding itself. It is done when research has
+      // stopped and enough usable candidates exist to hand over.
+      const pending = await ctx.db.query("missionQueries")
+        .withIndex("by_missionId_and_status", (q) => q.eq("missionId", args.missionId).eq("status", "pending"))
+        .collect();
+      if (pending.length > 0) return false;
+      const usable = matches.filter((match) => ["stronger", "promising"].includes(match.label));
+      if (usable.length < policy.targetCount) return false;
+      summary = policy.kind === "present_solution"
+        ? `Radar found ${usable.length} credible solution(s) to the stated problem. This mission was about finding them, so no one has been contacted.`
+        : `Radar assembled ${usable.length} business(es) matching the requested profile. This mission was about finding them, so no one has been contacted.`;
+    }
+
     const now = Date.now();
     await ctx.db.patch(args.missionId, { status: "complete", updatedAt: now });
     if (run.status !== "complete") {
       await ctx.db.patch(run._id, { status: "complete", currentStage: "complete", finishedAt: now, updatedAt: now });
       await ctx.db.insert("runEvents", {
         missionId: args.missionId, runId: run._id,        type: "mission.complete", stage: "complete",
-        safeSummary: "Completion predicate satisfied: an approved action was executed against a sourced match.",
+        safeSummary: summary,
         createdAt: now,
       });
     }
