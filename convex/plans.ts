@@ -60,11 +60,26 @@ export const save = internalMutation({
       await ctx.db.delete(old._id);
     }
     const seen = new Set<string>();
+    const seenWords = new Map<string, string>(); // normalized key → first query
     const now = Date.now();
     for (const raw of [...(args.searchQueries ?? []).map((q) => q.trim()), ...(args.crawlTargets ?? []).map((q) => q.trim())]) {
       const query = raw.slice(0, 300);
       if (!query || seen.has(query)) continue;
+      // Fuzzy dedup: normalize to sorted unique words and skip if >80% overlap
+      const normalized = query.toLowerCase().replace(/[^a-z0-9\s]/g, "").split(/\s+/).filter(Boolean).sort().join(" ");
+      if (seenWords.has(normalized)) continue;
+      // Check word overlap against existing queries
+      const queryWords = new Set(normalized.split(" "));
+      let isDuplicate = false;
+      for (const [existing] of seenWords) {
+        const existingWords = new Set(existing.split(" "));
+        const intersection = [...queryWords].filter((w) => existingWords.has(w)).length;
+        const union = new Set([...queryWords, ...existingWords]).size;
+        if (union > 0 && intersection / union > 0.7) { isDuplicate = true; break; }
+      }
+      if (isDuplicate) continue;
       seen.add(query);
+      seenWords.set(normalized, query);
       const isCrawl = (args.crawlTargets ?? []).map((c) => c.trim()).includes(query);
       await ctx.db.insert("missionQueries", { missionId: args.missionId, query, kind: isCrawl ? "crawl" : "search", status: "pending", resultCount: null, createdAt: now });
     }
