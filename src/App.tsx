@@ -30,7 +30,7 @@ const sponsorCapabilities: Array<[string, string]> = [
  * knows about you, and how the machinery is doing.
  */
 const navItems: { id: View; label: string; hint: string; group: string }[] = [
-  { id: "home", label: "Home", hint: "Ask Radar. Watch it work.", group: "RADAR" },
+  { id: "home", label: "Home", hint: "Mission control — what Radar is doing.", group: "RADAR" },
   { id: "dashboard", label: "Dashboard", hint: "Workspace overview at a glance", group: "RADAR" },
   { id: "discover", label: "Discover", hint: "Sourced, explained evidence", group: "WORK" },
   { id: "actions", label: "Actions", hint: "Outreach, forms, follow-ups", group: "WORK" },
@@ -1247,6 +1247,48 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
                       )}
                     </div>
                   </div>
+                  {/* ── Progress timeline: what Radar is doing right now ── */}
+                  {run && (() => {
+                    const stages = [
+                      { key: "intake", label: "Understanding" },
+                      { key: "context_check", label: "Context" },
+                      { key: "plan_review", label: "Planning" },
+                      { key: "discover", label: "Researching" },
+                      { key: "evaluate", label: "Evaluating" },
+                      { key: "approval", label: "Awaiting you" },
+                      { key: "execute", label: "Executing" },
+                      { key: "observe", label: "Observing" },
+                      { key: "complete", label: "Done" },
+                    ];
+                    const stageOrder = stages.map((s) => s.key);
+                    const currentIdx = stageOrder.indexOf(run.currentStage);
+                    const isTerminal = ["complete", "failed", "cancelled"].includes(run.status);
+                    const isWaiting = run.status === "waiting";
+                    const isActive = run.status === "active";
+                    return (
+                      <div className="progress-timeline" role="status" aria-label="Mission progress">
+                        {stages.map((stage, idx) => {
+                          let state: "done" | "active" | "waiting" | "pending" = "pending";
+                          if (isTerminal && run.status === "complete" && idx <= currentIdx) state = "done";
+                          else if (isTerminal) state = idx < currentIdx ? "done" : "pending";
+                          else if (idx < currentIdx) state = "done";
+                          else if (idx === currentIdx) state = isWaiting ? "waiting" : isActive ? "active" : "pending";
+                          return (
+                            <div key={stage.key} className={`timeline-step timeline-${state}`}>
+                              <span className="timeline-dot" />
+                              <span className="timeline-label">{stage.label}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+                  {run && run.status === "active" && (
+                    <p className="stage-note" style={{ marginTop: "0.5rem" }}>Radar is working in the background. You can leave this page — we'll notify you when your attention is needed.</p>
+                  )}
+                  {run && run.status === "waiting" && run.currentStage === "approval" && (
+                    <p className="stage-note" style={{ marginTop: "0.5rem" }}>Radar found something and needs your approval before it acts. Review in Actions.</p>
+                  )}
                   {/* What the user asked */}
                   <p className="mission-goal-display"><strong>You asked:</strong> {selectedMission.rawGoal}</p>
                   {/* Radar's understanding */}
@@ -1788,13 +1830,12 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
                         </div>
                       )}
                       <div className="inline-actions">
-                        {run && run.status === "queued" && (
-                          <button type="button" className="btn" onClick={onRunPipeline} disabled={planning}>{planning ? "Starting…" : "▶ Run Radar end-to-end"}</button>
-                        )}
                         {run && run.status === "waiting" && run.currentStage === "approval" && (
-                          <button type="button" className="btn ghost" onClick={() => selectView("actions")}>Review matches & approvals →</button>
+                          <button type="button" className="btn" onClick={() => selectView("actions")}>Review what Radar proposed →</button>
                         )}
-                        <button type="button" className="btn ghost" onClick={() => selectView("home")}>Live transcript</button>
+                        {run && run.status === "waiting" && (run.currentStage === "context_check" || run.currentStage === "plan_review") && (
+                          <span className="stage-note">Radar is waiting for your input above.</span>
+                        )}
                       </div>
                     </>
                   )}
@@ -1803,11 +1844,11 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
                 <section className="panel" aria-label="How Radar works">
                   <div className="panel-head"><p className="eyebrow">HOW RADAR WORKS</p></div>
                   <ol className="journey">
-                    <li><span>01</span><strong>Tell Radar</strong><p>A goal becomes a strict, editable plan.</p></li>
-                    <li><span>02</span><strong>Radar researches</strong><p>Firecrawl gathers sourced public evidence.</p></li>
-                    <li><span>03</span><strong>You decide</strong><p>Explanations show fit, unknowns, and risks.</p></li>
-                    <li><span>04</span><strong>Approved send</strong><p>AgentMail delivers only approved content.</p></li>
-                    <li><span>05</span><strong>Memory keeps</strong><p>Replies and outcomes stay attached to the mission.</p></li>
+                    <li><span>01</span><strong>You set a goal</strong><p>Tell Radar what you want. It plans autonomously.</p></li>
+                    <li><span>02</span><strong>Radar works</strong><p>Researches, evaluates, and decides — you can leave.</p></li>
+                    <li><span>03</span><strong>Radar asks you</strong><p>Only when it needs your approval or missing info.</p></li>
+                    <li><span>04</span><strong>You approve</strong><p>Radar acts only on your explicit approval.</p></li>
+                    <li><span>05</span><strong>Radar continues</strong><p>Observes results, follows up, records outcomes.</p></li>
                   </ol>
                   <div className="sponsor-strip">
                     {sponsorCapabilities.map(([sponsor, capability]) => (
@@ -1825,7 +1866,7 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
                 <>
                   <section className="panel" aria-label="Discovery results">
                     <div className="panel-head"><p className="eyebrow">DISCOVERY RESULTS</p>
-                      <span className="muted">Radar investigated these because of your mission — every card states why it looked, why it matches, and what it checked against your context.</span>
+                      <span className="muted">What Radar found and why it matters. Radar decides when to propose actions — you review and approve.</span>
                       {runWorking && <span className="status-pill status-running">run active</span>}
                     </div>
                     <p className="stage-note">{latestJob ? `${sources?.length ?? 0} sources from ${jobs?.length ?? 0} research jobs` : "The agent discovers sources automatically during its run."}</p>
@@ -1920,10 +1961,6 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
                               {match.recommendedAction && <p className="next-action"><b>Next</b>{match.recommendedAction}</p>}
                               <div className="inline-actions">
                                 {source && !source.content && <button type="button" className="btn ghost" disabled={!backendConnected || investigateCapability?.available === false} onClick={() => onScrape(match.sourceId)}>Scrape full page</button>}
-                                <button type="button" className="btn" onClick={() => onAiDraft(match._id)} disabled={aiDraftingMatchId === match._id}>
-                                  {aiDraftingMatchId === match._id ? "Drafting…" : "AI draft outreach"}
-                                </button>
-                                <button type="button" className="btn ghost" onClick={() => { setLinkedMatchId(match._id); selectView("actions"); }}>Write manually</button>
                               </div>
                             </article>
                           );
@@ -1951,13 +1988,8 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
 
               {inbox && selectedMission && (
                 <section className="panel" aria-label="Agent-proposed outreach">
-                  <div className="panel-head"><p className="eyebrow">AGENT-PROPOSED DRAFTS</p></div>
-                  <p className="stage-note">Radar proposes drafts from the Discover page using "AI draft outreach" on a match. You review and approve each one before anything sends.</p>
-                  {matches && matches.filter((m) => m.label === "stronger").length > 0 && (
-                    <div className="inline-actions">
-                      <button type="button" className="btn" onClick={() => selectView("discover")}>Go to Discover to draft →</button>
-                    </div>
-                  )}
+                  <div className="panel-head"><p className="eyebrow">AGENT-PROPOSED ACTIONS</p></div>
+                  <p className="stage-note">Radar decides when to propose an action based on what it found. You review and approve each one before anything sends.</p>
                 </section>
               )}
 

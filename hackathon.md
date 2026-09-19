@@ -18,6 +18,28 @@
 
 ## Log
 
+### 2026-09-19 - working tree — Phase 6: UI redesign around the autonomous lifecycle
+The UI now reflects the proven agent behavior instead of manually driving
+the workflow.
+
+**Home page** now shows a progress timeline (Understanding → Context →
+Planning → Researching → Evaluating → Awaiting you → Executing → Observing
+→ Done) with the current stage highlighted. When Radar is active, the page
+tells the user "You can leave this page — we'll notify you when your
+attention is needed." Manual "Run Radar end-to-end" button removed; the
+orchestrator drives the workflow.
+
+**Discover page** removed manual "AI draft outreach" and "Write manually"
+buttons. Radar decides when to propose actions via the action decision
+layer. Discover is now an inspection surface: what Radar found and why it
+matters.
+
+**Actions page** removed "Go to Discover to draft" button. Updated header
+to "AGENT-PROPOSED ACTIONS" — Radar proposes, user approves.
+
+**How Radar works** updated to reflect autonomous behavior: "You set a goal
+→ Radar works → Radar asks you → You approve → Radar continues."
+
 ### 2026-09-19 - working tree — live proof: scheduling fixes for the autonomous loop
 Two real bugs found and fixed during the first live proof pass. Both were the
 same class: an async callback transitions a parked run into `evaluate` but
