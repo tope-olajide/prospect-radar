@@ -43,11 +43,11 @@ export const MIN_CREDIT_LIMIT = 10;
 export const MAX_CREDIT_LIMIT = 100_000;
 
 /** Search page size the orchestrator requests (must match missionOrchestrator). */
-export const ORCHESTRATOR_SEARCH_LIMIT = 6;
+export const ORCHESTRATOR_SEARCH_LIMIT = 4;
 /** Crawl page budget the orchestrator requests. */
-export const ORCHESTRATOR_CRAWL_LIMIT = 25;
+export const ORCHESTRATOR_CRAWL_LIMIT = 10;
 /** Sources the evaluate stage resolves into entities. */
-export const ORCHESTRATOR_EXTRACT_LIMIT = 6;
+export const ORCHESTRATOR_EXTRACT_LIMIT = 4;
 
 export type ChargeKind = "search" | "crawl" | "scrape" | "extract";
 

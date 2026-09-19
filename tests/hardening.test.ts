@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { convexTest } from "convex-test";
 import { api, internal } from "../convex/_generated/api";
 import schema from "../convex/schema";
-import { CREDIT_COST, estimateCrawl, estimateExtraction, estimateMission, estimateSearch } from "../convex/budget";
+import { CREDIT_COST, ORCHESTRATOR_CRAWL_LIMIT, ORCHESTRATOR_SEARCH_LIMIT, estimateCrawl, estimateExtraction, estimateMission, estimateSearch } from "../convex/budget";
 import { MAX_STAGE_RETRIES, retryDelayMs, shouldRetry } from "../convex/retryPolicy";
 import { classifyProviderError } from "../convex/providerErrors";
 
@@ -149,9 +149,9 @@ describe("provider credit budget", () => {
     expect(estimateSearch(6)).toBe(6 * CREDIT_COST.searchPerResult);
     expect(estimateCrawl(25)).toBe(25 * CREDIT_COST.crawlPerPage);
     expect(estimateExtraction(6)).toBe(6 * CREDIT_COST.extract);
-    // Two searches + one crawl + three extractions.
+    // Two searches + one crawl + three extractions (uses global orchestrator limits).
     expect(estimateMission({ pendingSearches: 2, pendingCrawls: 1, resolvableSources: 3 }))
-      .toBe(estimateSearch(6) * 2 + estimateCrawl(25) + estimateExtraction(3));
+      .toBe(estimateSearch(ORCHESTRATOR_SEARCH_LIMIT) * 2 + estimateCrawl(ORCHESTRATOR_CRAWL_LIMIT) + estimateExtraction(3));
     // Never zero: an estimate of nothing would bypass the gate.
     expect(estimateSearch(0)).toBeGreaterThan(0);
   });
@@ -179,34 +179,35 @@ describe("provider credit budget", () => {
     const charges = await t.query(api.budget.chargesForMission, { workspaceId: WORKSPACE, missionId: missionId as never });
     expect(charges).toHaveLength(1);
     expect(charges[0].kind).toBe("search");
-    expect(charges[0].amount).toBe(estimateSearch(6));
+    expect(charges[0].amount).toBe(estimateSearch(ORCHESTRATOR_SEARCH_LIMIT));
 
     const status = await t.query(api.budget.status, { workspaceId: WORKSPACE, missionId: missionId as never });
-    expect(status.used).toBe(estimateSearch(6));
-    expect(status.breakdown.search).toBe(estimateSearch(6));
+    expect(status.used).toBe(estimateSearch(ORCHESTRATOR_SEARCH_LIMIT));
+    expect(status.breakdown.search).toBe(estimateSearch(ORCHESTRATOR_SEARCH_LIMIT));
     expect(status.remaining).toBe(status.creditLimit - status.used);
   });
 
   it("parks the run as a budget block — not a failure — when the cap is too small", async () => {
     searchImpl = async () => oneResult();
     const t = convexTest(schema, convexModules);
-    const missionId = await seedMissionWithBacklog(t, 2);
-    // Two searches at 6 credits each; 10 credits covers exactly one.
+    const missionId = await seedMissionWithBacklog(t, 3);
+    // Three searches at 4 credits each = 12 total; budget of 10 covers
+    // two but blocks the third (4 > remaining 2).
     await t.mutation(api.budget.setLimit, { workspaceId: WORKSPACE, creditLimit: 10 });
     await forceStage(t, missionId, "discover", "active");
 
-    // First query fits.
+    // First queries fit within the budget. The discover stage loops through
+    // queries until the budget is exhausted.
     await t.action(internal.missionOrchestrator.runStage, { missionId: missionId as never });
-    expect(await jobCount(t, missionId)).toBe(1);
+    expect(await jobCount(t, missionId)).toBeGreaterThanOrEqual(1);
 
-    // The second query does not fit, so the run parks instead of calling the
-    // provider. Drive a few stages: discovery legitimately bounces through
-    // evaluate between queries.
+    // Drive remaining stages until the budget blocks.
     const run = await drive(t, missionId, 6);
     expect(run?.status).toBe("blocked");
     expect(run?.currentStage).toBe("discover");
     expect(run?.interruption).toBe("budget_blocked");
-    expect(await jobCount(t, missionId)).toBe(1);
+    // Two queries completed (4+4=8), third blocked (4 > remaining 2).
+    expect(await jobCount(t, missionId)).toBe(2);
 
     const steps = await stepsFor(t, missionId);
     const blocked = steps.find((step) => step.label === "budget.blocked");
@@ -227,11 +228,12 @@ describe("provider credit budget", () => {
   it("resumes the same stage once the cap is raised", { timeout: 30_000 }, async () => {
     searchImpl = async () => oneResult();
     const t = convexTest(schema, convexModules);
-    const missionId = await seedMissionWithBacklog(t, 2);
+    const missionId = await seedMissionWithBacklog(t, 3);
     await t.mutation(api.budget.setLimit, { workspaceId: WORKSPACE, creditLimit: 10 });
     await forceStage(t, missionId, "discover", "active");
     expect((await drive(t, missionId, 6))?.status).toBe("blocked");
-    expect(await doneQueries(t, missionId)).toBe(1);
+    // Two queries completed (4+4=8), third blocked (4 > remaining 2).
+    expect(await doneQueries(t, missionId)).toBe(2);
 
     // Raise the cap, then use the ordinary retry control — no special path.
     await t.mutation(api.budget.setLimit, { workspaceId: WORKSPACE, creditLimit: 400 });
@@ -242,8 +244,8 @@ describe("provider credit budget", () => {
     expect(resumed?.interruption).toBeNull();
 
     await drive(t, missionId, 6);
-    expect(await doneQueries(t, missionId)).toBe(2);
-    expect(await jobCount(t, missionId)).toBe(2);
+    expect(await doneQueries(t, missionId)).toBe(3);
+    expect(await jobCount(t, missionId)).toBe(3);
   });
 
   it("is idempotent per provider reference: a retried search never double-charges", async () => {
@@ -260,14 +262,14 @@ describe("provider credit budget", () => {
     // Replaying the provider reference the orchestrator already used is a no-op.
     const replay = await t.run((ctx) => ctx.runMutation(internal.budget.charge, {
       workspaceId: WORKSPACE, missionId: missionId as never, kind: "search" as const,
-      amount: estimateSearch(6), reference: charges[0].reference,
+      amount: estimateSearch(ORCHESTRATOR_SEARCH_LIMIT), reference: charges[0].reference,
     }));
     expect(replay.charged).toBe(false);
 
     // Genuinely new work still charges.
     const fresh = await t.run((ctx) => ctx.runMutation(internal.budget.charge, {
       workspaceId: WORKSPACE, missionId: missionId as never, kind: "crawl" as const,
-      amount: estimateCrawl(25), reference: "crawl:different",
+      amount: estimateCrawl(ORCHESTRATOR_CRAWL_LIMIT), reference: "crawl:different",
     }));
     expect(fresh.charged).toBe(true);
 

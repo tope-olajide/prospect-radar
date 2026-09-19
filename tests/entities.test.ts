@@ -493,11 +493,11 @@ describe("evaluate — entity resolution covers the whole discovery, not one bat
     }));
     const t = convexTest(schema, convexModules);
     const { missionId } = await seedSource(t);
-    // Nine scraped sources — more than one extraction batch.
+    // Eight scraped sources — exactly two extraction batches of 4.
     await t.run(async (ctx) => {
       const job = await ctx.db.query("researchJobs").withIndex("by_missionId", (q) => q.eq("missionId", missionId as never)).first();
       const now = Date.now();
-      for (let index = 2; index <= 9; index += 1) {
+      for (let index = 2; index <= 8; index += 1) {
         await ctx.db.insert("sourceRecords", {
           missionId: missionId as never, jobId: job!._id, url: `https://acme${index}.example.com/about`, title: `Acme ${index}`,
           sourceType: "scraped_page", excerpt: "e", content: "c", fetchedAt: now, freshness: "fresh",
@@ -507,15 +507,15 @@ describe("evaluate — entity resolution covers the whole discovery, not one bat
     });
     await seedExplainable(t, missionId, (await t.run(async (ctx) => (await ctx.db.query("sourceRecords").first())!._id)) as unknown as string);
 
-    // One pass is bounded, hands the remainder back to the scheduler, and says so.
+    // One pass is bounded (extraction limit), hands the remainder back to the scheduler.
     await t.action(internal.missionOrchestrator.runStage, { missionId: missionId as never });
-    expect(await entitiesFor(t, missionId)).toHaveLength(6);
+    expect(await entitiesFor(t, missionId)).toHaveLength(4);
     const steps = await stepsFor(t, missionId);
     expect(steps.some((step) => step.label === "entity.extraction_continues")).toBe(true);
 
-    // The next pass finishes the work the first one paid for, then evaluates.
+    // The next pass finishes the remaining sources (4 more = 8 total), then evaluates.
     await t.action(internal.missionOrchestrator.runStage, { missionId: missionId as never });
-    expect(await entitiesFor(t, missionId)).toHaveLength(9);
+    expect(await entitiesFor(t, missionId)).toHaveLength(8);
     const run = await t.run(async (ctx) => ctx.db.query("agentRuns").withIndex("by_missionId", (q) => q.eq("missionId", missionId as never)).first());
     expect(run?.currentStage).toBe("approval");
   });
