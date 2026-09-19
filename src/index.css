@@ -254,6 +254,20 @@ label { display: grid; gap: 6px; color: var(--muted); font-size: 10px; font-weig
 .active-mission { display: grid; gap: 14px; }
 .active-mission .panel-head { display: flex; align-items: center; justify-content: space-between; }
 .active-mission .panel-head .control-row { display: flex; align-items: center; gap: 8px; }
+/* ── Progress timeline ── */
+.progress-timeline { display: flex; gap: 0; padding: 12px 0; overflow-x: auto; }
+.timeline-step { display: flex; flex-direction: column; align-items: center; flex: 1; min-width: 60px; position: relative; }
+.timeline-step:not(:last-child)::after { content: ""; position: absolute; top: 8px; left: calc(50% + 8px); right: calc(-50% + 8px); height: 2px; background: var(--line); }
+.timeline-step.timeline-done:not(:last-child)::after { background: var(--accent); }
+.timeline-dot { width: 16px; height: 16px; border-radius: 50%; background: var(--line); border: 2px solid var(--bg); z-index: 1; }
+.timeline-step.timeline-done .timeline-dot { background: var(--accent); }
+.timeline-step.timeline-active .timeline-dot { background: var(--accent); box-shadow: 0 0 0 4px var(--accent-wash-2); animation: pulse 2s ease-in-out infinite; }
+.timeline-step.timeline-waiting .timeline-dot { background: var(--amber); box-shadow: 0 0 0 4px var(--amber-wash); }
+.timeline-label { font-size: 10px; color: var(--text-muted); margin-top: 6px; text-align: center; }
+.timeline-step.timeline-active .timeline-label { color: var(--accent); font-weight: 600; }
+.timeline-step.timeline-waiting .timeline-label { color: var(--amber); font-weight: 600; }
+@keyframes pulse { 0%, 100% { box-shadow: 0 0 0 4px var(--accent-wash-2); } 50% { box-shadow: 0 0 0 8px var(--accent-wash); } }
+
 .mission-goal-display { color: var(--text-soft); font-size: 12px; line-height: 1.6; }
 .mission-goal-display strong { color: var(--text); }
 .understanding-inline { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--hover-wash); font-size: 11px; line-height: 1.6; }
