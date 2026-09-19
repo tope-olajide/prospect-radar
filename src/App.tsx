@@ -325,6 +325,7 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
   const capability = (key: string) => (capabilities ?? []).find((entry) => entry.key === key) ?? null;
   const emailCapability = capability("send_email");
   const formCapability = capability("submit_form");
+  const investigateCapability = capability("investigate");
   const blockerFor = (entry: ReturnType<typeof capability>) => (entry && !entry.available ? entry.unavailableReason ?? entry.label : null);
   const emailBlocker = blockerFor(emailCapability);
   const formBlocker = blockerFor(formCapability);
@@ -1918,7 +1919,7 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
                               <a className="source-link" href={match.sourceUrl} target="_blank" rel="noreferrer">View source: {new URL(match.sourceUrl).hostname}{source ? ` · fetched ${shortDate(source.fetchedAt)}` : ""}</a>
                               {match.recommendedAction && <p className="next-action"><b>Next</b>{match.recommendedAction}</p>}
                               <div className="inline-actions">
-                                {source && !source.content && <button type="button" className="btn ghost" onClick={() => onScrape(match.sourceId)}>Scrape full page</button>}
+                                {source && !source.content && <button type="button" className="btn ghost" disabled={!backendConnected || investigateCapability?.available === false} onClick={() => onScrape(match.sourceId)}>Scrape full page</button>}
                                 <button type="button" className="btn" onClick={() => onAiDraft(match._id)} disabled={aiDraftingMatchId === match._id}>
                                   {aiDraftingMatchId === match._id ? "Drafting…" : "AI draft outreach"}
                                 </button>
@@ -2484,7 +2485,7 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
                               {editable && (
                                 <div className="inline-actions">
                                   <button type="button" className="btn ghost" disabled={!backendConnected} onClick={() => onSaveProposal(proposal)}>Save changes</button>
-                                  <button type="button" className="btn" disabled={!backendConnected || proposal.unmatchedRequired.length > 0 || submittingProposalId === proposal._id} onClick={() => onApproveAndSubmit(proposal)}>
+                                  <button type="button" className="btn" disabled={!backendConnected || proposal.unmatchedRequired.length > 0 || submittingProposalId === proposal._id || formCapability?.available === false} onClick={() => onApproveAndSubmit(proposal)}>
                                     {submittingProposalId === proposal._id ? "Submitting…" : "Approve & submit"}
                                   </button>
                                   <button type="button" className="btn ghost" onClick={() => selectView("profile")}>Add a fact</button>
