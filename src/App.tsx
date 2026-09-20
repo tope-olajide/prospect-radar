@@ -7,11 +7,9 @@ import { MissionLifecycle } from "./MissionLifecycle";
 import { useAuthActions } from "@convex-dev/auth/react";
 import SignIn from "./SignIn";
 
-type MissionMode = "opportunity" | "person" | "customer" | "solution" | "collaborator";
 type View = "home" | "discover" | "actions" | "inbox" | "relationships" | "outcomes" | "profile" | "activity";
 type PipelineStageName = "contacted" | "replied" | "engaged" | "meeting" | "proposal" | "won" | "lost" | "dormant";
 
-const PIPELINE_STAGES: PipelineStageName[] = ["contacted", "replied", "engaged", "meeting", "proposal", "won", "lost", "dormant"];
 const PIPELINE_LABELS: Record<PipelineStageName, string> = {
   contacted: "Contacted", replied: "Replied", engaged: "Engaged", meeting: "Meeting",
   proposal: "Proposal", won: "Won", lost: "Lost", dormant: "Dormant",
@@ -128,26 +126,14 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
 
   const missions = useQuery(api.missions.list, backendConnected && workspaceId ? { workspaceId } : "skip");
   const createMission = useMutation(api.missions.create);
-  const interpretMission = useAction(api.ai.interpretMission);
-  const classifyIntent = useAction(api.ai.classifyMissionIntent);
-  const reviseGoal = useMutation(api.missions.reviseGoal);
-  const searchWeb = useAction(api.research.search);
   const scrapeSource = useAction(api.research.scrape);
-  const mapSite = useAction(api.research.mapSite);
-  const startCrawl = useAction(api.research.startCrawl);
-  const explainMatches = useAction(api.ai.explainMatches);
-  const resolveEntities = useAction(api.research.resolveEntities);
-  const aiDraftMessage = useAction(api.ai.draftMessage);
-  const draftMessage = useAction(api.outreach.draft);
   const sendMessage = useAction(api.outreach.send);
   const syncOutbound = useAction(api.outreach.syncOutbound);
   const provisionInbox = useAction(api.outreach.provisionInbox);
   const approveDraft = useMutation(api.outreachStore.approve);
   const updateOutcome = useMutation(api.outcomes.updateStatus);
-  const scheduleFollowUp = useMutation(api.relationships.scheduleFollowUp);
   const snoozeFollowUp = useMutation(api.relationships.snoozeFollowUp);
   const completeFollowUp = useMutation(api.relationships.completeFollowUp);
-  const recordMeeting = useMutation(api.relationships.recordMeeting);
   const setOutcomeStage = useMutation(api.relationships.setStage);
   const runPipeline = useMutation(api.orchestratorStore.runPipeline);
   const stopRun = useMutation(api.orchestratorStore.stopRun);
@@ -168,8 +154,6 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
   // Which competing value the user picked for a conflicting requirement.
   const [conflictChoice, setConflictChoice] = useState<Record<string, string>>({});
   const [contextArtifactUploading, setContextArtifactUploading] = useState("");
-  const [editingUnderstanding, setEditingUnderstanding] = useState(false);
-  const [understandingDraft, setUnderstandingDraft] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [notice, setNotice] = useState("");
   const [selectedMissionId, setSelectedMissionId] = useState<string | null>(null);
@@ -181,16 +165,8 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
   const [planning, setPlanning] = useState(false);
   const [planNotice, setPlanNotice] = useState("");
 
-  const [researchQuery, setResearchQuery] = useState("");
-  const [mapUrl, setMapUrl] = useState("");
-  const [researching, setResearching] = useState(false);
   const [researchNotice, setResearchNotice] = useState("");
 
-  const [recipient, setRecipient] = useState("");
-  const [subject, setSubject] = useState("");
-  const [body, setBody] = useState("");
-  const [linkedMatchId, setLinkedMatchId] = useState<Id<"matches"> | null>(null);
-  const [drafting, setDrafting] = useState(false);
   const [outreachNotice, setOutreachNotice] = useState("");
   const [sendingActionId, setSendingActionId] = useState<Id<"actionDrafts"> | null>(null);
   const [provisioning, setProvisioning] = useState(false);
@@ -201,9 +177,6 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
   const [editingFactId, setEditingFactId] = useState<Id<"contextFacts"> | null>(null);
   const [factEditValue, setFactEditValue] = useState("");
   const [approvalNotice, setApprovalNotice] = useState("");
-  const [meetingFor, setMeetingFor] = useState<Id<"outcomes"> | null>(null);
-  const [meetingAt, setMeetingAt] = useState("");
-  const [meetingNotes, setMeetingNotes] = useState("");
   const [pipelineNotice, setPipelineNotice] = useState("");
   const [formSourceId, setFormSourceId] = useState("");
   const [formNotice, setFormNotice] = useState("");
@@ -220,8 +193,6 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
   const [objectiveKind, setObjectiveKind] = useState("");
   const [objectiveCount, setObjectiveCount] = useState(1);
   const [objectiveNotice, setObjectiveNotice] = useState("");
-  const [budgetLimitDraft, setBudgetLimitDraft] = useState("");
-  const [budgetNotice, setBudgetNotice] = useState("");
 
   const [sourceTab, setSourceTab] = useState<"file" | "website" | "snippet">("file");
   const [outcomesTab, setOutcomesTab] = useState<"results" | "relationships" | "pipeline">("results");
@@ -247,7 +218,6 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
 
   const plan = useQuery(api.plans.getForMission, backendConnected && missionId ? { missionId } : "skip");
   const run = useQuery(api.runs.forMission, backendConnected && missionId ? { missionId } : "skip");
-  const runEvents = useQuery(api.runs.events, backendConnected && run ? { runId: run._id } : "skip");
   const runSteps = useQuery(api.runs.steps, backendConnected && run ? { runId: run._id } : "skip");
   const jobs = useQuery(api.researchStore.listJobs, backendConnected && missionId ? { missionId } : "skip");
   const sources = useQuery(api.researchStore.listSources, backendConnected && missionId ? { missionId } : "skip");
@@ -274,7 +244,6 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
   // reads every relationship rather than only the selected mission's.
   const workspaceOutcomes = useQuery(api.outcomes.listForWorkspace, backendConnected && workspaceId ? { workspaceId } : "skip");
   const followUps = useQuery(api.relationships.followUpsForMission, backendConnected && missionId ? { workspaceId, missionId } : "skip");
-  const meetings = useQuery(api.relationships.meetingsForMission, backendConnected && missionId ? { workspaceId, missionId } : "skip");
   const sequences = useQuery(api.relationships.sequencesForMission, backendConnected && missionId ? { workspaceId, missionId } : "skip");
   const formTemplates = useQuery(api.formStore.listTemplates, backendConnected && missionId ? { workspaceId, missionId } : "skip");
   const formProposals = useQuery(api.formStore.listProposals, backendConnected && missionId ? { workspaceId, missionId } : "skip");
@@ -285,7 +254,6 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
   const approveProposal = useMutation(api.formStore.approveProposal);
   const reviseProposalValues = useMutation(api.formStore.reviseProposalValues);
   const executeFormSubmission = useAction(api.formFlows.executeFormSubmission);
-  const crawlProgress = useQuery(api.researchStore.latestCrawlProgress, backendConnected && missionId ? { missionId } : "skip");
   const contextFacts = useQuery(api.context.list, backendConnected && workspaceId ? { workspaceId, missionId: null } : "skip");
   const board = useQuery(api.commandCenter.runsBoard, backendConnected && workspaceId ? { workspaceId } : "skip");
   // Activity page: the run trail for whichever mission the user is inspecting.
@@ -294,12 +262,10 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
   const activityEvents = useQuery(api.runs.events, backendConnected && activityRun ? { runId: activityRun._id } : "skip");
   const activitySteps = useQuery(api.runs.steps, backendConnected && activityRun ? { runId: activityRun._id } : "skip");
   const dataSources = useQuery(api.dataSources.list, backendConnected && workspaceId ? { workspaceId } : "skip");
-  const dataProgress = useQuery(api.dataSources.progress, backendConnected && workspaceId ? { workspaceId } : "skip");
   const addSnippet = useMutation(api.dataSources.addSnippet);
   const removeSource = useMutation(api.dataSources.deleteSource);
   const resyncSource = useAction(api.dataFlows.resyncSource);
   const overview = useQuery(api.commandCenter.overview, backendConnected && workspaceId ? { workspaceId } : "skip");
-  const budgetStatus = useQuery(api.budget.status, backendConnected && workspaceId ? { workspaceId, missionId } : "skip");
   const searchResults = useQuery(
     api.commandCenter.search,
     backendConnected && commandTerm.trim().length >= 2 ? { workspaceId, query: commandTerm.trim() } : "skip",
@@ -316,7 +282,6 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
   const updateBrief = useMutation(api.plans.updateBrief);
   const setObjective = useMutation(api.plans.setObjective);
   const setRepresentationAllowed = useMutation(api.dataSources.setRepresentationAllowed);
-  const setBudgetLimit = useMutation(api.budget.setLimit);
 
   // Capability state, read from the registry rather than guessed at the button.
   // While the query has not answered, buttons stay enabled: an unanswered
@@ -327,10 +292,8 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
   const investigateCapability = capability("investigate");
   const blockerFor = (entry: ReturnType<typeof capability>) => (entry && !entry.available ? entry.unavailableReason ?? entry.label : null);
   const emailBlocker = blockerFor(emailCapability);
-  const formBlocker = blockerFor(formCapability);
 
   const latestJob = jobs?.[0];
-  const pendingDrafts = (drafts ?? []).filter((draft) => ["draft", "awaiting_approval", "approved", "executing"].includes(draft.status));
   const actionableDrafts = (drafts ?? []).filter((draft) => ["draft", "awaiting_approval", "approved", "executing"].includes(draft.status));
   const openOutcomes = (outcomes ?? []).filter((outcome) => !["won", "lost"].includes(outcome.stage));
   const dueFollowUps = (followUps ?? []).filter((item) => item.status === "due" || item.dueAt <= Date.now());
@@ -362,6 +325,55 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
     const rows = decisions ?? [];
     if (rows.length === 0) return null;
     return rows.slice().sort((a, b) => b.createdAt - a.createdAt)[0] ?? null;
+  })();
+
+  // A budget block is a spend decision, not a failure: the run keeps its stage.
+  const budgetBlocked = run?.activeInterruption === "budget_blocked";
+
+  // The one-line answer to "what is Radar doing right now?", rendered on every
+  // page so the agent's state reads at a glance wherever the user is standing.
+  // It is derived from the persisted run, never animated or invented.
+  const agentState = (() => {
+    if (!selectedMission) return null;
+    const stageLabels: Record<string, string> = {
+      intake: "Reading your goal",
+      interpret: "Understanding your goal",
+      context_check: "Checking what it knows",
+      plan: "Planning the search",
+      plan_review: "Your plan is ready to review",
+      discover: "Researching sources",
+      check_in: "Paused for your review",
+      evaluate: "Evaluating what it found",
+      approval: "Waiting for your approval",
+      execute: "Executing approved actions",
+      observe: "Observing what happened",
+      wait: "Waiting on the outside world",
+      complete: "Mission complete",
+    };
+    if (!run) return { tone: "muted", glyph: "○", label: "No run yet", detail: "Radar starts the moment the mission exists." };
+    const label = stageLabels[run.currentStage] ?? run.currentStage;
+    if (run.status === "queued" || run.status === "active") {
+      return { tone: "working", glyph: "●", label, detail: "Radar is working in the background — you can leave. It waits until your attention is needed." };
+    }
+    if (run.status === "waiting") {
+      const isApproval = run.currentStage === "approval";
+      return {
+        tone: "waiting",
+        glyph: "◐",
+        label,
+        detail: isApproval
+          ? draftsOnGate.length > 0
+            ? `${draftsOnGate.length} action${draftsOnGate.length === 1 ? "" : "s"} ready — approve the exact content and Radar sends it.`
+            : "Radar opened the gate with nothing to send; it did not invent a contact route."
+          : "Radar stopped because it needs something only you can give it.",
+      };
+    }
+    if (run.status === "complete") return { tone: "done", glyph: "✓", label, detail: "Radar reached its objective — the outcome is recorded." };
+    if (run.status === "blocked") {
+      return { tone: "blocked", glyph: "■", label, detail: budgetBlocked ? "Paused for budget, not broken — raise the cap, then resume." : "Paused after a provider failure — retry when conditions change." };
+    }
+    if (run.status === "failed") return { tone: "blocked", glyph: "✗", label, detail: "The run failed. Activity holds the recorded reason." };
+    return { tone: "muted", glyph: "○", label, detail: "You stopped this mission." };
   })();
 
   const navCounts: Record<View, number | null> = {
@@ -442,28 +454,6 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
     }
   }
 
-  async function onReclassify() {
-    if (!missionId) return;
-    setPlanning(true); setPlanNotice("");
-    try {
-      const result = await classifyIntent({ missionId });
-      setPlanNotice(result.clarificationNeeded ? "Radar needs one clarification before planning." : "Understanding updated.");
-    } catch (error) {
-      setPlanNotice(error instanceof Error ? error.message : "Re-classification failed.");
-    } finally { setPlanning(false); }
-  }
-
-  async function onRunPipeline() {
-    if (!missionId) return;
-    setPlanning(true); setPlanNotice("");
-    try {
-      const result = await runPipeline({ workspaceId, missionId });
-      setPlanNotice(result.started ? "Radar is running end-to-end — follow the live transcript in Activity." : `Run is already ${run?.status ?? "in progress"}.`);
-    } catch (error) {
-      setPlanNotice(error instanceof Error ? error.message : "Could not start the run.");
-    } finally { setPlanning(false); }
-  }
-
   async function onStopRun() {
     if (!missionId) return;
     try {
@@ -542,14 +532,6 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
     } catch (error) {
       setPlanNotice(error instanceof Error ? error.message : "Upload failed.");
     } finally { setContextArtifactUploading(""); }
-  }
-
-  async function onUnderstandingSave() {
-    if (!missionId || !understandingDraft.trim()) return;
-    await reviseGoal({ workspaceId, missionId, rawGoal: understandingDraft.trim() });
-    setEditingUnderstanding(false);
-    await classifyIntent({ missionId });
-    setPlanNotice("Understanding revised — classification updated.");
   }
 
   async function onApprovePlan() {
@@ -654,21 +636,6 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
     }
   }
 
-  async function onSaveBudgetLimit() {
-    const value = Number(budgetLimitDraft);
-    if (!Number.isFinite(value) || budgetLimitDraft.trim() === "") {
-      setBudgetNotice("Enter a whole number of credits.");
-      return;
-    }
-    try {
-      const result = await setBudgetLimit({ workspaceId, creditLimit: Math.floor(value) });
-      setBudgetNotice(`Credit cap set to ${result.creditLimit}. Resume the stage when you are ready.`);
-      setBudgetLimitDraft("");
-    } catch (error) {
-      setBudgetNotice(error instanceof Error ? error.message : "Could not set the credit cap.");
-    }
-  }
-
   function openSearchResult(result: { missionId: string | null; view: View }) {
     if (result.missionId) setSelectedMissionId(result.missionId);
     selectView(result.view);
@@ -744,19 +711,6 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
     catch (error) { setSnippetNotice(error instanceof Error ? error.message : "Could not remove the source."); }
   }
 
-  async function onSearch() {
-    if (!missionId) return;
-    const query = (researchQuery.trim() || plan?.normalizedGoal || selectedMission?.rawGoal || "").trim();
-    if (!query) { setResearchNotice("Enter a research query first."); return; }
-    setResearching(true); setResearchNotice("");
-    try {
-      const result = await searchWeb({ missionId, requestId: crypto.randomUUID(), query, limit: 6 });
-      setResearchNotice(`Firecrawl persisted ${result.resultCount} deduplicated source${result.resultCount === 1 ? "" : "s"}.`);
-    } catch (error) {
-      setResearchNotice(error instanceof Error ? error.message : "Firecrawl research failed.");
-    } finally { setResearching(false); }
-  }
-
   async function onScrape(sourceId: Id<"sourceRecords">) {
     if (!missionId) return;
     setResearchNotice("");
@@ -766,80 +720,6 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
     } catch (error) {
       setResearchNotice(error instanceof Error ? error.message : "Firecrawl scrape failed.");
     }
-  }
-
-  async function onMapSite() {
-    if (!missionId) return;
-    const target = (mapUrl.trim() || "").trim();
-    if (!target) { setResearchNotice("Enter a site URL to map (https://…)."); return; }
-    setResearching(true); setResearchNotice("");
-    try {
-      const result = await mapSite({ missionId, requestId: crypto.randomUUID(), url: target, limit: 25 });
-      setResearchNotice(`Firecrawl mapped ${result.linkCount} site URL${result.linkCount === 1 ? "" : "s"}.`);
-    } catch (error) {
-      setResearchNotice(error instanceof Error ? error.message : "Firecrawl map failed.");
-    } finally { setResearching(false); }
-  }
-
-  async function onStartCrawl() {
-    if (!missionId) return;
-    const target = (mapUrl.trim() || "").trim();
-    if (!target) { setResearchNotice("Enter a site URL to crawl (https://…)."); return; }
-    setResearching(true); setResearchNotice("");
-    try {
-      const result = await startCrawl({ missionId, requestId: crypto.randomUUID(), url: target, limit: 10 });
-      setResearchNotice(`Durable crawl started (${result.crawlId}). Pages stream in as they are captured.`);
-    } catch (error) {
-      setResearchNotice(error instanceof Error ? error.message : "Firecrawl crawl failed to start.");
-    } finally { setResearching(false); }
-  }
-
-  async function onResolveEntities() {
-    if (!missionId) return;
-    setResearching(true); setResearchNotice("");
-    try {
-      const result = await resolveEntities({ workspaceId, missionId, limit: 8 });
-      setResearchNotice(
-        result.resolved === 0
-          ? "No unscraped sources left to resolve."
-          : `Resolved ${result.resolved} entit${result.resolved === 1 ? "y" : "ies"} (${result.extracted} extracted, ${result.fallback} snippet-only).`,
-      );
-    } catch (error) {
-      setResearchNotice(error instanceof Error ? error.message : "Entity resolution failed.");
-    } finally { setResearching(false); }
-  }
-
-  async function onExplainMatches() {
-    if (!missionId) return;
-    setResearching(true); setResearchNotice("");
-    try {
-      const result = await explainMatches({ missionId });
-      setResearchNotice(`AI explanations saved for ${result.explained} match${result.explained === 1 ? "" : "es"} (${result.model}).`);
-    } catch (error) {
-      setResearchNotice(error instanceof Error ? error.message : "Match explanation failed.");
-    } finally { setResearching(false); }
-  }  /**
-   * Ask the agent to draft the first message for a match.
-   *
-   * Shared by the Discover card and the approval gate, so it returns its message
-   * instead of writing to a notice: each surface reports it where the user is
-   * actually looking, rather than one of them printing into the other's panel.
-   */
-  async function proposeDraftFor(matchId: Id<"matches">): Promise<string> {
-    if (!missionId || !inbox) throw new Error("Link an AgentMail inbox first — Radar needs somewhere to send from.");
-    const result = await aiDraftMessage({
-      workspaceId,
-      missionId,
-      matchId,
-      agentmailInboxId: inbox.agentmailInboxId,
-      clientRequestId: `ai-draft-${matchId}-${Date.now()}`,
-    });
-    setLinkedMatchId(matchId);
-    if (result.actionId) return `Draft created for ${result.recipient}. Nothing sends until you approve the exact content.`;
-    // No verified recipient in the evidence: hand back the prose for review
-    // instead of pretending a draft exists that Radar cannot address.
-    setSubject(result.subject); setBody(result.body);
-    return "The model wrote a subject and body, but found no verified recipient email in the evidence — review it in Actions.";
   }
 
   /**
@@ -873,28 +753,6 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
     } catch (error) {
       setApprovalNotice(error instanceof Error ? error.message : "AgentMail inbox provisioning failed.");
     } finally { setProvisioning(false); }
-  }
-
-  async function onDraft(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!missionId) return;
-    setDrafting(true); setOutreachNotice("");
-    try {
-      await draftMessage({
-        workspaceId,
-        missionId,
-        matchId: linkedMatchId,
-        agentmailInboxId: inbox?.agentmailInboxId ?? "",
-        recipient,
-        subject,
-        body,
-        clientRequestId: crypto.randomUUID(),
-      });
-      setOutreachNotice("Draft stored. Review it, then approve the exact content.");
-      setRecipient(""); setSubject(""); setBody(""); setLinkedMatchId(null);
-    } catch (error) {
-      setOutreachNotice(error instanceof Error ? error.message : "Draft creation failed.");
-    } finally { setDrafting(false); }
   }
 
   async function onApprove(actionId: Id<"actionDrafts">) {
@@ -932,19 +790,6 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
     catch (error) { setPipelineNotice(error instanceof Error ? error.message : "Could not update the stage."); }
   }
 
-  async function onCreateFollowUp(outcomeId: Id<"outcomes">, matchId: Id<"matches"> | null, counterpart: string) {
-    if (!missionId) return;
-    setPipelineNotice("");
-    try {
-      await scheduleFollowUp({
-        workspaceId, missionId, outcomeId, matchId, threadId: null,
-        note: `Follow up with ${counterpart}`,
-        dueAt: Date.now() + 3 * 24 * 60 * 60 * 1000,
-      });
-      setPipelineNotice("Follow-up scheduled for three days from now.");
-    } catch (error) { setPipelineNotice(error instanceof Error ? error.message : "Could not schedule the follow-up."); }
-  }
-
   async function onSnoozeFollowUp(followUpId: Id<"followUps">, days: number) {
     setPipelineNotice("");
     try {
@@ -957,20 +802,6 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
     setPipelineNotice("");
     try { await completeFollowUp({ workspaceId, followUpId }); setPipelineNotice("Follow-up marked done."); }
     catch (error) { setPipelineNotice(error instanceof Error ? error.message : "Could not complete the follow-up."); }
-  }
-
-  async function onRecordMeeting(outcomeId: Id<"outcomes">, matchId: Id<"matches"> | null, counterpart: string) {
-    if (!missionId || !meetingAt) { setPipelineNotice("Pick a meeting time first."); return; }
-    setPipelineNotice("");
-    try {
-      await recordMeeting({
-        workspaceId, missionId, outcomeId, matchId, counterpart,
-        scheduledAt: new Date(meetingAt).getTime(),
-        notes: meetingNotes,
-      });
-      setMeetingFor(null); setMeetingAt(""); setMeetingNotes("");
-      setPipelineNotice("Meeting recorded on the relationship timeline.");
-    } catch (error) { setPipelineNotice(error instanceof Error ? error.message : "Could not record the meeting."); }
   }
 
   async function onScoutForm() {
@@ -1045,16 +876,10 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
 
   const confirmedFactsForForms = (contextFacts ?? []).filter((fact) => ["user_confirmed", "user_corrected"].includes(fact.verificationStatus));
   const runWorking = run && ["queued", "active"].includes(run.status);
-  // A budget block is a spend decision, not a failure: the run keeps its stage.
-  const budgetBlocked = run?.activeInterruption === "budget_blocked";
-  // A reaped run was parked because it went quiet with no state change.
-  const staleRun = run?.activeInterruption === "stale_run";
-  const linkedMatchSource = linkedMatchId ? sources?.find((source) => source._id === matches?.find((match) => match._id === linkedMatchId)?.sourceId) : undefined;
   const selectedThreadMission = (() => {
     const thread = (threads ?? []).find((item) => item.threadId === selectedThreadId);
     return thread?.missionId ? missions?.find((mission) => mission._id === thread.missionId) : undefined;
   })();
-  const meetingsForOutcome = (outcomeId: Id<"outcomes">) => (meetings ?? []).filter((meeting) => meeting.outcomeId === outcomeId);
 
   const filteredMissions = useMemo(() => {
     if (!missions) return [];
@@ -1201,6 +1026,16 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
               <h1>{viewTitles[activeView].title}</h1>
               <p className="page-desc">{viewTitles[activeView].description}</p>
             </div>
+            {agentState && (
+              <div className={`agent-state tone-${agentState.tone}`} role="status" aria-live="polite">
+                <span className="agent-state-glyph" aria-hidden="true">{agentState.glyph}</span>
+                <div className="agent-state-copy">
+                  <strong>{agentState.label}</strong>
+                  <p>{agentState.detail}</p>
+                </div>
+                <span className="agent-state-mission" title={selectedMission?.rawGoal}>{selectedMission?.title}</span>
+              </div>
+            )}
           </div>
 
           {activeView === "home" && (
@@ -1410,6 +1245,7 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
                       <div className="inline-actions">
                         <button type="button" className="btn" onClick={onApprovePlan} disabled={planning}>{planning ? "Approving…" : "✓ Approve plan"}</button>
                       </div>
+                      {planNotice && <p className="stage-note" role="status">{planNotice}</p>}
                     </div>
                   )}
 
@@ -1738,6 +1574,7 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
                       {runWorking && <span className="status-pill status-running">run active</span>}
                     </div>
                     <p className="stage-note">{latestJob ? `${sources?.length ?? 0} sources from ${jobs?.length ?? 0} research jobs` : "The agent discovers sources automatically during its run."}</p>
+                    {researchNotice && <p className="stage-note" role="status">{researchNotice}</p>}
                   </section>
 
                   {entities && entities.length > 0 && (
@@ -1827,7 +1664,7 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
                               </div>
 
                               {matchDecision && (
-                                <div className="decision-note">
+                                <div className={`decision-note decision-${matchDecision.decision}`}>
                                   <p className="why-row"><b>Radar decided</b>{DECISION_LABELS[matchDecision.decision] ?? matchDecision.decision} — {matchDecision.detail}</p>
                                   <p className="stage-note">Match {matchDecision.quality} · actionability {matchDecision.actionability}{matchDecision.capability ? ` · via ${matchDecision.capability}` : ""}</p>
                                   {matchDecision.missingEvidence && <p className="stage-note">Still missing: {matchDecision.missingEvidence}</p>}
@@ -1877,16 +1714,17 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
                 ) : (
                   <div className="view-stack">
                     {[
-                      { key: "needs", label: "Needs your approval", statuses: ["draft", "awaiting_approval"] },
-                      { key: "progress", label: "In progress", statuses: ["approved", "executing"] },
-                      { key: "done", label: "Completed", statuses: ["sent", "delivered"] },
-                      { key: "blocked", label: "Blocked or failed", statuses: ["failed", "blocked", "cancelled"] },
+                      { key: "needs", tone: "amber", label: "Needs your approval", hint: "Approve the exact content and Radar sends it.", statuses: ["draft", "awaiting_approval"] },
+                      { key: "progress", tone: "accent", label: "In progress", hint: "Approved and being executed by Radar.", statuses: ["approved", "executing"] },
+                      { key: "done", tone: "green", label: "Completed", hint: "Executed, with the result observed.", statuses: ["sent", "delivered"] },
+                      { key: "blocked", tone: "red", label: "Blocked or failed", hint: "Radar could not finish these, and recorded why.", statuses: ["failed", "blocked", "cancelled"] },
                     ].map((group) => {
                       const groupDrafts = drafts.filter((draft) => group.statuses.includes(draft.status));
                       if (groupDrafts.length === 0) return null;
                       return (
-                        <div className="action-group" key={group.key}>
+                        <div className={`action-group tone-${group.tone}`} key={group.key}>
                           <div className="actions-divider"><span>{group.label}</span><em>{groupDrafts.length}</em></div>
+                          <p className="action-group-hint">{group.hint}</p>
                           {groupDrafts.map((draft) => (
                       <article className={`panel approval-card ${draft.status === "approved" ? "approved" : ""}`} key={draft._id}>
                         <div className="panel-head">

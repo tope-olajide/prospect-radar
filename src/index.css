@@ -189,7 +189,40 @@ h1, h2, h3, p { margin: 0; }
 
 /* ---------- Content ---------- */
 .content-wrap { flex: 1; padding: 30px 40px 40px; display: flex; flex-direction: column; gap: 22px; }
+.page-heading { display: grid; gap: 12px; }
 .page-heading h1 { margin-top: 6px; font-size: 28px; letter-spacing: -.04em; color: var(--text); }
+
+/* ---------- Agent state, at a glance ---------- */
+/* One banner, on every page, stating what the agent is doing right now. Its
+   tone is the product's four states: working, waiting on you, done, blocked. */
+.agent-state {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 16px;
+  border: 1px solid var(--line); border-left: 3px solid var(--line-strong);
+  border-radius: 12px; background: var(--panel-2);
+}
+.agent-state-glyph { flex: 0 0 auto; font-size: 15px; line-height: 1; color: var(--muted-2); }
+.agent-state-copy { min-width: 0; }
+.agent-state-copy strong { display: block; color: var(--text); font-size: 12px; letter-spacing: -.01em; }
+.agent-state-copy p { margin-top: 3px; color: var(--muted); font-size: 10px; line-height: 1.6; }
+.agent-state-mission {
+  margin-left: auto; max-width: 30%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--muted-2); font-family: 'DM Mono', monospace; font-size: 9px;
+}
+.agent-state.tone-working { border-left-color: var(--accent); }
+.agent-state.tone-working .agent-state-glyph { color: var(--accent); animation: pulse-dot 1.8s ease-in-out infinite; }
+.agent-state.tone-waiting { border-left-color: var(--amber); background: var(--amber-wash); }
+.agent-state.tone-waiting .agent-state-glyph { color: var(--amber); }
+.agent-state.tone-done { border-left-color: var(--green); }
+.agent-state.tone-done .agent-state-glyph { color: var(--green); }
+.agent-state.tone-blocked { border-left-color: var(--red); background: var(--red-wash); }
+.agent-state.tone-blocked .agent-state-glyph { color: var(--red); }
+.agent-state.tone-muted { border-left-color: var(--line-strong); }
+
+@media (max-width: 760px) {
+  .agent-state { flex-wrap: wrap; }
+  .agent-state-mission { margin-left: 27px; max-width: 100%; }
+}
 .page-desc { margin-top: 6px; color: var(--muted); font-size: 12px; }
 .eyebrow { color: var(--accent); font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: .18em; text-transform: uppercase; }
 .view-stack { display: grid; gap: 16px; }
@@ -263,7 +296,7 @@ label { display: grid; gap: 6px; color: var(--muted); font-size: 10px; font-weig
 .timeline-step.timeline-done .timeline-dot { background: var(--accent); }
 .timeline-step.timeline-active .timeline-dot { background: var(--accent); box-shadow: 0 0 0 4px var(--accent-wash-2); animation: pulse 2s ease-in-out infinite; }
 .timeline-step.timeline-waiting .timeline-dot { background: var(--amber); box-shadow: 0 0 0 4px var(--amber-wash); }
-.timeline-label { font-size: 10px; color: var(--text-muted); margin-top: 6px; text-align: center; }
+.timeline-label { font-size: 10px; color: var(--text-faint); margin-top: 6px; text-align: center; }
 .timeline-step.timeline-active .timeline-label { color: var(--accent); font-weight: 600; }
 .timeline-step.timeline-waiting .timeline-label { color: var(--amber); font-weight: 600; }
 @keyframes pulse { 0%, 100% { box-shadow: 0 0 0 4px var(--accent-wash-2); } 50% { box-shadow: 0 0 0 8px var(--accent-wash); } }
@@ -707,7 +740,7 @@ label { display: grid; gap: 6px; color: var(--muted); font-size: 10px; font-weig
   outline: none; transition: border-color 0.15s;
 }
 .auth-input:focus { border-color: var(--accent); }
-.auth-error { color: var(--error); font-size: 13px; margin: 0; }
+.auth-error { color: var(--red); font-size: 13px; margin: 0; }
 .auth-submit { width: 100%; margin-top: 4px; }
 .auth-switch { text-align: center; font-size: 13px; color: var(--muted); margin-top: 20px; }
 .auth-bar {
@@ -736,8 +769,18 @@ label { display: grid; gap: 6px; color: var(--muted); font-size: 10px; font-weig
 .actions-divider::after { content: ""; flex: 1; height: 1px; background: var(--line); }
 
 /* ── Action lifecycle groups ─────────────────────────────────────── */
-.action-group { display: flex; flex-direction: column; gap: 10px; }
+.action-group { display: flex; flex-direction: column; gap: 10px; margin-top: 6px; }
 .actions-divider em { font-style: normal; color: var(--muted-2); font-family: 'DM Mono', monospace; }
+.action-group-hint { margin-top: -4px; color: var(--muted); font-size: 10px; line-height: 1.5; }
+/* Tone each lifecycle group so the four action states separate at a glance. */
+.action-group.tone-amber .actions-divider { color: var(--amber); }
+.action-group.tone-amber .actions-divider::after { background: var(--amber-line); }
+.action-group.tone-accent .actions-divider { color: var(--accent); }
+.action-group.tone-accent .actions-divider::after { background: var(--accent-line); }
+.action-group.tone-green .actions-divider { color: var(--green); }
+.action-group.tone-green .actions-divider::after { background: var(--green-line); }
+.action-group.tone-red .actions-divider { color: var(--red); }
+.action-group.tone-red .actions-divider::after { background: var(--red-line); }
 
 /* Radar's own explanation of what it decided about a match, and why. Shown so
    the agent's reasoning is part of the product, not only of the trace. */
@@ -748,6 +791,12 @@ label { display: grid; gap: 6px; color: var(--muted); font-size: 10px; font-weig
 }
 .decision-note .why-row { margin: 0; }
 .decision-note .stage-note { margin: 0; }
+/* The note is toned by the decision itself, so "acted" and "chose nothing"
+   never look alike when scanning the grid. */
+.decision-note.decision-send_email,
+.decision-note.decision-submit_form { background: var(--green-wash); border-left-color: var(--green); }
+.decision-note.decision-investigate { background: var(--amber-wash); border-left-color: var(--amber); }
+.decision-note.decision-no_action { background: var(--red-wash); border-left-color: var(--red-line); }
 
 /* ── Activity log ────────────────────────────────────────────────── */
 .metric-tile.static { cursor: default; }

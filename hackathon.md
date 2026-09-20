@@ -14,9 +14,37 @@
 - **Auth:** Convex Auth
 - **AI models:** any OpenAI-compatible model via OPENAI_BASE_URL / OPENAI_MODEL (DashScope qwen-max in production; provider recorded on plans and classifications)
 - **Started:** 2026-09-13T00:00:00Z
-- **Last updated:** 2026-09-20T11:20:00Z
+- **Last updated:** 2026-09-20T11:50:00Z
 
 ## Log
+
+### 2026-09-20 - working tree — Phase 6 (part 3): visual polish, agent state at a glance
+Every page now states, in one line, what the agent is doing right now.
+
+**Agent-state banner.** A single banner under each page heading renders the
+persisted run as one of four product states — working, waiting on you, done,
+blocked — with a tone-coloured rail and glyph, a plain-language stage label
+("Researching sources", "Waiting for your approval"), and the mission it
+belongs to. It is derived from the run record, never animated or invented. On
+the approval gate it counts what is actually ready to approve, and when the
+gate opened with nothing to send it says so rather than implying work in flight.
+
+**Two broken theme tokens fixed.** `--error` (auth errors) and `--text-muted`
+(timeline labels) were never defined; the first silently dropped the error
+colour, the second left the progress-timeline labels un-muted. A full audit of
+`var(--…)` usage against declared tokens now passes with no unknowns.
+
+**Toned by meaning.** Decision notes on Discover are coloured by the decision
+itself (acted / investigate / no action), and the Actions lifecycle groups each
+carry their own divider tone and a one-line hint, so the four action states
+separate when scanning instead of reading as four identical lists.
+
+Also finished the dead-code sweep from the manual-workflow era: unused hooks,
+state pairs, and derived values removed, and the two notices that had lost their
+host (`planNotice`, `researchNotice`) are rendered where they are produced.
+
+Verification: 274 tests passing, both typechecks clean (`tsc --noUnusedLocals`
+clean on the app), `vite build` clean.
 
 ### 2026-09-20 - working tree — Phase 6 (part 2): page experiences around the autonomous lifecycle
 Each primary destination now answers its own question and displays the agent's
