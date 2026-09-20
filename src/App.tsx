@@ -8,7 +8,7 @@ import { useAuthActions } from "@convex-dev/auth/react";
 import SignIn from "./SignIn";
 
 type MissionMode = "opportunity" | "person" | "customer" | "solution" | "collaborator";
-type View = "home" | "dashboard" | "discover" | "actions" | "inbox" | "relationships" | "outcomes" | "profile" | "activity";
+type View = "home" | "discover" | "actions" | "inbox" | "relationships" | "outcomes" | "profile" | "activity";
 type PipelineStageName = "contacted" | "replied" | "engaged" | "meeting" | "proposal" | "won" | "lost" | "dormant";
 
 const PIPELINE_STAGES: PipelineStageName[] = ["contacted", "replied", "engaged", "meeting", "proposal", "won", "lost", "dormant"];
@@ -41,10 +41,9 @@ const navItems: { id: View; label: string; hint: string; group: string }[] = [
 const navGroups: string[] = ["RADAR", "WORK", "KNOWLEDGE", "SYSTEM"];
 
 const viewTitles: Record<View, { eyebrow: string; title: string; description: string }> = {
-  home: { eyebrow: "Agent workspace", title: "Home", description: "Tell Radar what you want. It works right here, in front of you." },
-  dashboard: { eyebrow: "Overview", title: "The workspace at a glance", description: "Live counts, run states, and the pipeline — every number is a real Convex subscription." },
-  discover: { eyebrow: "Signal intelligence", title: "Evidence before opinions.", description: "Every match carries its source, freshness, and unknowns." },
-  actions: { eyebrow: "Approval boundary", title: "Nothing sends without you.", description: "Outreach, form submissions, and follow-ups — each one is approved as its own exact payload." },
+  home: { eyebrow: "Agent workspace", title: "Home", description: "Tell Radar what you want. It works in the background — leave, and it calls you only when your attention is needed." },
+  discover: { eyebrow: "Signal intelligence", title: "What Radar found, and why.", description: "Every match carries its source, freshness, unknowns, and the decision Radar reached about it." },
+  actions: { eyebrow: "Approval boundary", title: "What Radar proposes and does.", description: "Each draft is approved as its own exact payload, then Radar executes and observes it on its own." },
   inbox: { eyebrow: "Agent-owned inbox", title: "Replies arrive live.", description: "Inbound mail is untrusted data: classified, never auto-sent." },
   relationships: { eyebrow: "Relationship memory", title: "Radar remembers.", description: "People, organizations, stages, follow-ups, and meetings — every relationship keeps its history." },
   outcomes: { eyebrow: "Results", title: "What actually happened.", description: "Contacted, replied, interested, meeting, proposal, converted — tied back to the mission that caused it." },
@@ -201,7 +200,6 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
   const [factValue, setFactValue] = useState("");
   const [editingFactId, setEditingFactId] = useState<Id<"contextFacts"> | null>(null);
   const [factEditValue, setFactEditValue] = useState("");
-  const [aiDraftingMatchId, setAiDraftingMatchId] = useState<Id<"matches"> | null>(null);
   const [approvalNotice, setApprovalNotice] = useState("");
   const [meetingFor, setMeetingFor] = useState<Id<"outcomes"> | null>(null);
   const [meetingAt, setMeetingAt] = useState("");
@@ -254,6 +252,9 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
   const jobs = useQuery(api.researchStore.listJobs, backendConnected && missionId ? { missionId } : "skip");
   const sources = useQuery(api.researchStore.listSources, backendConnected && missionId ? { missionId } : "skip");
   const matches = useQuery(api.researchStore.listMatches, backendConnected && missionId ? { missionId } : "skip");
+  // Radar's own record of what it chose to do about each match, and why. The
+  // UI renders the agent's decision rather than asking the user to make it.
+  const decisions = useQuery(api.actionStore.decisions, backendConnected && workspaceId && missionId ? { workspaceId, missionId } : "skip");
   const entities = useQuery(api.entityStore.listForMission, backendConnected && missionId ? { missionId } : "skip");
   const missionSignals = useQuery(api.entityStore.listSignalsForMission, backendConnected && missionId ? { missionId } : "skip");
   const inbox = useQuery(api.outreachStore.getInbox, backendConnected && workspaceId ? { workspaceId } : "skip");
@@ -346,19 +347,25 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
   // one, offers the click that produces the thing they are there to approve.
   const atApprovalGate = run?.status === "waiting" && run.currentStage === "approval";
   const draftsOnGate = (drafts ?? []).filter((draft) => ["awaiting_approval", "approved"].includes(draft.status));
-  // Strongest label first, and only matches whose contact channel is actually
-  // established in the evidence — Radar never proposes outreach to someone it
-  // has no way to reach.
-  const draftTarget = (() => {
-    const rank: Record<string, number> = { stronger: 0, promising: 1, uncertain: 2 };
-    const reachable = (matches ?? []).filter((match) => match.label !== "insufficient" && Boolean(match.entity?.contactRoute?.value));
-    if (reachable.length === 0) return null;
-    return reachable.slice().sort((a, b) => (rank[a.label] ?? 9) - (rank[b.label] ?? 9))[0] ?? null;
+  // The decision Radar reached about each match. One row per match, so a card
+  // can state "why it acted" or "why it chose nothing" without a second guess.
+  const decisionFor = (matchId: Id<"matches">) => (decisions ?? []).find((entry) => entry.matchId === matchId) ?? null;
+  const DECISION_LABELS: Record<string, string> = {
+    send_email: "Outreach proposed",
+    submit_form: "Form submission prepared",
+    investigate: "Researching further",
+    no_action: "No action",
+  };
+  // The most recent decision that actually proposed something; used by the gate
+  // to say what Radar decided when the list of approvable drafts is empty.
+  const latestDecision = (() => {
+    const rows = decisions ?? [];
+    if (rows.length === 0) return null;
+    return rows.slice().sort((a, b) => b.createdAt - a.createdAt)[0] ?? null;
   })();
 
   const navCounts: Record<View, number | null> = {
     home: null,
-    dashboard: null,
     discover: matches?.length ?? null,
     actions: actionableDrafts.length + pendingFormWork || null,
     inbox: threads?.length || null,
@@ -433,14 +440,6 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
     } finally {
       setSubmitting(false);
     }
-  }
-
-  async function onInterpret() {
-    if (!missionId) return;
-    setPlanning(true); setPlanNotice("");
-    try { await interpretMission({ missionId }); setPlanNotice("Strategy-bearing plan saved to this mission."); }
-    catch (error) { setPlanNotice(error instanceof Error ? error.message : "Mission planning failed."); }
-    finally { setPlanning(false); }
   }
 
   async function onReclassify() {
@@ -564,6 +563,9 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
     } finally { setPlanning(false); }
   }
 
+  // Retained for a deliberately paused mission: `check_in` is off the default
+  // path (discovery flows straight to evaluation), so this is a resume, not a
+  // workflow step the normal user has to press.
   async function onContinueAfterCheckIn() {
     if (!missionId) return;
     setPlanning(true); setPlanNotice("");
@@ -838,29 +840,6 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
     // instead of pretending a draft exists that Radar cannot address.
     setSubject(result.subject); setBody(result.body);
     return "The model wrote a subject and body, but found no verified recipient email in the evidence — review it in Actions.";
-  }
-
-  async function onAiDraft(matchId: Id<"matches">) {
-    setAiDraftingMatchId(matchId); setResearchNotice("");
-    try {
-      setResearchNotice(await proposeDraftFor(matchId));
-    } catch (error) {
-      setResearchNotice(error instanceof Error ? error.message : "AI drafting failed.");
-    } finally {
-      setAiDraftingMatchId(null);
-    }
-  }
-
-  /** The approval gate's one-click path: draft the strongest reachable match. */
-  async function onDraftTopMatch(matchId: Id<"matches">) {
-    setAiDraftingMatchId(matchId); setApprovalNotice("");
-    try {
-      setApprovalNotice(await proposeDraftFor(matchId));
-    } catch (error) {
-      setApprovalNotice(error instanceof Error ? error.message : "AI drafting failed.");
-    } finally {
-      setAiDraftingMatchId(null);
-    }
   }
 
   /**
@@ -1430,9 +1409,82 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
                       )}
                       <div className="inline-actions">
                         <button type="button" className="btn" onClick={onApprovePlan} disabled={planning}>{planning ? "Approving…" : "✓ Approve plan"}</button>
-                        <button type="button" className="btn ghost" onClick={() => { /* plan editing stays in mission context */ }}>Edit plan →</button>
                       </div>
                     </div>
+                  )}
+
+                  {/* ── Mission brief & objective: the mission's own knobs ──
+                      Plan editing lives in mission context, not on a separate
+                      dashboard. Collapsed by default — it is an override, not a
+                      step in the workflow. This is where the user says what
+                      "finished" means (10 candidates, or one reply). */}
+                  {plan && !(run?.status === "waiting" && run.currentStage === "plan_review") && (
+                    <details className="brief-card home-brief">
+                      <summary className="panel-head">
+                        <p className="eyebrow">MISSION BRIEF &amp; OBJECTIVE</p>
+                        <span className="muted">{plan.userEditedAt ? `edited ${shortDate(plan.userEditedAt)}` : "AI-planned"} · adjust any time</span>
+                      </summary>
+                      {briefEditing ? (
+                        <div className="view-stack">
+                          <label className="field-label" htmlFor="brief-goal">Goal</label>
+                          <textarea id="brief-goal" className="composer-input" rows={2} value={briefDraft.normalizedGoal} onChange={(event) => setBriefDraft({ ...briefDraft, normalizedGoal: event.target.value })} />
+                          <label className="field-label" htmlFor="brief-must">Must have (comma-separated)</label>
+                          <input id="brief-must" className="composer-input" value={briefDraft.mustHave} onChange={(event) => setBriefDraft({ ...briefDraft, mustHave: event.target.value })} />
+                          <label className="field-label" htmlFor="brief-nice">Nice to have</label>
+                          <input id="brief-nice" className="composer-input" value={briefDraft.niceToHave} onChange={(event) => setBriefDraft({ ...briefDraft, niceToHave: event.target.value })} />
+                          <label className="field-label" htmlFor="brief-excl">Exclusions</label>
+                          <input id="brief-excl" className="composer-input" value={briefDraft.exclusions} onChange={(event) => setBriefDraft({ ...briefDraft, exclusions: event.target.value })} />
+                          <label className="field-label" htmlFor="brief-predicate">Completion predicate</label>
+                          <input id="brief-predicate" className="composer-input" value={briefDraft.completionPredicate} onChange={(event) => setBriefDraft({ ...briefDraft, completionPredicate: event.target.value })} />
+                          <div className="inline-actions">
+                            <button type="button" className="btn" onClick={onSaveBrief}>Save brief</button>
+                            <button type="button" className="btn ghost" onClick={() => setBriefEditing(false)}>Cancel</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <p className="plan-goal">{plan.normalizedGoal}</p>
+                          {plan.mustHave.length > 0 && <p className="stage-note">Must have: {plan.mustHave.join(" · ")}</p>}
+                          {plan.niceToHave.length > 0 && <p className="stage-note">Nice to have: {plan.niceToHave.join(" · ")}</p>}
+                          {plan.exclusions.length > 0 && <p className="stage-note">Excluding: {plan.exclusions.join(" · ")}</p>}
+                          <p className="stage-note">Completion: {plan.completionPredicate}</p>
+                          <div className="objective-row">
+                            <label className="field-label" htmlFor="objective-kind">Finished when</label>
+                            <select
+                              id="objective-kind"
+                              value={objectiveKind || plan.successKind || "contact_and_wait"}
+                              onChange={(event) => {
+                                setObjectiveKind(event.target.value);
+                                setObjectiveCount(plan.targetCount ?? 1);
+                              }}
+                            >
+                              <option value="contact_and_wait">they have been contacted and replied</option>
+                              <option value="find_candidates">enough candidates are assembled</option>
+                              <option value="present_solution">a solution is found and presented</option>
+                            </select>
+                            <input
+                              aria-label="How many"
+                              type="number"
+                              min={1}
+                              max={100}
+                              value={objectiveCount || plan.targetCount || 1}
+                              onChange={(event) => setObjectiveCount(Number(event.target.value))}
+                            />
+                            <button type="button" className="btn ghost" onClick={onSetObjective}>Set</button>
+                          </div>
+                          <p className="stage-note">
+                            {plan.successKind
+                              ? `Radar is measuring this mission against: ${plan.successKind === "contact_and_wait" ? `contacting ${plan.targetCount ?? 1} and waiting for a reply` : plan.successKind === "present_solution" ? `presenting ${plan.targetCount ?? 1} credible solution(s)` : `assembling ${plan.targetCount ?? 3} qualified candidate(s)`}${plan.userEditedAt ? " (your decision)" : " (read from your request)"}.`
+                              : "This plan did not state an objective, so the default for this kind of request stands until you set one."}
+                          </p>
+                          {objectiveNotice && <p className="stage-note" role="status">{objectiveNotice}</p>}
+                          <div className="inline-actions">
+                            <button type="button" className="btn ghost" onClick={startBriefEdit}>Edit brief</button>
+                          </div>
+                        </>
+                      )}
+                      {briefNotice && <p className="stage-note" role="status">{briefNotice}</p>}
+                    </details>
                   )}
 
                   {/* ── GAP 5: Check-in card ── */}
@@ -1449,7 +1501,7 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
                         <p className="checkin-highlight">{matches.filter((m) => m.label === "stronger").length} strong match{matches.filter((m) => m.label === "stronger").length === 1 ? "" : "es"} found</p>
                       )}
                       <div className="inline-actions">
-                        <button type="button" className="btn" onClick={onContinueAfterCheckIn} disabled={planning}>{planning ? "Continuing…" : "Continue to evaluation →"}</button>
+                        <button type="button" className="btn ghost" onClick={onContinueAfterCheckIn} disabled={planning}>{planning ? "Resuming…" : "↻ Resume this mission"}</button>
                       </div>
                     </div>
                   )}
@@ -1547,29 +1599,24 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
                         </>
                       ) : !inbox ? (
                         <>
-                          <p><b>Nowhere to send from yet.</b> Radar finished researching ahead of the gate. Create a sending inbox and it can draft the first message here.</p>
+                          <p><b>Nowhere to send from yet.</b> Radar finished researching ahead of the gate. Link a sending inbox and it can propose the first message here.</p>
                           <div className="inline-actions">
                             <button type="button" className="btn" onClick={onProvisionInboxFromGate} disabled={!backendConnected || provisioning}>
                               {provisioning ? "Creating inbox…" : "Create sending inbox"}
                             </button>
                           </div>
                         </>
-                      ) : draftTarget ? (
-                        <>
-                          <p><b>Nothing to approve yet.</b> Radar's strongest reachable match is {draftTarget.entity?.name ?? draftTarget.subject}. Ask it to draft the first message and it will appear here for your approval.</p>
-                          <div className="inline-actions">
-                            <button type="button" className="btn" onClick={() => onDraftTopMatch(draftTarget._id)} disabled={aiDraftingMatchId === draftTarget._id || emailCapability?.available === false}>
-                              {aiDraftingMatchId === draftTarget._id ? "Drafting…" : "Draft outreach for the top match"}
-                            </button>
-                            <button type="button" className="btn ghost" onClick={() => selectView("discover")}>Choose another match →</button>
-                          </div>
-                          {emailBlocker && <p className="stage-note">{emailBlocker} Radar will not offer outreach until that is resolved.</p>}
-                        </>
                       ) : (
                         <>
-                          <p><b>Nothing to approve yet.</b> No match has a public contact route established, so Radar will not propose outreach — pick a target and it will look for a way in.</p>
+                          <p><b>Radar opened this gate with nothing to send.</b>{" "}
+                            {latestDecision
+                              ? `${DECISION_LABELS[latestDecision.decision] ?? latestDecision.decision}: ${latestDecision.detail}`
+                              : "It found no match with a verified, supported contact route."}
+                          </p>
+                          <p className="stage-note">Radar does not invent a contact route, so this is the honest outcome of its research rather than a step waiting on you. Inspect what it found and why.</p>
+                          {emailBlocker && <p className="stage-note">{emailBlocker}</p>}
                           <div className="inline-actions">
-                            <button type="button" className="btn ghost" onClick={() => selectView("discover")}>Review matches →</button>
+                            <button type="button" className="btn ghost" onClick={() => selectView("discover")}>Inspect what Radar found →</button>
                           </div>
                         </>
                       )}
@@ -1643,6 +1690,25 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
                 </div>
               )}
 
+              {/* ── Orientation, only while the workspace is still empty ── */}
+              {!selectedMission && (
+                <section className="panel" aria-label="How Radar works">
+                  <div className="panel-head"><p className="eyebrow">HOW RADAR WORKS</p></div>
+                  <ol className="journey">
+                    <li><span>01</span><strong>You set a goal</strong><p>Tell Radar what you want. It plans autonomously.</p></li>
+                    <li><span>02</span><strong>Radar works</strong><p>Researches, evaluates, and decides — you can leave.</p></li>
+                    <li><span>03</span><strong>Radar asks you</strong><p>Only when it needs approval or missing info.</p></li>
+                    <li><span>04</span><strong>You approve</strong><p>Radar acts only on your explicit approval.</p></li>
+                    <li><span>05</span><strong>Radar continues</strong><p>Observes, follows up, records the outcome.</p></li>
+                  </ol>
+                  <div className="sponsor-strip">
+                    {sponsorCapabilities.map(([sponsor, capability]) => (
+                      <div key={sponsor} className="sponsor-chip"><strong>{sponsor}</strong><span>{capability}</span></div>
+                    ))}
+                  </div>
+                </section>
+              )}
+
               {/* ── Composer: always visible at the bottom ── */}
               <section className="panel composer-panel" aria-label="Ask Radar">
                 <form onSubmit={onSubmit}>
@@ -1659,255 +1725,6 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
                   </div>
                 </form>
               </section>
-            </div>
-          )}
-
-          {activeView === "dashboard" && (
-            <div className="view-stack">
-              {overview && (
-                <section className="panel" aria-label="Network overview">
-                  <div className="panel-head"><p className="eyebrow">NETWORK OVERVIEW</p><span className="muted">live from Convex</span></div>
-                  <div className="metric-grid">
-                    {[
-                      { label: "Entities", value: overview.counts.entities, view: "discover" as View },
-                      { label: "Signals · 7d", value: overview.counts.signalsThisWeek, view: "discover" as View },
-                      { label: "Replies", value: overview.counts.replies, view: "inbox" as View },
-                      { label: "Follow-ups due", value: overview.counts.followUpsDue, view: "outcomes" as View },
-                      { label: "Drafts pending", value: overview.counts.draftsPending, view: "actions" as View },
-                      { label: "Submissions", value: overview.counts.submissions, view: "actions" as View },
-                    ].map((metric) => (
-                      <button key={metric.label} type="button" className="metric-tile" onClick={() => selectView(metric.view)}>
-                        <span className="metric-value">{metric.value}</span>
-                        <span className="metric-label">{metric.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                  <div className="run-strip" aria-label="Run states">
-                    <span><em>Working now</em><strong>{overview.counts.runsActive}</strong></span>
-                    <span><em>Ready to run</em><strong>{overview.counts.runsReady}</strong></span>
-                    <span><em>Parked</em><strong>{overview.counts.runsWaiting}</strong></span>
-                    <span><em>Blocked</em><strong>{overview.counts.runsBlocked}</strong></span>
-                    <span><em>Approved sends</em><strong>{overview.counts.draftsApproved}</strong></span>
-                    <span><em>Blocked forms</em><strong>{overview.counts.blockedSubmissions}</strong></span>
-                  </div>
-                  {overview.pipeline.some((row) => row.count > 0) && (
-                    <div className="pipeline-mini" aria-label="Pipeline distribution">
-                      {overview.pipeline.filter((row) => row.count > 0).map((row) => {
-                        const max = Math.max(...overview.pipeline.map((item) => item.count), 1);
-                        return (
-                          <div key={row.stage} className="pipeline-mini-row">
-                            <span>{PIPELINE_LABELS[row.stage as PipelineStageName] ?? row.stage}</span>
-                            <span className="pipeline-bar" aria-hidden="true"><span style={{ width: `${Math.round((row.count / max) * 100)}%` }} /></span>
-                            <strong>{row.count}</strong>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </section>
-              )}
-
-              {attentionItems.length > 0 && (
-                <section className="attention-grid" aria-label="Needs attention">
-                  {attentionItems.map((item) => (
-                    <button key={item.id} type="button" className={`attention-card ${item.tone === "amber" ? "tone-amber" : "tone-cyan"}`} onClick={() => selectView(item.view)}>
-                      <strong>{item.title}</strong>
-                      <p>{item.detail}</p>
-                      <span>Resolve →</span>
-                    </button>
-                  ))}
-                </section>
-              )}
-
-              <div className="home-grid">
-                <section className="panel" aria-label="Mission controls">
-                  <div className="panel-head"><p className="eyebrow">MISSION CONTROLS</p>{selectedMission && <span className={`status-pill status-${selectedMission.status}`}>{selectedMission.status}</span>}</div>
-                  {!selectedMission ? (
-                    <p className="empty-state">No mission selected. Start one from Home.</p>
-                  ) : (
-                    <>
-                      <h3>{selectedMission.title}</h3>
-                      {selectedMission.intent && (
-                        <div className="understanding-card">
-                          <div className="panel-head"><p className="eyebrow">RADAR UNDERSTOOD</p><span className="muted">confidence {Math.round((selectedMission.intent.confidence ?? 0) * 100)}%</span></div>
-                          {editingUnderstanding ? (
-                            <div className="control-row">
-                              <textarea className="composer-input" rows={2} value={understandingDraft} onChange={(e) => setUnderstandingDraft(e.target.value)} aria-label="Revised goal" />
-                              <div className="inline-actions">
-                                <button type="button" className="btn" onClick={onUnderstandingSave}>Save & re-classify</button>
-                                <button type="button" className="btn ghost" onClick={() => setEditingUnderstanding(false)}>Cancel</button>
-                              </div>
-                            </div>
-                          ) : (
-                            <>
-                              <p><strong>You're looking for:</strong> {selectedMission.relationshipGoal?.replace(/_/g, " ") ?? "see the goal"}</p>
-                              <p><strong>Radar's read:</strong> {selectedMission.intent.rationale || selectedMission.rawGoal}</p>
-                              <p className="stage-note">Intent: {selectedMission.intent.primary.replace("find_", "")}{selectedMission.intent.secondary ? ` + ${selectedMission.intent.secondary.replace("find_", "")}` : ""} · target: {selectedMission.targetEntity?.replace(/_/g, " ") ?? "—"}</p>
-                              <div className="inline-actions">
-                                <button type="button" className="btn ghost" onClick={() => { setEditingUnderstanding(true); setUnderstandingDraft(selectedMission.rawGoal); }}>Adjust</button>
-                                <button type="button" className="btn ghost" onClick={onReclassify} disabled={planning}>{planning ? "Re-checking…" : "Re-classify"}</button>
-                              </div>
-                            </>
-                          )}
-                        </div>
-                      )}
-                      {budgetStatus && (
-                        <div className={`budget-strip ${budgetBlocked ? "budget-blocked" : budgetStatus.allowed ? "" : "budget-tight"}`} aria-live="polite">
-                          <div className="panel-head">
-                            <p className="eyebrow">PROVIDER BUDGET</p>
-                            <span className="muted">{budgetStatus.used} / {budgetStatus.creditLimit} credits used</span>
-                          </div>
-                          <div className="budget-figures">
-                            <span><em>Remaining</em><strong>{budgetStatus.remaining}</strong></span>
-                            <span><em>Pending work ≈</em><strong>{budgetStatus.pendingEstimate}</strong></span>
-                            <span><em>Search</em><strong>{budgetStatus.breakdown.search}</strong></span>
-                            <span><em>Crawl</em><strong>{budgetStatus.breakdown.crawl}</strong></span>
-                            <span><em>Extract</em><strong>{budgetStatus.breakdown.extract}</strong></span>
-                          </div>
-                          {budgetBlocked ? (
-                            <p className="budget-note">Paused for budget, not broken — the run kept its stage. Raise the cap below or add provider credits, then resume.</p>
-                          ) : !budgetStatus.allowed ? (
-                            <p className="budget-note">The remaining budget is below this mission's estimated cost, so the next provider call will pause the run instead of spending past the cap.</p>
-                          ) : null}
-                          <div className="budget-control">
-                            <input
-                              inputMode="numeric"
-                              placeholder={`Credit cap (now ${budgetStatus.creditLimit})`}
-                              value={budgetLimitDraft}
-                              onChange={(event) => setBudgetLimitDraft(event.target.value)}
-                              aria-label="Workspace credit cap"
-                            />
-                            <button type="button" className="btn ghost" onClick={onSaveBudgetLimit} disabled={!budgetLimitDraft.trim()}>Set cap</button>
-                          </div>
-                          {budgetNotice && <p className="stage-note" role="status">{budgetNotice}</p>}
-                        </div>
-                      )}
-                      {run && !["cancelled", "complete", "failed"].includes(run.status) && (
-                        <div className="inline-actions run-controls">
-                          <button type="button" className="btn" onClick={onStopRun}>■ Stop</button>
-                          {run.status === "blocked" && (
-                            <button type="button" className="btn ghost" onClick={onRetryStage}>
-                              {budgetBlocked ? "↻ Resume after raising the cap" : staleRun ? "↻ Resume stage" : "↻ Retry stage"}
-                            </button>
-                          )}
-                          {run.status === "blocked" && (
-                            <span className="stage-note">
-                              {budgetBlocked
-                                ? "Budget block: nothing failed — the estimate no longer fits the cap."
-                                : staleRun
-                                  ? "Parked, not failed: this run went quiet without advancing, so the reaper stopped counting it as work in progress. Resume the stage to pick up where it stopped."
-                                  : `Paused after a ${run.activeInterruption ?? "provider"} failure. Retry once provider conditions change.`}
-                            </span>
-                          )}
-                        </div>
-                      )}
-                      {plan ? (
-                        <div className="brief-card">
-                          <div className="panel-head">
-                            <p className="eyebrow">MISSION BRIEF</p>
-                            <span className="muted">{plan.userEditedAt ? `edited ${shortDate(plan.userEditedAt)}` : "AI-planned"}</span>
-                          </div>
-                          {briefEditing ? (
-                            <div className="view-stack">
-                              <label className="field-label" htmlFor="brief-goal">Goal</label>
-                              <textarea id="brief-goal" className="composer-input" rows={2} value={briefDraft.normalizedGoal} onChange={(event) => setBriefDraft({ ...briefDraft, normalizedGoal: event.target.value })} />
-                              <label className="field-label" htmlFor="brief-must">Must have (comma-separated)</label>
-                              <input id="brief-must" className="composer-input" value={briefDraft.mustHave} onChange={(event) => setBriefDraft({ ...briefDraft, mustHave: event.target.value })} />
-                              <label className="field-label" htmlFor="brief-nice">Nice to have</label>
-                              <input id="brief-nice" className="composer-input" value={briefDraft.niceToHave} onChange={(event) => setBriefDraft({ ...briefDraft, niceToHave: event.target.value })} />
-                              <label className="field-label" htmlFor="brief-excl">Exclusions</label>
-                              <input id="brief-excl" className="composer-input" value={briefDraft.exclusions} onChange={(event) => setBriefDraft({ ...briefDraft, exclusions: event.target.value })} />
-                              <label className="field-label" htmlFor="brief-sources">Preferred sources</label>
-                              <input id="brief-sources" className="composer-input" value={briefDraft.recommendedSources} onChange={(event) => setBriefDraft({ ...briefDraft, recommendedSources: event.target.value })} />
-                              <label className="field-label" htmlFor="brief-predicate">Completion predicate</label>
-                              <input id="brief-predicate" className="composer-input" value={briefDraft.completionPredicate} onChange={(event) => setBriefDraft({ ...briefDraft, completionPredicate: event.target.value })} />
-                              <div className="inline-actions">
-                                <button type="button" className="btn" onClick={onSaveBrief}>Save brief</button>
-                                <button type="button" className="btn ghost" onClick={() => setBriefEditing(false)}>Cancel</button>
-                              </div>
-                            </div>
-                          ) : (
-                            <>
-                              <p className="plan-goal">{plan.normalizedGoal}</p>
-                              {plan.mustHave.length > 0 && <p className="stage-note">Must have: {plan.mustHave.join(" · ")}</p>}
-                              {plan.niceToHave.length > 0 && <p className="stage-note">Nice to have: {plan.niceToHave.join(" · ")}</p>}
-                              {plan.exclusions.length > 0 && <p className="stage-note">Excluding: {plan.exclusions.join(" · ")}</p>}
-                              {plan.recommendedSources.length > 0 && <p className="stage-note">Preferred sources: {plan.recommendedSources.join(" · ")}</p>}
-                              <p className="stage-note">Completion: {plan.completionPredicate}</p>
-                              {/* What finished means. The planner reads it off the
-                                  request; the user can change it, and it is what the
-                                  action layer and the completion gate measure. */}
-                              <div className="objective-row">
-                                <label className="field-label" htmlFor="objective-kind">Finished when</label>
-                                <select
-                                  id="objective-kind"
-                                  value={objectiveKind || plan.successKind || "contact_and_wait"}
-                                  onChange={(event) => {
-                                    setObjectiveKind(event.target.value);
-                                    setObjectiveCount(plan.targetCount ?? 1);
-                                  }}
-                                >
-                                  <option value="contact_and_wait">they have been contacted and replied</option>
-                                  <option value="find_candidates">enough candidates are assembled</option>
-                                  <option value="present_solution">a solution is found and presented</option>
-                                </select>
-                                <input
-                                  aria-label="How many"
-                                  type="number"
-                                  min={1}
-                                  max={100}
-                                  value={objectiveCount || plan.targetCount || 1}
-                                  onChange={(event) => setObjectiveCount(Number(event.target.value))}
-                                />
-                                <button type="button" className="btn ghost" onClick={onSetObjective}>Set</button>
-                              </div>
-                              <p className="stage-note">
-                                {plan.successKind
-                                  ? `Radar is measuring this mission against: ${plan.successKind === "contact_and_wait" ? `contacting ${plan.targetCount ?? 1} and waiting for a reply` : plan.successKind === "present_solution" ? `presenting ${plan.targetCount ?? 1} credible solution(s)` : `assembling ${plan.targetCount ?? 3} qualified candidate(s)`}${plan.userEditedAt ? " (your decision)" : " (read from your request)"}.`
-                                  : "This plan did not state an objective, so the default for this kind of request stands until you set one."}
-                              </p>
-                              {objectiveNotice && <p className="stage-note" role="status">{objectiveNotice}</p>}
-                              <div className="inline-actions">
-                                <button type="button" className="btn ghost" onClick={startBriefEdit}>Edit brief</button>
-                              </div>
-                            </>
-                          )}
-                          {briefNotice && <p className="stage-note" role="status">{briefNotice}</p>}
-                        </div>
-                      ) : (
-                        <div className="inline-actions">
-                          <button type="button" className="btn" onClick={onInterpret} disabled={planning}>{planning ? "Interpreting…" : "Interpret goal"}</button>
-                          <span className="stage-note">{planNotice}</span>
-                        </div>
-                      )}
-                      <div className="inline-actions">
-                        {run && run.status === "waiting" && run.currentStage === "approval" && (
-                          <button type="button" className="btn" onClick={() => selectView("actions")}>Review what Radar proposed →</button>
-                        )}
-                        {run && run.status === "waiting" && (run.currentStage === "context_check" || run.currentStage === "plan_review") && (
-                          <span className="stage-note">Radar is waiting for your input above.</span>
-                        )}
-                      </div>
-                    </>
-                  )}
-                </section>
-
-                <section className="panel" aria-label="How Radar works">
-                  <div className="panel-head"><p className="eyebrow">HOW RADAR WORKS</p></div>
-                  <ol className="journey">
-                    <li><span>01</span><strong>You set a goal</strong><p>Tell Radar what you want. It plans autonomously.</p></li>
-                    <li><span>02</span><strong>Radar works</strong><p>Researches, evaluates, and decides — you can leave.</p></li>
-                    <li><span>03</span><strong>Radar asks you</strong><p>Only when it needs your approval or missing info.</p></li>
-                    <li><span>04</span><strong>You approve</strong><p>Radar acts only on your explicit approval.</p></li>
-                    <li><span>05</span><strong>Radar continues</strong><p>Observes results, follows up, records outcomes.</p></li>
-                  </ol>
-                  <div className="sponsor-strip">
-                    {sponsorCapabilities.map(([sponsor, capability]) => (
-                      <div key={sponsor} className="sponsor-chip"><strong>{sponsor}</strong><span>{capability}</span></div>
-                    ))}
-                  </div>
-                </section>
-              </div>
             </div>
           )}
 
@@ -1970,6 +1787,7 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
                       <div className="match-grid">
                         {matches.map((match) => {
                           const source = sources?.find((item) => item._id === match.sourceId);
+                          const matchDecision = decisionFor(match._id);
                           const sourceTypeLabel = match.sourceType === "crawled_page" ? "crawled" : match.sourceType === "scraped_page" ? "scraped" : match.sourceType === "mapped_site" ? "site map" : "search";
                           return (
                             <article className="panel match-card" key={match._id}>
@@ -2008,6 +1826,15 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
                                   : "Judged against your mission brief and confirmed facts."}</p>
                               </div>
 
+                              {matchDecision && (
+                                <div className="decision-note">
+                                  <p className="why-row"><b>Radar decided</b>{DECISION_LABELS[matchDecision.decision] ?? matchDecision.decision} — {matchDecision.detail}</p>
+                                  <p className="stage-note">Match {matchDecision.quality} · actionability {matchDecision.actionability}{matchDecision.capability ? ` · via ${matchDecision.capability}` : ""}</p>
+                                  {matchDecision.missingEvidence && <p className="stage-note">Still missing: {matchDecision.missingEvidence}</p>}
+                                  {matchDecision.artifacts.length > 0 && <p className="stage-note">Authorized documents: {matchDecision.artifacts.map((artifact) => artifact.title).join(" · ")}</p>}
+                                  {matchDecision.alternatives.length > 0 && <p className="stage-note">Rejected: {matchDecision.alternatives.map((alt) => `${alt.decision} — ${alt.reason}`).join("; ")}</p>}
+                                </div>
+                              )}
                               <a className="source-link" href={match.sourceUrl} target="_blank" rel="noreferrer">View source: {new URL(match.sourceUrl).hostname}{source ? ` · fetched ${shortDate(source.fetchedAt)}` : ""}</a>
                               {match.recommendedAction && <p className="next-action"><b>Next</b>{match.recommendedAction}</p>}
                               <div className="inline-actions">
@@ -2045,11 +1872,22 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
               )}
 
               <section aria-label="Drafts">
-                {drafts === undefined ? <p className="empty-state">Loading drafts…</p> : drafts.length === 0 ? (
-                  <div className="panel"><p className="empty-state">No drafts yet. Drafts can be autonomous; sending never is.</p></div>
+                {drafts === undefined ? <p className="empty-state">Loading actions…</p> : drafts.length === 0 ? (
+                  <div className="panel"><p className="empty-state">No actions yet. Radar proposes them on its own; sending never happens without your approval.</p></div>
                 ) : (
                   <div className="view-stack">
-                    {drafts.map((draft) => (
+                    {[
+                      { key: "needs", label: "Needs your approval", statuses: ["draft", "awaiting_approval"] },
+                      { key: "progress", label: "In progress", statuses: ["approved", "executing"] },
+                      { key: "done", label: "Completed", statuses: ["sent", "delivered"] },
+                      { key: "blocked", label: "Blocked or failed", statuses: ["failed", "blocked", "cancelled"] },
+                    ].map((group) => {
+                      const groupDrafts = drafts.filter((draft) => group.statuses.includes(draft.status));
+                      if (groupDrafts.length === 0) return null;
+                      return (
+                        <div className="action-group" key={group.key}>
+                          <div className="actions-divider"><span>{group.label}</span><em>{groupDrafts.length}</em></div>
+                          {groupDrafts.map((draft) => (
                       <article className={`panel approval-card ${draft.status === "approved" ? "approved" : ""}`} key={draft._id}>
                         <div className="panel-head">
                           <span className={`status-pill status-${draft.status}`}>{draft.status}</span>
@@ -2060,6 +1898,9 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
                         <p className="prewrap draft-body">{draft.body}</p>
                         {draft.matchId && matches?.find((match) => match._id === draft.matchId) && (
                           <p className="stage-note">Context used: match “{matches.find((match) => match._id === draft.matchId)?.subject}”</p>
+                        )}
+                        {draft.matchId && decisionFor(draft.matchId) && (
+                          <p className="stage-note">Radar proposed this because: {decisionFor(draft.matchId)!.detail}</p>
                         )}
                         {/* The approval covers the whole action, so the documents it
                             carries are shown at the moment of approving. */}
@@ -2075,9 +1916,12 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
                             </button>
                           )}
                           {draft.status === "approved" && (
-                            <button type="button" className="btn" onClick={() => onSend(draft._id)} disabled={sendingActionId === draft._id || emailCapability?.available === false}>
-                              {sendingActionId === draft._id ? "Sending…" : "Send via AgentMail"}
-                            </button>
+                            <>
+                              <span className="stage-note">Approved — Radar sends this automatically.</span>
+                              <button type="button" className="btn ghost" onClick={() => onSend(draft._id)} disabled={sendingActionId === draft._id || emailCapability?.available === false}>
+                                {sendingActionId === draft._id ? "Sending…" : "↻ Send now (override)"}
+                              </button>
+                            </>
                           )}
                           {draft.status === "executing" && draft.outboundId && (
                             <button type="button" className="btn ghost" onClick={() => onSyncOutbound(draft._id)}>Check send status</button>
@@ -2085,7 +1929,10 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
                           {draft.providerMessageId && <span className="mono-tag">message {draft.providerMessageId.slice(0, 14)}…</span>}
                         </div>
                       </article>
-                    ))}
+                          ))}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
                 {outreachNotice && <p className="stage-note">{outreachNotice}</p>}
@@ -2181,7 +2028,7 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
                                 <p className="radar-next"><b>Proposed next action</b>{classification.suggestedNextAction}</p>
                                 {suggestedDraft ? (
                                   <>
-                                    <p className="radar-drafted"><b>Drafted reply</b></p>
+                                    <p className="radar-drafted"><b>Drafted reply</b> <span className="muted">Radar prepared this on its own; it sends only after you approve it.</span></p>
                                     <p className="prewrap draft-suggestion"><strong>{suggestedDraft.subject}</strong>\n{classification.suggestedDraftId && suggestedDraft.status === "sent" ? "" : ""}{suggestedDraft.body}</p>
                                     <div className="inline-actions">
                                       {!["sent", "delivered", "executing"].includes(suggestedDraft.status) && (
@@ -2190,8 +2037,8 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
                                         </button>
                                       )}
                                       {suggestedDraft.status === "approved" && (
-                                        <button type="button" className="btn" onClick={() => onSend(suggestedDraft._id)} disabled={sendingActionId === suggestedDraft._id}>
-                                          {sendingActionId === suggestedDraft._id ? "Sending…" : "Send via AgentMail"}
+                                        <button type="button" className="btn ghost" onClick={() => onSend(suggestedDraft._id)} disabled={sendingActionId === suggestedDraft._id}>
+                                          {sendingActionId === suggestedDraft._id ? "Sending…" : "↻ Send now (override)"}
                                         </button>
                                       )}
                                       {suggestedDraft.status === "sent" && <span className="status-pill status-sent">sent</span>}

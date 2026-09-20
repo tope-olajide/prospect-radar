@@ -14,9 +14,45 @@
 - **Auth:** Convex Auth
 - **AI models:** any OpenAI-compatible model via OPENAI_BASE_URL / OPENAI_MODEL (DashScope qwen-max in production; provider recorded on plans and classifications)
 - **Started:** 2026-09-13T00:00:00Z
-- **Last updated:** 2026-09-19T23:40:00Z
+- **Last updated:** 2026-09-20T11:20:00Z
 
 ## Log
+
+### 2026-09-20 - working tree — Phase 6 (part 2): page experiences around the autonomous lifecycle
+Each primary destination now answers its own question and displays the agent's
+state rather than driving the workflow.
+
+**Decision trace in the UI.** The app subscribes to `actionStore.decisions`, so
+Home, Discover, and Actions render *why* Radar chose to act, investigate, or do
+nothing — match quality, actionability, the capability it would use, authorized
+facts/documents, and rejected alternatives.
+
+**Home.** The approval gate no longer asks the user to draft outreach. When the
+gate opens with nothing to send, it states Radar's own decision (e.g.
+`no_action` — no verified route) instead of offering a button that made the page
+the workflow engine. The mission brief and the success objective ("finished
+when", with a target count) moved into mission context, so a user can say "10
+candidates" or "one reply"; planning is no longer a separate dashboard function.
+The orphaned Dashboard route — whose only remaining user was a set of manual
+workflow buttons — was removed; its onboarding journey now shows on an empty
+Home.
+
+**Actions.** Drafts are grouped by lifecycle state (Needs your approval / In
+progress / Completed / Blocked or failed). Approval is the action: the page says
+"Approved — Radar sends this automatically" and the send button is demoted to an
+explicit override.
+
+**Discover.** Every match carries the decision Radar reached about it, with the
+quality, actionability, capability, and what it rejected.
+
+**Inbox.** A reply is framed as an event the agent already classified and acted
+on — the drafted reply is labelled as Radar's own work awaiting approval, and
+sending is again an override.
+
+Removed dead manual drivers (`onInterpret`, `onAiDraft`, `onDraftTopMatch`) now
+that the orchestrator owns those stages.
+
+Verification: 274 tests passing, `tsc -b` and `vite build` clean.
 
 ### 2026-09-19 - working tree — Phase 6: UI redesign around the autonomous lifecycle
 The UI now reflects the proven agent behavior instead of manually driving

@@ -563,6 +563,9 @@ label { display: grid; gap: 6px; color: var(--muted); font-size: 10px; font-weig
 .pipeline-bar > span { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--cyan), var(--accent)); }
 .pipeline-mini-row strong { color: var(--text); font-size: 11px; font-weight: 700; text-align: right; }
 .brief-card { display: grid; gap: 6px; padding: 12px; border: 1px solid var(--line); border-radius: 11px; background: var(--panel-2); }
+.brief-card summary { cursor: pointer; list-style: none; }
+.brief-card summary::-webkit-details-marker { display: none; }
+.home-brief { margin-top: 10px; }
 .brief-card .panel-head { margin-bottom: 0; }
 .brief-card .field-label { margin-top: 2px; }
 /* What "finished" means: a small editable statement, not a settings form. */
@@ -731,6 +734,20 @@ label { display: grid; gap: 6px; color: var(--muted); font-size: 10px; font-weig
   letter-spacing: .16em; text-transform: uppercase;
 }
 .actions-divider::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+
+/* ── Action lifecycle groups ─────────────────────────────────────── */
+.action-group { display: flex; flex-direction: column; gap: 10px; }
+.actions-divider em { font-style: normal; color: var(--muted-2); font-family: 'DM Mono', monospace; }
+
+/* Radar's own explanation of what it decided about a match, and why. Shown so
+   the agent's reasoning is part of the product, not only of the trace. */
+.decision-note {
+  display: flex; flex-direction: column; gap: 3px;
+  margin: 8px 0; padding: 10px 12px; border-radius: 9px;
+  background: var(--accent-wash); border-left: 2px solid var(--accent-bright);
+}
+.decision-note .why-row { margin: 0; }
+.decision-note .stage-note { margin: 0; }
 
 /* ── Activity log ────────────────────────────────────────────────── */
 .metric-tile.static { cursor: default; }
