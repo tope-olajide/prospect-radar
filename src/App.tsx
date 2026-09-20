@@ -194,6 +194,13 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
   const [objectiveCount, setObjectiveCount] = useState(1);
   const [objectiveNotice, setObjectiveNotice] = useState("");
 
+  // Discover is an evidence graph, not a search console: a match is the entry
+  // point, and each one drills into the page it was read from, the entity on
+  // that page, and the decision Radar reached. The lens picks the entry node.
+  const [discoverLens, setDiscoverLens] = useState<"matches" | "sources" | "entities">("matches");
+  const [discoverFocus, setDiscoverFocus] = useState<{ kind: "source" | "entity"; id: string; label: string } | null>(null);
+  const [expandedMatchId, setExpandedMatchId] = useState<string | null>(null);
+
   const [sourceTab, setSourceTab] = useState<"file" | "website" | "snippet">("file");
   const [outcomesTab, setOutcomesTab] = useState<"results" | "relationships" | "pipeline">("results");
   const [fileDrag, setFileDrag] = useState(false);
@@ -313,6 +320,23 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
   // The decision Radar reached about each match. One row per match, so a card
   // can state "why it acted" or "why it chose nothing" without a second guess.
   const decisionFor = (matchId: Id<"matches">) => (decisions ?? []).find((entry) => entry.matchId === matchId) ?? null;
+  // Evidence-graph traversal: match → source → entity → decision. Every edge is
+  // a persisted id, so the graph is the same on reload as it was while running.
+  const sourceById = (sourceId: string) => (sources ?? []).find((item) => item._id === sourceId) ?? null;
+  const matchesForSource = (sourceId: string) => (matches ?? []).filter((item) => item.sourceId === sourceId);
+  const matchesForEntity = (entityId: string) => (matches ?? []).filter((item) => item.entity?._id === entityId);
+  const signalsForEntity = (entityId: string) => (missionSignals ?? []).filter((item) => item.entityId === entityId);
+  const SOURCE_TYPE_LABELS: Record<string, string> = {
+    search_result: "search",
+    scraped_page: "scraped",
+    crawled_page: "crawled",
+    mapped_site: "site map",
+  };
+  // The graph's honest edges: an entity that resolved but was never matched, and
+  // a page that was fetched but produced no match, both stay visible.
+  const unmatchedEntities = (entities ?? []).filter((entity) => matchesForEntity(entity._id).length === 0);
+  const matchedSourceIds = new Set((matches ?? []).map((item) => item.sourceId));
+  const unmatchedSources = (sources ?? []).filter((source) => !matchedSourceIds.has(source._id));
   const DECISION_LABELS: Record<string, string> = {
     send_email: "Outreach proposed",
     submit_form: "Form submission prepared",
@@ -1568,114 +1592,188 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
             <div className="view-stack">
               {!selectedMission ? <p className="empty-state">Select or start a mission first.</p> : (
                 <>
-                  <section className="panel" aria-label="Discovery results">
-                    <div className="panel-head"><p className="eyebrow">DISCOVERY RESULTS</p>
-                      <span className="muted">What Radar found and why it matters. Radar decides when to propose actions — you review and approve.</span>
+                  <section className="panel" aria-label="Evidence graph">
+                    <div className="panel-head"><p className="eyebrow">EVIDENCE GRAPH</p>
+                      <span className="muted">Match → source → entity → decision. Every edge is a persisted record, not an after-the-fact summary.</span>
                       {runWorking && <span className="status-pill status-running">run active</span>}
                     </div>
+                    <div className="graph-lenses" role="tablist" aria-label="Evidence lens">
+                      {([
+                        { key: "matches", label: "Matches", count: (matches ?? []).length },
+                        { key: "sources", label: "Sources", count: (sources ?? []).length },
+                        { key: "entities", label: "Entities", count: (entities ?? []).length },
+                      ] as const).map((lens) => (
+                        <button
+                          key={lens.key}
+                          type="button"
+                          role="tab"
+                          aria-selected={discoverLens === lens.key && !discoverFocus}
+                          className={discoverLens === lens.key ? "graph-lens active" : "graph-lens"}
+                          onClick={() => { setDiscoverLens(lens.key); setDiscoverFocus(null); }}
+                        >
+                          {lens.label}<em>{lens.count}</em>
+                        </button>
+                      ))}
+                    </div>
+                    {discoverFocus && (
+                      <p className="graph-focus">
+                        <span>Focused on {discoverFocus.kind}: <strong>{discoverFocus.label}</strong></span>
+                        <button type="button" className="btn ghost" onClick={() => setDiscoverFocus(null)}>Clear focus</button>
+                      </p>
+                    )}
                     <p className="stage-note">{latestJob ? `${sources?.length ?? 0} sources from ${jobs?.length ?? 0} research jobs` : "The agent discovers sources automatically during its run."}</p>
+                    {(unmatchedSources.length > 0 || unmatchedEntities.length > 0) && (
+                      <p className="stage-note">
+                        {unmatchedSources.length > 0
+                          ? <>{unmatchedSources.length} fetched page{unmatchedSources.length === 1 ? "" : "s"} produced no match. </>
+                          : null}
+                        {unmatchedEntities.length > 0
+                          ? <>{unmatchedEntities.length} resolved entit{unmatchedEntities.length === 1 ? "y" : "ies"} produced no match. </>
+                          : null}
+                        They stay in the graph rather than being discarded, so what Radar ruled out is as inspectable as what it kept.
+                      </p>
+                    )}
                     {researchNotice && <p className="stage-note" role="status">{researchNotice}</p>}
                   </section>
 
-                  {entities && entities.length > 0 && (
-                    <section aria-label="Entities and signals" className="panel">
-                      <div className="panel-head">
-                        <p className="eyebrow">ENTITIES & SIGNALS</p>
-                        <span className="muted">{entities.length} resolved · {missionSignals?.length ?? 0} signals</span>
-                      </div>
-                      <div className="entity-list">
-                        {entities.map((entity) => {
-                          const signals = (missionSignals ?? []).filter((signal) => signal.entityId === entity._id);
+                  {discoverLens === "matches" && (
+                  <section aria-label="Matches">
+                    {matches === undefined ? <p className="empty-state">Loading matches…</p> : matches.length === 0 ? (
+                      <div className="panel"><p className="empty-state">No matches yet. Radar explains which constraint limited discovery rather than inventing candidates.</p></div>
+                    ) : (
+                      <div className="graph-list">
+                        {matches.map((match) => {
+                          const source = sourceById(match.sourceId);
+                          const matchDecision = decisionFor(match._id);
+                          const typeLabel = SOURCE_TYPE_LABELS[match.sourceType] ?? match.sourceType;
+                          const entityId = match.entity?._id ?? null;
+                          const signals = entityId ? signalsForEntity(entityId) : [];
+                          const open = expandedMatchId === match._id;
                           return (
-                            <article className="entity-card" key={entity._id}>
-                              <div className="entity-head">
-                                <span className={`kind-pill kind-${entity.kind}`}>{entity.kind}</span>
-                                <strong>{entity.name}</strong>
-                                {entity.extractionStatus === "snippet_only" && <span className="mono-tag">snippet-only</span>}
-                                <span className="muted">confidence {Math.round(entity.confidence * 100)}%</span>
-                              </div>
-                              {entity.expressedNeed && <p className="stage-note"><b>Needs</b>{entity.expressedNeed}</p>}
-                              {entity.skillsOrOffer.length > 0 && <p className="stage-note"><b>Offers</b>{entity.skillsOrOffer.join(" · ")}</p>}
-                              {entity.contactRoute ? (
-                                <p className="stage-note">
-                                  <b>Contact</b>{entity.contactRoute.kind}: {entity.contactRoute.value}{" "}
-                                  <a className="source-link" href={entity.contactRoute.publicSource} target="_blank" rel="noreferrer">public source</a>
-                                </p>
-                              ) : (
-                                <p className="stage-note warn"><b>Contact</b>No public route found — Radar will research an alternate route instead of guessing.</p>
+                            <article className={`panel graph-match${open ? " open" : ""}`} key={match._id}>
+                              {/* The graph edge, stated in one row: page → entity → decision. */}
+                              <button
+                                type="button"
+                                className="graph-match-head"
+                                aria-expanded={open}
+                                onClick={() => setExpandedMatchId(open ? null : match._id)}
+                              >
+                                <span className={`status-pill status-${match.label}`}>{match.label}</span>
+                                <strong>{match.entity?.name ?? match.subject}</strong>
+                                {match.entity && <span className={`kind-pill kind-${match.entity.kind}`}>{match.entity.kind}</span>}
+                                <span className="graph-edge">{hostLabel(match.sourceUrl)} → {match.entity ? "entity" : "no entity"} → {matchDecision ? DECISION_LABELS[matchDecision.decision] ?? matchDecision.decision : "no decision"}</span>
+                                {matchDecision && <span className={`decision-pill decision-${matchDecision.decision}`}>{matchDecision.actionability.replace(/_/g, " ")}</span>}
+                                <span className="graph-chevron" aria-hidden="true">{open ? "▾" : "▸"}</span>
+                              </button>
+
+                              {open && (
+                                <div className="graph-chain">
+                                  {/* ① The page the evidence was read from. */}
+                                  <div className="graph-node">
+                                    <p className="eyebrow">① SOURCE</p>
+                                    <a className="graph-node-link" href={match.sourceUrl} target="_blank" rel="noreferrer">{hostLabel(match.sourceUrl)}</a>
+                                    <p className="stage-note">{match.sourceTitle} · {typeLabel}{match.freshness ? ` · ${match.freshness}` : ""}{source ? ` · fetched ${shortDate(source.fetchedAt)}` : ""}</p>
+                                    <p className="stage-note">{match.sourceQuery
+                                      ? <>Its plan searched the public web for “{match.sourceQuery}” — this {typeLabel} page matched.</>
+                                      : <>Found while {typeLabel === "crawled" ? "crawling" : "researching"} a source from this mission.</>}</p>
+                                    <div className="inline-actions">
+                                      <button type="button" className="btn ghost" onClick={() => { setDiscoverLens("sources"); setDiscoverFocus({ kind: "source", id: match.sourceId, label: hostLabel(match.sourceUrl) }); }}>Open in sources →</button>
+                                      {source && !source.content && <button type="button" className="btn ghost" disabled={!backendConnected || investigateCapability?.available === false} onClick={() => onScrape(match.sourceId)}>Scrape full page</button>}
+                                    </div>
+                                  </div>
+
+                                  {/* ② The entity resolved from that page. */}
+                                  <div className="graph-node">
+                                    <p className="eyebrow">② ENTITY</p>
+                                    {match.entity && entityId ? (
+                                      <>
+                                        <div className="entity-head">
+                                          <span className={`kind-pill kind-${match.entity.kind}`}>{match.entity.kind}</span>
+                                          <strong>{match.entity.name}</strong>
+                                          <span className="muted">confidence {Math.round(match.entity.confidence * 100)}%</span>
+                                          {match.entity.extractionStatus === "snippet_only" && <span className="mono-tag">snippet-only</span>}
+                                        </div>
+                                        {match.entity.expressedNeed && <p className="stage-note"><b>Needs</b>{match.entity.expressedNeed}</p>}
+                                        {match.entity.offer.length > 0 && <p className="stage-note"><b>Offers</b>{match.entity.offer.join(" · ")}</p>}
+                                        {match.entity.contactRoute ? (
+                                          <p className="stage-note"><b>Contact</b>{match.entity.contactRoute.kind}: {match.entity.contactRoute.value} <a className="source-link" href={match.entity.contactRoute.publicSource} target="_blank" rel="noreferrer">public source</a></p>
+                                        ) : (
+                                          <p className="stage-note warn"><b>Contact</b>No public route found — Radar researches an alternate route instead of guessing.</p>
+                                        )}
+                                        {signals.map((signal) => (
+                                          <p className="signal-row" key={signal._id}><span className="signal-chip">{signal.type.replace(/_/g, " ")}</span>{signal.statement}</p>
+                                        ))}
+                                        <div className="inline-actions">
+                                          <button type="button" className="btn ghost" onClick={() => { setDiscoverLens("entities"); setDiscoverFocus({ kind: "entity", id: entityId, label: match.entity?.name ?? match.subject }); }}>Open in entities →</button>
+                                        </div>
+                                      </>
+                                    ) : (
+                                      <p className="empty-state">No entity was resolved from this page, so the match rests on the discovery snippet alone.</p>
+                                    )}
+                                  </div>
+
+                                  {/* ③ What Radar decided about it, and why. */}
+                                  <div className="graph-node">
+                                    <p className="eyebrow">③ DECISION</p>
+                                    {matchDecision ? (
+                                      <div className={`decision-note decision-${matchDecision.decision}`}>
+                                        <p className="why-row"><b>Radar decided</b>{DECISION_LABELS[matchDecision.decision] ?? matchDecision.decision} — {matchDecision.detail}</p>
+                                        <p className="stage-note">Match {matchDecision.quality} · actionability {matchDecision.actionability}{matchDecision.capability ? ` · via ${matchDecision.capability}` : ""}</p>
+                                        {matchDecision.missingEvidence && <p className="stage-note">Still missing: {matchDecision.missingEvidence}</p>}
+                                        {matchDecision.usedFacts.length > 0 && <p className="stage-note">Authorized facts: {matchDecision.usedFacts.map((fact) => `${fact.category}: ${fact.value}`).join(" · ")}</p>}
+                                        {matchDecision.artifacts.length > 0 && <p className="stage-note">Authorized documents: {matchDecision.artifacts.map((artifact) => artifact.title).join(" · ")}</p>}
+                                        {matchDecision.alternatives.length > 0 && <p className="stage-note">Rejected: {matchDecision.alternatives.map((alt) => `${alt.decision} — ${alt.reason}`).join("; ")}</p>}
+                                      </div>
+                                    ) : (
+                                      <p className="empty-state">No action decision recorded yet — Radar writes one when the mission reaches the action stage.</p>
+                                    )}
+                                    {match.explanationSummary && <p className="why-row"><b>Why it matches</b>{match.explanationSummary}</p>}
+                                    {match.positiveEvidence.length > 0 && (
+                                      <p className="why-row"><b>Evidence</b>
+                                        <ul className="evidence-list">
+                                          {match.positiveEvidence.slice(0, 4).map((item, index) => <li key={index}>{item}</li>)}
+                                        </ul>
+                                      </p>
+                                    )}
+                                    {match.unknowns.length > 0 && <p className="why-row"><b>Unknowns</b>{match.unknowns.join(" · ")}</p>}
+                                    {match.risks.length > 0 && <p className="why-row why-risk"><b>Risks</b>{match.risks.join(" · ")}</p>}
+                                    <p className="why-row"><b>From your context</b>{match.userSourceTitles.length > 0
+                                      ? <>Checked against your sources: {match.userSourceTitles.slice(0, 3).join(", ")}{match.userSourceTitles.length > 3 ? ` +${match.userSourceTitles.length - 3} more` : ""}.</>
+                                      : "Judged against your mission brief and confirmed facts."}</p>
+                                    {match.recommendedAction && <p className="next-action"><b>Next</b>{match.recommendedAction}</p>}
+                                  </div>
+                                </div>
                               )}
-                              {signals.map((signal) => (
-                                <p className="signal-row" key={signal._id}>
-                                  <span className="signal-chip">{signal.type.replace(/_/g, " ")}</span>{signal.statement}
-                                </p>
-                              ))}
-                              <a className="source-link" href={entity.canonicalUrl} target="_blank" rel="noreferrer">Evidence: {new URL(entity.canonicalUrl).hostname}</a>
                             </article>
                           );
                         })}
                       </div>
-                    </section>
+                    )}
+                  </section>
                   )}
 
-                  <section aria-label="Matches">
-                    {matches === undefined ? <p className="empty-state">Loading matches…</p> : matches.length === 0 ? (
-                      <div className="panel"><p className="empty-state">No matches yet. Run a search — Radar explains which constraint limited discovery rather than inventing candidates.</p></div>
+                  {discoverLens === "sources" && (
+                  <section aria-label="Sources">
+                    {sources === undefined ? <p className="empty-state">Loading sources…</p> : sources.length === 0 ? (
+                      <div className="panel"><p className="empty-state">No sources fetched yet. They appear as Radar researches.</p></div>
                     ) : (
-                      <div className="match-grid">
-                        {matches.map((match) => {
-                          const source = sources?.find((item) => item._id === match.sourceId);
-                          const matchDecision = decisionFor(match._id);
-                          const sourceTypeLabel = match.sourceType === "crawled_page" ? "crawled" : match.sourceType === "scraped_page" ? "scraped" : match.sourceType === "mapped_site" ? "site map" : "search";
+                      <div className="graph-list">
+                        {(discoverFocus?.kind === "source" ? sources.filter((item) => item._id === discoverFocus.id) : sources).map((source) => {
+                          const entity = (entities ?? []).find((item) => item.sourceId === source._id) ?? null;
+                          const sourceMatches = matchesForSource(source._id);
                           return (
-                            <article className="panel match-card" key={match._id}>
+                            <article className="panel graph-node-card" key={source._id}>
                               <div className="panel-head">
-                                <span className={`status-pill status-${match.label}`}>{match.label}</span>
-                                {match.freshness && <span className="mono-tag">{match.freshness}</span>}
-                                {match.explanationModel && <span className="mono-tag">{match.explanationModel}</span>}
+                                <p className="eyebrow">SOURCE</p>
+                                <span className="mono-tag">{SOURCE_TYPE_LABELS[source.sourceType] ?? source.sourceType}</span>
+                                <span className="muted">fetched {shortDate(source.fetchedAt)}</span>
+                                {sourceMatches.length === 0 && <span className="decision-pill decision-no_action">no match</span>}
                               </div>
-                              <h3>{match.entity?.name ?? match.subject}</h3>
-                              {match.entity && (
-                                <div className="entity-inline">
-                                  <span className={`kind-pill kind-${match.entity.kind}`}>{match.entity.kind}</span>
-                                  {match.entity.expressedNeed && <span className="muted">needs: {match.entity.expressedNeed.slice(0, 90)}{match.entity.expressedNeed.length > 90 ? "…" : ""}</span>}
-                                  {match.entity.contactRoute
-                                    ? <span className="muted">· {match.entity.contactRoute.kind} via <a className="source-link" href={match.entity.contactRoute.publicSource} target="_blank" rel="noreferrer">public source</a></span>
-                                    : <span className="muted">· no public contact route — Radar will find another way before proposing outreach</span>}
-                                </div>
-                              )}
-
-                              <div className="why-chain">
-                                <p className="why-row"><b>Why Radar looked</b>{match.sourceQuery
-                                  ? <>Its plan searched the public web for “{match.sourceQuery}” — this {sourceTypeLabel} page matched.</>
-                                  : <>Found while {sourceTypeLabel === "crawled" ? "crawling" : "researching"} a source from this mission.</>}</p>
-                                {match.explanationSummary && <p className="why-row"><b>Why it matches</b>{match.explanationSummary}</p>}
-                                {match.positiveEvidence.length > 0 && (
-                                  <p className="why-row"><b>Evidence</b>
-                                    <ul className="evidence-list">
-                                      {match.positiveEvidence.slice(0, 3).map((item, index) => <li key={index}>{item}</li>)}
-                                    </ul>
-                                  </p>
-                                )}
-                                {match.unknowns.length > 0 && <p className="why-row"><b>Unknowns</b>{match.unknowns.join(" · ")}</p>}
-                                {match.risks.length > 0 && <p className="why-row why-risk"><b>Risks</b>{match.risks.join(" · ")}</p>}
-                                <p className="why-row"><b>From your context</b>{match.userSourceTitles.length > 0
-                                  ? <>Checked against your sources: {match.userSourceTitles.slice(0, 3).join(", ")}{match.userSourceTitles.length > 3 ? ` +${match.userSourceTitles.length - 3} more` : ""}.</>
-                                  : "Judged against your mission brief and confirmed facts."}</p>
-                              </div>
-
-                              {matchDecision && (
-                                <div className={`decision-note decision-${matchDecision.decision}`}>
-                                  <p className="why-row"><b>Radar decided</b>{DECISION_LABELS[matchDecision.decision] ?? matchDecision.decision} — {matchDecision.detail}</p>
-                                  <p className="stage-note">Match {matchDecision.quality} · actionability {matchDecision.actionability}{matchDecision.capability ? ` · via ${matchDecision.capability}` : ""}</p>
-                                  {matchDecision.missingEvidence && <p className="stage-note">Still missing: {matchDecision.missingEvidence}</p>}
-                                  {matchDecision.artifacts.length > 0 && <p className="stage-note">Authorized documents: {matchDecision.artifacts.map((artifact) => artifact.title).join(" · ")}</p>}
-                                  {matchDecision.alternatives.length > 0 && <p className="stage-note">Rejected: {matchDecision.alternatives.map((alt) => `${alt.decision} — ${alt.reason}`).join("; ")}</p>}
-                                </div>
-                              )}
-                              <a className="source-link" href={match.sourceUrl} target="_blank" rel="noreferrer">View source: {new URL(match.sourceUrl).hostname}{source ? ` · fetched ${shortDate(source.fetchedAt)}` : ""}</a>
-                              {match.recommendedAction && <p className="next-action"><b>Next</b>{match.recommendedAction}</p>}
-                              <div className="inline-actions">
-                                {source && !source.content && <button type="button" className="btn ghost" disabled={!backendConnected || investigateCapability?.available === false} onClick={() => onScrape(match.sourceId)}>Scrape full page</button>}
+                              <a className="graph-node-link" href={source.url} target="_blank" rel="noreferrer">{hostLabel(source.url)}</a>
+                              <p className="stage-note">{source.title}</p>
+                              <div className="graph-edges">
+                                <span>→ {entity ? `entity: ${entity.name}` : "no entity resolved"}</span>
+                                <span>→ {sourceMatches.length} match{sourceMatches.length === 1 ? "" : "es"}</span>
                               </div>
                             </article>
                           );
@@ -1683,6 +1781,53 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
                       </div>
                     )}
                   </section>
+                  )}
+
+                  {discoverLens === "entities" && (
+                  <section aria-label="Entities">
+                    {entities === undefined ? <p className="empty-state">Loading entities…</p> : entities.length === 0 ? (
+                      <div className="panel"><p className="empty-state">No entities resolved yet. Radar extracts them from the pages it fetches.</p></div>
+                    ) : (
+                      <div className="graph-list">
+                        {(discoverFocus?.kind === "entity" ? entities.filter((item) => item._id === discoverFocus.id) : entities).map((entity) => {
+                          const entityMatches = matchesForEntity(entity._id);
+                          const signals = signalsForEntity(entity._id);
+                          const source = sourceById(entity.sourceId);
+                          return (
+                            <article className="panel graph-node-card" key={entity._id}>
+                              <div className="panel-head">
+                                <span className={`kind-pill kind-${entity.kind}`}>{entity.kind}</span>
+                                <strong>{entity.name}</strong>
+                                <span className="muted">confidence {Math.round(entity.confidence * 100)}%</span>
+                                {entity.extractionStatus === "snippet_only" && <span className="mono-tag">snippet-only</span>}
+                                {entityMatches.length === 0 && <span className="decision-pill decision-no_action">unmatched</span>}
+                              </div>
+                              {entity.expressedNeed && <p className="stage-note"><b>Needs</b>{entity.expressedNeed}</p>}
+                              {entity.skillsOrOffer.length > 0 && <p className="stage-note"><b>Offers</b>{entity.skillsOrOffer.join(" · ")}</p>}
+                              {entity.contactRoute ? (
+                                <p className="stage-note"><b>Contact</b>{entity.contactRoute.kind}: {entity.contactRoute.value} <a className="source-link" href={entity.contactRoute.publicSource} target="_blank" rel="noreferrer">public source</a></p>
+                              ) : (
+                                <p className="stage-note warn"><b>Contact</b>No public route found — Radar researches an alternate route instead of guessing.</p>
+                              )}
+                              {signals.slice(0, 4).map((signal) => (
+                                <p className="signal-row" key={signal._id}><span className="signal-chip">{signal.type.replace(/_/g, " ")}</span>{signal.statement}</p>
+                              ))}
+                              <div className="graph-edges">
+                                {source && <span>← source: <a href={source.url} target="_blank" rel="noreferrer">{hostLabel(source.url)}</a></span>}
+                                <span>→ {entityMatches.length} match{entityMatches.length === 1 ? "" : "es"}</span>
+                              </div>
+                              {entityMatches.length > 0 && (
+                                <div className="inline-actions">
+                                  <button type="button" className="btn ghost" onClick={() => { setDiscoverLens("matches"); setDiscoverFocus(null); setExpandedMatchId(entityMatches[0]?._id ?? null); }}>Open its match →</button>
+                                </div>
+                              )}
+                            </article>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </section>
+                  )}
                 </>
               )}
             </div>

@@ -798,6 +798,51 @@ label { display: grid; gap: 6px; color: var(--muted); font-size: 10px; font-weig
 .decision-note.decision-investigate { background: var(--amber-wash); border-left-color: var(--amber); }
 .decision-note.decision-no_action { background: var(--red-wash); border-left-color: var(--red-line); }
 
+/* ---------- Discover: the evidence graph ---------- */
+/* A match is the entry node; expanding it walks the same persisted edges every
+   time — page → entity → decision — so the reasoning is inspectable, not told. */
+.graph-lenses { display: flex; gap: 4px; width: fit-content; padding: 4px; border: 1px solid var(--line); border-radius: 11px; background: var(--hover-wash); }
+.graph-lens { display: inline-flex; align-items: center; gap: 7px; padding: 7px 14px; border-radius: 8px; color: var(--muted); font-size: 11px; font-weight: 700; transition: .18s ease; }
+.graph-lens:hover { color: var(--text); }
+.graph-lens.active { color: var(--accent); background: var(--panel); box-shadow: var(--shadow-soft); }
+:root[data-theme="dark"] .graph-lens.active { background: var(--active-wash); }
+.graph-lens em { font-style: normal; color: var(--muted-2); font-family: 'DM Mono', monospace; font-size: 9px; }
+.graph-lens.active em { color: var(--accent); }
+.graph-focus { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 10px; padding: 8px 12px; border: 1px solid var(--cyan-line); border-radius: 10px; background: var(--cyan-wash); color: var(--text-soft); font-size: 11px; }
+.graph-focus strong { color: var(--text); }
+.graph-focus .btn { margin-left: auto; }
+
+.graph-list { display: grid; gap: 12px; }
+.graph-match { display: grid; gap: 0; padding: 0; overflow: hidden; }
+.graph-match-head { display: flex; align-items: center; gap: 9px; width: 100%; padding: 14px 18px; text-align: left; transition: background .18s ease; }
+.graph-match-head:hover { background: var(--hover-wash); }
+.graph-match-head strong { color: var(--text); font-size: 13px; letter-spacing: -.01em; }
+.graph-edge { margin-left: auto; color: var(--muted-2); font-family: 'DM Mono', monospace; font-size: 9px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.graph-chevron { flex: 0 0 auto; color: var(--muted-2); font-size: 10px; }
+.graph-match.open .graph-chevron { color: var(--accent); }
+
+.decision-pill { padding: 3px 8px; border: 1px solid var(--line-strong); border-radius: 6px; color: var(--text-faint); background: var(--hover-wash); font-size: 9px; font-weight: 700; letter-spacing: .04em; text-transform: lowercase; white-space: nowrap; }
+.decision-pill.decision-send_email, .decision-pill.decision-submit_form { color: var(--green); border-color: var(--green-line); background: var(--green-wash); }
+.decision-pill.decision-investigate { color: var(--amber); border-color: var(--amber-line); background: var(--amber-wash); }
+.decision-pill.decision-no_action { color: var(--red); border-color: var(--red-line); background: var(--red-wash); }
+
+.graph-chain { display: grid; gap: 0; padding: 0 18px 14px; border-top: 1px dashed var(--line-strong); }
+.graph-node { position: relative; display: grid; gap: 5px; padding: 14px 0 14px 24px; }
+.graph-node::before { content: ""; position: absolute; left: 5px; top: 26px; bottom: 0; width: 2px; background: var(--line); }
+.graph-node:last-child::before { display: none; }
+.graph-node::after { content: ""; position: absolute; left: 0; top: 18px; width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--accent-line); background: var(--panel); }
+.graph-node:last-child::after { border-color: var(--accent); background: var(--accent); }
+.graph-node .eyebrow { margin-bottom: 1px; }
+.graph-node-link { color: var(--cyan); font-size: 11px; font-weight: 700; overflow-wrap: anywhere; }
+.graph-node-card { display: grid; gap: 6px; }
+.graph-edges { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px; color: var(--muted-2); font-family: 'DM Mono', monospace; font-size: 9px; }
+.graph-edges a { color: var(--cyan); overflow-wrap: anywhere; }
+
+@media (max-width: 760px) {
+  .graph-match-head { flex-wrap: wrap; }
+  .graph-edge { margin-left: 0; flex-basis: 100%; white-space: normal; }
+}
+
 /* ── Activity log ────────────────────────────────────────────────── */
 .metric-tile.static { cursor: default; }
 .metric-tile.static:hover { transform: none; border-color: var(--line); }

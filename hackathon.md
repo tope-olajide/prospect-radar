@@ -14,9 +14,36 @@
 - **Auth:** Convex Auth
 - **AI models:** any OpenAI-compatible model via OPENAI_BASE_URL / OPENAI_MODEL (DashScope qwen-max in production; provider recorded on plans and classifications)
 - **Started:** 2026-09-13T00:00:00Z
-- **Last updated:** 2026-09-20T11:50:00Z
+- **Last updated:** 2026-09-20T12:10:00Z
 
 ## Log
+
+### 2026-09-20 - working tree — Phase 6 (part 4): Discover is an evidence graph
+Discover stopped being three flat lists and became one drillable graph:
+**match → source → entity → decision**.
+
+Each match is a collapsed row stating its edge in one line — the page host, then
+`entity` or `no entity`, then the decision Radar reached — with a tone-coloured
+actionability pill. Expanding it walks the same three persisted nodes every time:
+
+- **① Source** — the exact page, its type, freshness, fetch time, and the plan
+  query that led Radar to it, with a jump into the Sources lens.
+- **② Entity** — everything resolved from that page: kind, confidence, need,
+  offer, contact route (or the honest "no public route found"), and its signals.
+- **③ Decision** — why Radar acted, investigated, or chose nothing, including the
+  authorized facts and documents it had and the alternatives it rejected.
+
+Three lenses (Matches / Sources / Entities) are three entry points into the same
+graph, and focusing one node filters to it with a visible, clearable focus state.
+The graph also keeps its honest edges: a fetched page that produced no match and
+an entity that was never matched both stay visible and are counted in the header,
+so what Radar ruled out is as inspectable as what it kept.
+
+Every edge is a persisted id, so the graph rebuilds identically on reload rather
+than being reconstructed from prose.
+
+Verification: 274 tests passing, both typechecks clean (`tsc --noUnusedLocals`
+clean on the app), `vite build` clean.
 
 ### 2026-09-20 - working tree — Phase 6 (part 3): visual polish, agent state at a glance
 Every page now states, in one line, what the agent is doing right now.
