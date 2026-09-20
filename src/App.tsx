@@ -7,7 +7,7 @@ import { MissionLifecycle } from "./MissionLifecycle";
 import { useAuthActions } from "@convex-dev/auth/react";
 import SignIn from "./SignIn";
 
-type View = "home" | "discover" | "actions" | "inbox" | "relationships" | "outcomes" | "profile" | "activity";
+type View = "home" | "discover" | "actions" | "inbox" | "outcomes" | "profile" | "activity";
 type PipelineStageName = "contacted" | "replied" | "engaged" | "meeting" | "proposal" | "won" | "lost" | "dormant";
 
 const PIPELINE_LABELS: Record<PipelineStageName, string> = {
@@ -43,7 +43,6 @@ const viewTitles: Record<View, { eyebrow: string; title: string; description: st
   discover: { eyebrow: "Signal intelligence", title: "What Radar found, and why.", description: "Every match carries its source, freshness, unknowns, and the decision Radar reached about it." },
   actions: { eyebrow: "Approval boundary", title: "What Radar proposes and does.", description: "Each draft is approved as its own exact payload, then Radar executes and observes it on its own." },
   inbox: { eyebrow: "Agent-owned inbox", title: "Replies arrive live.", description: "Inbound mail is untrusted data: classified, never auto-sent." },
-  relationships: { eyebrow: "Relationship memory", title: "Radar remembers.", description: "People, organizations, stages, follow-ups, and meetings — every relationship keeps its history." },
   outcomes: { eyebrow: "Results", title: "What actually happened.", description: "Contacted, replied, interested, meeting, proposal, converted — tied back to the mission that caused it." },
   profile: { eyebrow: "Your identity", title: "Who you are to Radar.", description: "Sources, skills, preferences, and what Radar has learned — all in one place." },
   activity: { eyebrow: "Agent timeline", title: "What Radar did.", description: "Real run events from real execution — nothing animated, nothing invented." },
@@ -135,6 +134,7 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
   const snoozeFollowUp = useMutation(api.relationships.snoozeFollowUp);
   const completeFollowUp = useMutation(api.relationships.completeFollowUp);
   const setOutcomeStage = useMutation(api.relationships.setStage);
+  const recordMeeting = useMutation(api.relationships.recordMeeting);
   const runPipeline = useMutation(api.orchestratorStore.runPipeline);
   const stopRun = useMutation(api.orchestratorStore.stopRun);
   const retryRunStage = useMutation(api.orchestratorStore.retryStage);
@@ -178,6 +178,11 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
   const [factEditValue, setFactEditValue] = useState("");
   const [approvalNotice, setApprovalNotice] = useState("");
   const [pipelineNotice, setPipelineNotice] = useState("");
+  // One inline meeting form at a time, opened from a relationship row. This is
+  // the user reporting an off-platform event, not operating the workflow.
+  const [meetingDraft, setMeetingDraft] = useState<{
+    outcomeId: string; matchId: string | null; counterpart: string; scheduledAt: string; notes: string;
+  } | null>(null);
   const [formSourceId, setFormSourceId] = useState("");
   const [formNotice, setFormNotice] = useState("");
   const [scouting, setScouting] = useState(false);
@@ -193,6 +198,16 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
   const [objectiveKind, setObjectiveKind] = useState("");
   const [objectiveCount, setObjectiveCount] = useState(1);
   const [objectiveNotice, setObjectiveNotice] = useState("");
+  // The provider-credit intervention. Deliberately not a standing dashboard
+  // control: it renders only when the run actually paused for budget, because
+  // the agent state then says "raise the cap" and the user needs a way to.
+  const [budgetLimitDraft, setBudgetLimitDraft] = useState("");
+  const [budgetNotice, setBudgetNotice] = useState("");
+  // Correcting the objective is not operating the workflow: Radar re-reads the
+  // goal and rebuilds the plan, and everything else about the mission stays put.
+  const [goalEditing, setGoalEditing] = useState(false);
+  const [goalDraft, setGoalDraft] = useState("");
+  const [goalNotice, setGoalNotice] = useState("");
 
   // Discover is an evidence graph, not a search console: a match is the entry
   // point, and each one drills into the page it was read from, the entity on
@@ -245,13 +260,15 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
   const threads = useQuery(api.inbox.listThreads, backendConnected && workspaceId ? { workspaceId, missionId: null } : "skip");
   const threadMessages = useQuery(api.inbox.listMessages, backendConnected && selectedThreadId ? { workspaceId, threadId: selectedThreadId } : "skip");
   const classifications = useQuery(api.outreachStore.listClassifications, backendConnected && workspaceId ? { workspaceId, missionId: null } : "skip");
-  const outcomes = useQuery(api.outcomes.listForMission, backendConnected && missionId ? { workspaceId, missionId } : "skip");
   const readiness = useQuery(api.contextCheckQuery.readiness, backendConnected && missionId && run?.status === "waiting" && run.currentStage === "context_check" ? { missionId } : "skip");
   // Outcomes is a workspace-level question ("what actually happened"), so it
   // reads every relationship rather than only the selected mission's.
   const workspaceOutcomes = useQuery(api.outcomes.listForWorkspace, backendConnected && workspaceId ? { workspaceId } : "skip");
   const followUps = useQuery(api.relationships.followUpsForMission, backendConnected && missionId ? { workspaceId, missionId } : "skip");
   const sequences = useQuery(api.relationships.sequencesForMission, backendConnected && missionId ? { workspaceId, missionId } : "skip");
+  // Meetings are relationship state, not a destination of their own: they are
+  // rendered inside each relationship rather than given a page.
+  const meetings = useQuery(api.relationships.meetingsForMission, backendConnected && missionId ? { workspaceId, missionId } : "skip");
   const formTemplates = useQuery(api.formStore.listTemplates, backendConnected && missionId ? { workspaceId, missionId } : "skip");
   const formProposals = useQuery(api.formStore.listProposals, backendConnected && missionId ? { workspaceId, missionId } : "skip");
   const formSubmissions = useQuery(api.formStore.listSubmissions, backendConnected && missionId ? { workspaceId, missionId } : "skip");
@@ -261,6 +278,8 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
   const approveProposal = useMutation(api.formStore.approveProposal);
   const reviseProposalValues = useMutation(api.formStore.reviseProposalValues);
   const executeFormSubmission = useAction(api.formFlows.executeFormSubmission);
+  // Only read while a mission is selected: the intervention is mission context.
+  const budgetStatus = useQuery(api.budget.status, backendConnected && workspaceId ? { workspaceId, missionId } : "skip");
   const contextFacts = useQuery(api.context.list, backendConnected && workspaceId ? { workspaceId, missionId: null } : "skip");
   const board = useQuery(api.commandCenter.runsBoard, backendConnected && workspaceId ? { workspaceId } : "skip");
   // Activity page: the run trail for whichever mission the user is inspecting.
@@ -288,6 +307,9 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
   const setThreadLabel = useMutation(api.inbox.setLabel);
   const updateBrief = useMutation(api.plans.updateBrief);
   const setObjective = useMutation(api.plans.setObjective);
+  const setBudgetLimit = useMutation(api.budget.setLimit);
+  const reviseGoal = useMutation(api.missions.reviseGoal);
+  const interpretMission = useAction(api.ai.interpretMission);
   const setRepresentationAllowed = useMutation(api.dataSources.setRepresentationAllowed);
 
   // Capability state, read from the registry rather than guessed at the button.
@@ -302,9 +324,9 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
 
   const latestJob = jobs?.[0];
   const actionableDrafts = (drafts ?? []).filter((draft) => ["draft", "awaiting_approval", "approved", "executing"].includes(draft.status));
-  const openOutcomes = (outcomes ?? []).filter((outcome) => !["won", "lost"].includes(outcome.stage));
   const dueFollowUps = (followUps ?? []).filter((item) => item.status === "due" || item.dueAt <= Date.now());
   const followUpForOutcome = (outcomeId: Id<"outcomes">) => (followUps ?? []).find((item) => item.outcomeId === outcomeId);
+  const meetingsForOutcome = (outcomeId: Id<"outcomes">) => (meetings ?? []).filter((item) => item.outcomeId === outcomeId);
 
   const pendingFormWork = (formProposals ?? []).filter((proposal) => proposal.status === "draft" || proposal.status === "approved" || proposal.status === "blocked" || proposal.status === "failed").length;
 
@@ -405,7 +427,6 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
     discover: matches?.length ?? null,
     actions: actionableDrafts.length + pendingFormWork || null,
     inbox: threads?.length || null,
-    relationships: openOutcomes.length || null,
     outcomes: (workspaceOutcomes ?? []).filter((outcome) => !["won", "lost"].includes(outcome.stage)).length || null,
     profile: (contextFacts ?? []).filter((f) => f.verificationStatus === "unreviewed").length || null,
     activity: null,
@@ -647,6 +668,58 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
     }
   }
 
+  /**
+   * Raise the research cap so a budget-paused mission can continue.
+   *
+   * The agent state tells the user to raise the cap when the run pauses for
+   * budget; without this the instruction named an action the UI did not offer.
+   */
+  async function onRaiseBudgetLimit() {
+    const value = Number(budgetLimitDraft);
+    if (budgetLimitDraft.trim() === "" || !Number.isFinite(value)) {
+      setBudgetNotice("Enter a whole number of credits.");
+      return;
+    }
+    setBudgetNotice("");
+    try {
+      const result = await setBudgetLimit({ workspaceId, creditLimit: Math.floor(value) });
+      setBudgetNotice(`Research budget raised to ${result.creditLimit} credits. Radar can continue.`);
+      setBudgetLimitDraft("");
+    } catch (error) {
+      setBudgetNotice(error instanceof Error ? error.message : "Could not raise the research budget.");
+    }
+  }
+
+  /**
+   * Correct the objective Radar was given.
+   *
+   * `reviseGoal` deliberately clears the stored intent, so the follow-up
+   * `interpretMission` re-reads the mission and rebuilds the plan. This is the
+   * user fixing the objective, not driving the workflow: no stage is advanced
+   * by hand and the agent decides everything downstream from here.
+   */
+  async function onCorrectGoal() {
+    if (!missionId) return;
+    const next = goalDraft.trim();
+    if (!next) return;
+    if (next === (selectedMission?.rawGoal ?? "")) {
+      setGoalNotice("That is the goal Radar already has.");
+      return;
+    }
+    setPlanning(true); setGoalNotice("");
+    try {
+      await reviseGoal({ workspaceId, missionId, rawGoal: next });
+      await interpretMission({ missionId });
+      setGoalEditing(false);
+      setGoalNotice("Goal corrected — Radar re-read the objective and rebuilt the plan.");
+      if (run?.status === "queued") {
+        try { await runPipeline({ workspaceId, missionId }); } catch { /* the plan gate still shows it */ }
+      }
+    } catch (error) {
+      setGoalNotice(error instanceof Error ? error.message : "Could not correct the goal.");
+    } finally { setPlanning(false); }
+  }
+
   async function onToggleRepresentation(sourceId: Id<"dataSources">, allowed: boolean) {
     try {
       await setRepresentationAllowed({ workspaceId, sourceId, allowed });
@@ -828,6 +901,31 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
     catch (error) { setPipelineNotice(error instanceof Error ? error.message : "Could not complete the follow-up."); }
   }
 
+  /**
+   * Recording a meeting is the user reporting something Radar cannot observe:
+   * a conversation that happened off-platform. It advances the relationship
+   * stage to `meeting`, so it is state the agent then reasons from.
+   */
+  async function onRecordMeeting() {
+    if (!missionId || !meetingDraft) return;
+    setPipelineNotice("");
+    const scheduledAt = Date.parse(meetingDraft.scheduledAt);
+    if (!Number.isFinite(scheduledAt)) { setPipelineNotice("Pick a date for the meeting."); return; }
+    try {
+      await recordMeeting({
+        workspaceId,
+        missionId,
+        outcomeId: meetingDraft.outcomeId as Id<"outcomes">,
+        matchId: meetingDraft.matchId ? (meetingDraft.matchId as Id<"matches">) : null,
+        counterpart: meetingDraft.counterpart,
+        scheduledAt,
+        notes: meetingDraft.notes,
+      });
+      setPipelineNotice(`Meeting with ${meetingDraft.counterpart} recorded — stage is now meeting.`);
+      setMeetingDraft(null);
+    } catch (error) { setPipelineNotice(error instanceof Error ? error.message : "Could not record the meeting."); }
+  }
+
   async function onScoutForm() {
     if (!missionId || !formSourceId) { setFormNotice("Choose a discovered source to scout first."); return; }
     setScouting(true); setFormNotice("");
@@ -904,6 +1002,9 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
     const thread = (threads ?? []).find((item) => item.threadId === selectedThreadId);
     return thread?.missionId ? missions?.find((mission) => mission._id === thread.missionId) : undefined;
   })();
+  // The relationship this conversation belongs to, so the message shows the
+  // person and the stage Radar is holding for them, not just the raw address.
+  const selectedThreadOutcome = (workspaceOutcomes ?? []).find((outcome) => outcome.linkedThreadId === selectedThreadId);
 
   const filteredMissions = useMemo(() => {
     if (!missions) return [];
@@ -1123,6 +1224,47 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
                   )}
                   {/* What the user asked */}
                   <p className="mission-goal-display"><strong>You asked:</strong> {selectedMission.rawGoal}</p>
+
+                  {/* ── Budget intervention ──
+                      Radar spends real provider credits, so a mission can pause
+                      purely on cost. This renders only when that has actually
+                      happened (or the cap no longer covers the next stage) —
+                      otherwise the agent state would tell the user to raise a
+                      cap that the UI gave them no way to raise. */}
+                  {budgetStatus && (budgetBlocked || budgetStatus.exhausted || !budgetStatus.allowed) && (
+                    <div className="budget-strip budget-blocked" role="alert">
+                      <div className="panel-head">
+                        <p className="eyebrow">RESEARCH PAUSED</p>
+                        <span className="muted">{budgetStatus.used} of {budgetStatus.creditLimit} credits used</span>
+                      </div>
+                      <p className="budget-note">
+                        Radar reached your research budget of {budgetStatus.creditLimit} credits
+                        {budgetStatus.pendingEstimate > 0 ? `, and the next stage is estimated at about ${budgetStatus.pendingEstimate}` : ""}.
+                        {" "}Increase the limit to let Radar continue.
+                      </p>
+                      <div className="budget-figures">
+                        <span><em>Used</em><strong>{budgetStatus.used}</strong></span>
+                        <span><em>Limit</em><strong>{budgetStatus.creditLimit}</strong></span>
+                        <span><em>Remaining</em><strong>{budgetStatus.remaining}</strong></span>
+                        <span><em>Pending estimate ≈</em><strong>{budgetStatus.pendingEstimate}</strong></span>
+                      </div>
+                      <div className="budget-control">
+                        <input
+                          inputMode="numeric"
+                          placeholder={`New limit (now ${budgetStatus.creditLimit})`}
+                          value={budgetLimitDraft}
+                          onChange={(event) => setBudgetLimitDraft(event.target.value)}
+                          aria-label="New research credit limit"
+                        />
+                        <button type="button" className="btn" onClick={onRaiseBudgetLimit} disabled={!budgetLimitDraft.trim()}>Raise limit</button>
+                        {run?.status === "blocked" && (
+                          <button type="button" className="btn ghost" onClick={onRetryStage}>↻ Resume mission</button>
+                        )}
+                      </div>
+                      {budgetNotice && <p className="stage-note" role="status">{budgetNotice}</p>}
+                    </div>
+                  )}
+
                   {/* Radar's understanding */}
                   {selectedMission.intent && (
                     <div className="understanding-inline">
@@ -1284,7 +1426,23 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
                         <p className="eyebrow">MISSION BRIEF &amp; OBJECTIVE</p>
                         <span className="muted">{plan.userEditedAt ? `edited ${shortDate(plan.userEditedAt)}` : "AI-planned"} · adjust any time</span>
                       </summary>
-                      {briefEditing ? (
+                      {goalEditing ? (
+                        <div className="view-stack">
+                          <label className="field-label" htmlFor="goal-correct">Goal</label>
+                          <textarea
+                            id="goal-correct"
+                            className="composer-input"
+                            rows={2}
+                            value={goalDraft}
+                            onChange={(event) => setGoalDraft(event.target.value)}
+                          />
+                          <p className="stage-note">Radar re-reads the objective and rebuilds the plan from it. Nothing else about the mission changes, and no stage is advanced by hand.</p>
+                          <div className="inline-actions">
+                            <button type="button" className="btn" onClick={onCorrectGoal} disabled={!goalDraft.trim() || planning}>{planning ? "Re-reading…" : "Save goal"}</button>
+                            <button type="button" className="btn ghost" onClick={() => { setGoalEditing(false); setGoalNotice(""); }}>Cancel</button>
+                          </div>
+                        </div>
+                      ) : briefEditing ? (
                         <div className="view-stack">
                           <label className="field-label" htmlFor="brief-goal">Goal</label>
                           <textarea id="brief-goal" className="composer-input" rows={2} value={briefDraft.normalizedGoal} onChange={(event) => setBriefDraft({ ...briefDraft, normalizedGoal: event.target.value })} />
@@ -1339,11 +1497,13 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
                           </p>
                           {objectiveNotice && <p className="stage-note" role="status">{objectiveNotice}</p>}
                           <div className="inline-actions">
+                            <button type="button" className="btn ghost" onClick={() => { setGoalEditing(true); setGoalDraft(selectedMission?.rawGoal ?? plan.normalizedGoal); setGoalNotice(""); }}>Correct goal</button>
                             <button type="button" className="btn ghost" onClick={startBriefEdit}>Edit brief</button>
                           </div>
                         </>
                       )}
                       {briefNotice && <p className="stage-note" role="status">{briefNotice}</p>}
+                      {goalNotice && <p className="stage-note" role="status">{goalNotice}</p>}
                     </details>
                   )}
 
@@ -1962,14 +2122,22 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
                         const threadMission = thread.missionId ? missions?.find((mission) => mission._id === thread.missionId) : undefined;
                         const threadApprovals = (drafts ?? []).filter((draft) => draft.threadId === thread.threadId && ["awaiting_approval", "approved"].includes(draft.status));
                         const latestClassification = classifications?.find((item) => item.threadId === thread.threadId);
+                        // A message is never just a message: it belongs to a person
+                        // and to a relationship Radar is tracking. The thread links
+                        // to that relationship by `linkedThreadId`, so the context
+                        // here is read, not guessed.
+                        const threadOutcome = (workspaceOutcomes ?? []).find((outcome) => outcome.linkedThreadId === thread.threadId);
+                        const threadFollowUp = threadOutcome ? followUpForOutcome(threadOutcome._id) : undefined;
                         return (
                           <article className={selectedThreadId === thread.threadId ? "row-item static selected" : "row-item static"} key={thread._id}>
                             <button type="button" className="thread-select" onClick={() => setSelectedThreadId(thread.threadId)}>
-                              <strong>{thread.subject || "(no subject)"}</strong>
-                              <em>{thread.senderSummary} · {thread.preview}</em>
+                              <strong>{threadOutcome ? threadOutcome.counterpart : thread.senderSummary}</strong>
+                              <em>{thread.subject || "(no subject)"} · {thread.preview}</em>
                               <span className="thread-meta">
+                                {threadOutcome ? `${PIPELINE_LABELS[threadOutcome.stage as PipelineStageName] ?? threadOutcome.stage} · relationship · ` : ""}
                                 {threadMission ? `mission: ${threadMission.title.slice(0, 32)}${threadMission.title.length > 32 ? "…" : ""} · ` : ""}
                                 {latestClassification ? `radar read: ${latestClassification.label.replace("_", " ")}` : thread.labels.map((label) => `#${label}`).join(" ")}
+                                {threadFollowUp ? ` · follow-up ${threadFollowUp.status === "due" || threadFollowUp.dueAt <= Date.now() ? "due now" : shortDate(threadFollowUp.dueAt)}` : ""}
                               </span>
                             </button>
                             <div className="board-state">
@@ -1991,7 +2159,11 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
                 </section>
 
                 <section className="panel" aria-label="Agent conversation">
-                  <div className="panel-head"><p className="eyebrow">AGENT CONVERSATION</p>{selectedThreadMission && <span className="mono-tag">{selectedThreadMission.title.slice(0, 36)}{selectedThreadMission.title.length > 36 ? "…" : ""}</span>}</div>
+                  <div className="panel-head">
+                    <p className="eyebrow">AGENT CONVERSATION</p>
+                    {selectedThreadOutcome && <span className="mono-tag">{selectedThreadOutcome.counterpart} · {PIPELINE_LABELS[selectedThreadOutcome.stage as PipelineStageName] ?? selectedThreadOutcome.stage}</span>}
+                    {selectedThreadMission && <span className="mono-tag">{selectedThreadMission.title.slice(0, 36)}{selectedThreadMission.title.length > 36 ? "…" : ""}</span>}
+                  </div>
                   {!selectedThreadId ? <p className="empty-state">Select a conversation. Radar shows what it understood, what it proposes next, and what it needs from you.</p> : threadMessages === undefined ? <p className="empty-state">Loading messages…</p> : threadMessages.length === 0 ? <p className="empty-state">No messages in this conversation yet.</p> : (
                     <div className="view-stack">
                       {threadMessages.map((message) => {
@@ -2046,95 +2218,6 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
             </div>
           )}
 
-          {activeView === "relationships" && (
-            <div className="view-stack">
-              {overview && (
-                <section className="panel" aria-label="Where every relationship stands">
-                  <div className="panel-head"><p className="eyebrow">WHERE EVERYTHING STANDS</p><span className="muted">live per-relationship stages across this workspace</span></div>
-                  <div className="stage-summary">
-                    {overview.pipeline.map((row) => (
-                      <span key={row.stage} className={row.count > 0 ? "" : "zero"}>
-                        <span className={`stage-dot stage-${row.stage}`} />{PIPELINE_LABELS[row.stage as PipelineStageName] ?? row.stage}
-                        <strong>{row.count}</strong>
-                      </span>
-                    ))}
-                  </div>
-                </section>
-              )}
-
-              {(sequences ?? []).filter((sequence) => sequence.status === "active").length > 0 && (
-                <section className="panel" aria-label="Ongoing sequences">
-                  <div className="panel-head"><p className="eyebrow">ONGOING SEQUENCES</p><span className="muted">each step becomes its own approval — nothing auto-sends</span></div>
-                  <div className="row-list">
-                    {(sequences ?? []).filter((sequence) => sequence.status === "active").map((sequence) => {
-                      const nextStep = sequence.steps.filter((step) => step.status === "draft_ready" || step.status === "pending")[0];
-                      return (
-                        <div className="row-item static" key={sequence._id}>
-                          <div className="row-copy">
-                            <strong>{matches?.find((match) => match._id === sequence.matchId)?.subject ?? "Relationship sequence"}</strong>
-                            <em>{nextStep ? `Next: step ${nextStep.index + 1} — ${nextStep.intent} (${nextStep.status.replace("_", " ")})` : "All steps sent or awaiting approval"}</em>
-                          </div>
-                          <span className={`status-pill status-${sequence.status}`}>{sequence.steps.filter((step) => step.status === "sent").length}/{sequence.steps.length} sent</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </section>
-              )}
-
-              <section className="panel" aria-label="Follow-ups">
-                <div className="panel-head"><p className="eyebrow">FOLLOW-UPS</p><span className="muted">{(followUps ?? []).length} open</span></div>
-                {(followUps ?? []).length === 0 ? (
-                  <p className="empty-state">No open follow-ups. Radar schedules one when a reply defers; you can schedule your own on any relationship below.</p>
-                ) : (
-                  <div className="row-list">
-                    {(followUps ?? []).map((item) => (
-                      <article className={`row-item static ${item.status === "due" || item.dueAt <= Date.now() ? "attention" : ""}`} key={item._id}>
-                        <div className="row-copy">
-                          <strong>{item.note}</strong>
-                          <em>{item.source === "agent" ? "Radar scheduled this" : "You scheduled this"} · due {shortDate(item.dueAt)}{item.status === "due" ? " · due now" : ""}</em>
-                        </div>
-                        <div className="inline-actions">
-                          <button type="button" className="btn ghost" onClick={() => onSnoozeFollowUp(item._id, 1)}>Snooze 1d</button>
-                          <button type="button" className="btn ghost" onClick={() => onSnoozeFollowUp(item._id, 3)}>Snooze 3d</button>
-                          <button type="button" className="btn" onClick={() => onCompleteFollowUp(item._id)}>Done</button>
-                        </div>
-                      </article>
-                    ))}
-                  </div>
-                )}
-              </section>
-
-              <section aria-label="Relationships">
-                {outcomes === undefined ? <p className="empty-state">Loading the pipeline…</p> : outcomes.length === 0 ? (
-                  <div className="panel"><p className="empty-state">No relationships yet. Radar opens one the moment an approved message is sent or a reply arrives — and remembers everything that happens next.</p></div>
-                ) : (
-                  <div className="row-list">
-                    {outcomes.map((outcome) => {
-                      const followUp = followUpForOutcome(outcome._id);
-                      const overdue = followUp && (followUp.status === "due" || followUp.dueAt <= Date.now());
-                      return (
-                        <article className="row-item static" key={outcome._id}>
-                          <div className="row-copy">
-                            <strong><span className={`stage-dot stage-${outcome.stage}`} /> {outcome.counterpart}</strong>
-                            <em>{outcome.latestEvidence}</em>
-                            <span className="muted">{PIPELINE_LABELS[outcome.stage as PipelineStageName] ?? outcome.stage} · updated {shortDate(outcome.updatedAt)}{followUp ? ` · follow-up ${overdue ? "due now" : shortDate(followUp.dueAt)}` : ""}</span>
-                          </div>
-                          <div className="inline-actions">
-                            <button type="button" className="btn ghost" onClick={() => onAdvanceStage(outcome._id, "engaged", "Reply with a concrete next step.")}>Engaged</button>
-                            <button type="button" className="btn ghost" onClick={() => onOutcomeStatus(outcome._id, "positive")}>Won</button>
-                            <button type="button" className="btn ghost" onClick={() => onOutcomeStatus(outcome._id, "closed")}>Lost</button>
-                          </div>
-                        </article>
-                      );
-                    })}
-                  </div>
-                )}
-                {pipelineNotice && <p className="stage-note">{pipelineNotice}</p>}
-              </section>
-            </div>
-          )}
-
           {/*
             Outcomes: what actually happened, as opposed to Relationships
             (which tracks where each one stands right now). The counts come from
@@ -2179,26 +2262,49 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
                     )}
                   </section>
 
-                  <section className="panel" aria-label="Every relationship">
+                  {/*
+                    Results answers "what happened?" — so it groups outcomes by
+                    the result itself. The counterpart directory, with its
+                    stages, sequences, follow-ups, and meetings, lives in the
+                    Relationships tab; listing it here too made two tabs answer
+                    the same question.
+                  */}
+                  <section className="panel" aria-label="Outcome results">
                     <div className="panel-head">
-                      <p className="eyebrow">EVERY RELATIONSHIP</p>
-                      <span className="muted">{workspaceOutcomes?.length ?? 0} tracked across this workspace</span>
+                      <p className="eyebrow">OUTCOME RESULTS</p>
+                      <span className="muted">{workspaceOutcomes?.length ?? 0} recorded across this workspace</span>
                     </div>
                     {workspaceOutcomes === undefined ? <p className="empty-state">Loading outcomes…</p> : workspaceOutcomes.length === 0 ? (
                       <p className="empty-state">No outcomes recorded yet. Radar opens one the moment an approved message is sent or a reply lands — whichever mission started it, it shows up here.</p>
                     ) : (
-                      <div className="row-list">
-                        {workspaceOutcomes.map((outcome) => (
-                          <article className="row-item static" key={outcome._id}>
-                            <div className="row-copy">
-                              <strong><span className={`stage-dot stage-${outcome.stage}`} /> {outcome.counterpart}</strong>
-                              <em>{outcome.latestEvidence}</em>
-                              <span className="muted">
-                                {PIPELINE_LABELS[outcome.stage as PipelineStageName] ?? outcome.stage} · {outcome.missionTitle} · updated {shortDate(outcome.updatedAt)}
-                              </span>
+                      <div className="view-stack">
+                        {([
+                          { key: "succeeded", label: "Succeeded", hint: "the counterpart engaged", statuses: ["positive"], tone: "green" },
+                          { key: "waiting", label: "Waiting on them", hint: "sent, or holding for a reply", statuses: ["open", "waiting", "replied"], tone: "amber" },
+                          { key: "closed", label: "Closed without a yes", hint: "declined, or Radar closed it out", statuses: ["negative", "closed"], tone: "red" },
+                          { key: "unresolved", label: "Unresolved", hint: "Radar could not classify the result", statuses: ["unknown"], tone: "accent" },
+                        ] as const).map((bucket) => {
+                          const rows = workspaceOutcomes.filter((outcome) => (bucket.statuses as readonly string[]).includes(outcome.status));
+                          if (rows.length === 0) return null;
+                          return (
+                            <div className={`action-group tone-${bucket.tone}`} key={bucket.key}>
+                              <div className="actions-divider"><span>{bucket.label}</span><em>{rows.length} · {bucket.hint}</em></div>
+                              <div className="row-list">
+                                {rows.map((outcome) => (
+                                  <article className="row-item static" key={outcome._id}>
+                                    <div className="row-copy">
+                                      <strong><span className={`stage-dot stage-${outcome.stage}`} /> {outcome.counterpart}</strong>
+                                      <em>{outcome.latestEvidence}</em>
+                                      <span className="muted">
+                                        {PIPELINE_LABELS[outcome.stage as PipelineStageName] ?? outcome.stage} · {outcome.missionTitle} · updated {shortDate(outcome.updatedAt)}
+                                      </span>
+                                    </div>
+                                  </article>
+                                ))}
+                              </div>
                             </div>
-                          </article>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
                   </section>
@@ -2210,7 +2316,7 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
                 <>
                   {(sequences ?? []).filter((sequence) => sequence.status === "active").length > 0 && (
                     <section className="panel" aria-label="Ongoing sequences">
-                      <div className="panel-head"><p className="eyebrow">ONGOING SEQUENCES</p><span className="muted">each step becomes its own approval — nothing auto-sends</span></div>
+                      <div className="panel-head"><p className="eyebrow">ONGOING SEQUENCES</p><span className="muted">this mission · each step becomes its own approval — nothing auto-sends</span></div>
                       <div className="row-list">
                         {(sequences ?? []).filter((sequence) => sequence.status === "active").map((sequence) => {
                           const nextStep = sequence.steps.filter((step) => step.status === "draft_ready" || step.status === "pending")[0];
@@ -2229,7 +2335,7 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
                   )}
 
                   <section className="panel" aria-label="Follow-ups">
-                    <div className="panel-head"><p className="eyebrow">FOLLOW-UPS</p><span className="muted">{(followUps ?? []).length} open</span></div>
+                    <div className="panel-head"><p className="eyebrow">FOLLOW-UPS</p><span className="muted">this mission · {(followUps ?? []).length} open</span></div>
                     {(followUps ?? []).length === 0 ? (
                       <p className="empty-state">No open follow-ups. Radar schedules one when a reply defers; you can schedule your own on any relationship below.</p>
                     ) : (
@@ -2251,23 +2357,97 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
                     )}
                   </section>
 
-                  <section aria-label="Relationships">
-                    {outcomes === undefined ? <p className="empty-state">Loading the pipeline…</p> : outcomes.length === 0 ? (
-                      <div className="panel"><p className="empty-state">No relationships yet. Radar opens one the moment an approved message is sent or a reply arrives — and remembers everything that happens next.</p></div>
+                  {meetingDraft && (
+                    <section className="panel" aria-label="Record a meeting">
+                      <div className="panel-head"><p className="eyebrow">RECORD A MEETING</p><span className="muted">Radar cannot see calls that happen off-platform — tell it, and it remembers</span></div>
+                      <div className="meeting-form">
+                        <label>
+                          <span>With</span>
+                          <input value={meetingDraft.counterpart} onChange={(event) => setMeetingDraft({ ...meetingDraft, counterpart: event.target.value })} />
+                        </label>
+                        <label>
+                          <span>Date</span>
+                          <input type="date" value={meetingDraft.scheduledAt} onChange={(event) => setMeetingDraft({ ...meetingDraft, scheduledAt: event.target.value })} />
+                        </label>
+                        <label className="wide">
+                          <span>Notes</span>
+                          <input placeholder="What was discussed, and what was agreed?" value={meetingDraft.notes} onChange={(event) => setMeetingDraft({ ...meetingDraft, notes: event.target.value })} />
+                        </label>
+                        <div className="inline-actions">
+                          <button type="button" className="btn" onClick={onRecordMeeting}>Save meeting</button>
+                          <button type="button" className="btn ghost" onClick={() => setMeetingDraft(null)}>Cancel</button>
+                        </div>
+                      </div>
+                      {pipelineNotice && <p className="stage-note">{pipelineNotice}</p>}
+                    </section>
+                  )}
+
+                  <section className="panel" aria-label="Meetings">
+                    <div className="panel-head"><p className="eyebrow">MEETINGS</p><span className="muted">{(meetings ?? []).length} recorded on the selected mission</span></div>
+                    {(meetings ?? []).length === 0 ? (
+                      <p className="empty-state">No meetings yet. Use <strong>Record meeting</strong> on a relationship below when a call happens off-platform — Radar cannot observe those on its own.</p>
                     ) : (
                       <div className="row-list">
-                        {outcomes.map((outcome) => {
+                        {(meetings ?? []).map((meeting) => {
+                          const upcoming = meeting.scheduledAt >= Date.now();
+                          return (
+                            <div className={`row-item static ${upcoming ? "attention" : ""}`} key={meeting._id}>
+                              <div className="row-copy">
+                                <strong>{meeting.counterpart}</strong>
+                                <em>{meeting.notes || "No notes recorded."}</em>
+                              </div>
+                              <span className="muted">{upcoming ? "Scheduled" : "Held"} {shortDate(meeting.scheduledAt)} · {meeting.createdBy === "agent" ? "Radar" : "you"}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </section>
+
+                  {/*
+                    Relationships answers "who are we dealing with?" — so it is
+                    the counterpart directory, across the whole workspace rather
+                    than only this mission. Sequences, follow-ups, and meetings
+                    above are the selected mission's; rows from other missions
+                    say so, and only offer the meeting control where Radar knows
+                    which mission to file it under.
+                  */}
+                  <section className="panel" aria-label="Relationships">
+                    <div className="panel-head">
+                      <p className="eyebrow">COUNTERPARTS</p>
+                      <span className="muted">{workspaceOutcomes?.length ?? 0} tracked across this workspace</span>
+                    </div>
+                    {workspaceOutcomes === undefined ? <p className="empty-state">Loading the pipeline…</p> : workspaceOutcomes.length === 0 ? (
+                      <p className="empty-state">No relationships yet. Radar opens one the moment an approved message is sent or a reply arrives — and remembers everything that happens next.</p>
+                    ) : (
+                      <div className="row-list">
+                        {workspaceOutcomes.map((outcome) => {
                           const followUp = followUpForOutcome(outcome._id);
                           const overdue = followUp && (followUp.status === "due" || followUp.dueAt <= Date.now());
+                          const onThisMission = outcome.missionId === missionId;
                           return (
                             <article className="row-item static" key={outcome._id}>
                               <div className="row-copy">
                                 <strong><span className={`stage-dot stage-${outcome.stage}`} /> {outcome.counterpart}</strong>
                                 <em>{outcome.latestEvidence}</em>
-                                <span className="muted">{PIPELINE_LABELS[outcome.stage as PipelineStageName] ?? outcome.stage} · updated {shortDate(outcome.updatedAt)}{followUp ? ` · follow-up ${overdue ? "due now" : shortDate(followUp.dueAt)}` : ""}</span>
+                                <span className="muted">{PIPELINE_LABELS[outcome.stage as PipelineStageName] ?? outcome.stage} · {outcome.missionTitle} · updated {shortDate(outcome.updatedAt)}{followUp ? ` · follow-up ${overdue ? "due now" : shortDate(followUp.dueAt)}` : ""}</span>
+                                {meetingsForOutcome(outcome._id).length > 0 && (
+                                  <div className="meeting-list" aria-label={`Meetings with ${outcome.counterpart}`}>
+                                    {meetingsForOutcome(outcome._id).map((meeting) => (
+                                      <p className={`meeting-entry ${meeting.scheduledAt >= Date.now() ? "upcoming" : ""}`} key={meeting._id}>
+                                        <strong>{meeting.scheduledAt >= Date.now() ? "Upcoming" : "Held"} {shortDate(meeting.scheduledAt)}</strong>
+                                        {meeting.notes ? ` — ${meeting.notes}` : ""}
+                                        <em>{meeting.createdBy === "agent" ? "recorded by Radar" : "recorded by you"}</em>
+                                      </p>
+                                    ))}
+                                  </div>
+                                )}
                               </div>
                               <div className="inline-actions">
                                 <button type="button" className="btn ghost" onClick={() => onAdvanceStage(outcome._id, "engaged", "Reply with a concrete next step.")}>Engaged</button>
+                                {onThisMission && (
+                                  <button type="button" className="btn ghost" onClick={() => setMeetingDraft({ outcomeId: outcome._id, matchId: outcome.matchId ?? null, counterpart: outcome.counterpart, scheduledAt: new Date(Date.now() + 86400000).toISOString().slice(0, 10), notes: "" })}>Record meeting</button>
+                                )}
                                 <button type="button" className="btn ghost" onClick={() => onOutcomeStatus(outcome._id, "positive")}>Won</button>
                                 <button type="button" className="btn ghost" onClick={() => onOutcomeStatus(outcome._id, "closed")}>Lost</button>
                               </div>
@@ -2384,6 +2564,16 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
               <div className="actions-divider"><span>Form submissions</span></div>
               {!selectedMission ? <p className="empty-state">Select or start a mission first.</p> : (
                 <>
+                  {/* Manual form controls are an override, never the workflow.
+                      Radar decides on its own whether a form route is worth
+                      investigating and prepares the fill; this stays collapsed so
+                      the normal experience is the proposal below rather than a
+                      Firecrawl control panel. */}
+                  <details className="advanced-override">
+                    <summary>
+                      <span className="eyebrow">ADVANCED · MANUAL FORM CONTROLS</span>
+                      <span className="muted">Scout one specific source by hand. Radar normally decides this itself.</span>
+                    </summary>
                   <section className="panel" aria-label="Form scout">
                     <div className="panel-head">
                       <p className="eyebrow">FIRECRAWL FORM SCOUT</p>
@@ -2397,14 +2587,14 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
                           <option key={source._id} value={source._id}>{source.title.slice(0, 60)} — {hostLabel(source.url)}</option>
                         ))}
                       </select>
-                      <button type="button" className="btn" disabled={!backendConnected || !formSourceId || scouting || formCapability?.available === false} onClick={onScoutForm}>{scouting ? "Scouting…" : "Scout form"}</button>
+                      <button type="button" className="btn ghost" disabled={!backendConnected || !formSourceId || scouting || formCapability?.available === false} onClick={onScoutForm}>{scouting ? "Scouting…" : "Scout form"}</button>
                     </div>
                     {formNotice && <p className="stage-note">{formNotice}</p>}
                   </section>
 
                   <section aria-label="Scouted forms">
                     {formTemplates === undefined ? <p className="empty-state">Loading scouted forms…</p> : formTemplates.length === 0 ? (
-                      <div className="panel"><p className="empty-state">No forms scouted yet. Pick a discovered source above and Radar will extract its structure — fields, labels, and whether it is gated.</p></div>
+                      <div className="panel"><p className="empty-state">Nothing scouted by hand. Radar scouts form routes itself when a target has no email route.</p></div>
                     ) : (
                       <div className="view-stack">
                         {formTemplates.map((template) => (
@@ -2432,7 +2622,7 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
                                   ))}
                                 </ul>
                                 <div className="inline-actions">
-                                  <button type="button" className="btn" disabled={!backendConnected || proposing || formCapability?.available === false} onClick={() => onProposeFill(template._id)}>{proposing ? "Proposing…" : "Propose fill"}</button>
+                                  <button type="button" className="btn ghost" disabled={!backendConnected || proposing || formCapability?.available === false} onClick={() => onProposeFill(template._id)}>{proposing ? "Proposing…" : "Propose fill"}</button>
                                   <a className="source-link" href={template.url} target="_blank" rel="noreferrer">Open the form</a>
                                 </div>
                               </>
@@ -2442,11 +2632,15 @@ function WorkspaceApp({ backendConnected }: { backendConnected: boolean }) {
                       </div>
                     )}
                   </section>
+                  </details>
 
                   <section aria-label="Fill proposals">
-                    <div className="panel-head"><p className="eyebrow">FILL PROPOSALS · APPROVE THE EXACT PAYLOAD</p></div>
+                    <div className="panel-head">
+                      <p className="eyebrow">FILL PROPOSALS · APPROVE THE EXACT PAYLOAD</p>
+                      <span className="muted">Radar prepares these on its own when a form is the only legitimate route</span>
+                    </div>
                     {(formProposals ?? []).length === 0 ? (
-                      <div className="panel"><p className="empty-state">No proposals yet. Propose a fill and Radar maps your confirmed facts onto the fields — anything it cannot ground stays empty.</p></div>
+                      <div className="panel"><p className="empty-state">No proposals yet. Radar scouts a form route itself when a target has no email route, then maps your confirmed facts onto the fields — anything it cannot ground stays empty.</p></div>
                     ) : (
                       <div className="view-stack">
                         {(formProposals ?? []).map((proposal) => {

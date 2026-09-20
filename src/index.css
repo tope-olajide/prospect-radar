@@ -416,6 +416,22 @@ label { display: grid; gap: 6px; color: var(--muted); font-size: 10px; font-weig
 .row-item.static { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; cursor: default; }
 .row-item.static:hover { border-color: var(--line); background: var(--panel-2); }
 .row-item.attention { border-color: var(--amber-line); background: var(--amber-wash); }
+
+/*
+ * Meetings are relationship state, shown inside the relationship rather than on
+ * a page of their own. Scoped under `.meeting-entry` so the row-item nowrap
+ * ellipsis (right for one-line evidence) does not truncate meeting notes.
+ */
+.meeting-list { display: grid; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line); }
+.meeting-entry { display: block; margin: 0; color: var(--muted); font-size: 10px; line-height: 1.6; white-space: normal; overflow: visible; }
+.meeting-entry strong { display: inline; margin-right: 6px; color: var(--text); font-size: 10px; white-space: normal; overflow: visible; }
+.meeting-entry.upcoming strong { color: var(--amber); }
+.meeting-entry em { display: block; margin-top: 2px; color: var(--muted); font-size: 9px; font-style: normal; white-space: normal; overflow: visible; }
+.meeting-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; margin-top: 12px; }
+.meeting-form label { display: grid; gap: 5px; min-width: 150px; flex: 1; }
+.meeting-form label.wide { flex-basis: 100%; }
+.meeting-form label > span { color: var(--muted); font-size: 9px; letter-spacing: .06em; text-transform: uppercase; }
+.meeting-form .inline-actions { margin-top: 0; flex: 0 0 auto; }
 .thread-select { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; background: none; border: none; color: inherit; font: inherit; text-align: left; cursor: pointer; padding: 0; min-width: 0; flex: 1; }
 .row-copy { min-width: 0; flex: 1; }
 .row-copy strong { display: flex; align-items: center; gap: 8px; color: var(--text); font-size: 12px; }
@@ -797,6 +813,17 @@ label { display: grid; gap: 6px; color: var(--muted); font-size: 10px; font-weig
 .decision-note.decision-submit_form { background: var(--green-wash); border-left-color: var(--green); }
 .decision-note.decision-investigate { background: var(--amber-wash); border-left-color: var(--amber); }
 .decision-note.decision-no_action { background: var(--red-wash); border-left-color: var(--red-line); }
+
+/* ---------- Advanced / manual override ---------- */
+/* Manual operator controls live behind this so the normal experience is the
+   agent's proposal, never a provider control panel. */
+.advanced-override { border: 1px dashed var(--line-strong); border-radius: 12px; background: var(--panel-2); }
+.advanced-override > summary { display: grid; gap: 3px; padding: 12px 16px; cursor: pointer; list-style: none; }
+.advanced-override > summary::-webkit-details-marker { display: none; }
+.advanced-override > summary:hover { background: var(--hover-wash); }
+.advanced-override[open] > summary { border-bottom: 1px dashed var(--line-strong); }
+.advanced-override > section, .advanced-override > p { margin: 14px 16px; }
+.advanced-override > section.panel { margin: 14px 16px; }
 
 /* ---------- Discover: the evidence graph ---------- */
 /* A match is the entry node; expanding it walks the same persisted edges every

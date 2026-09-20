@@ -18,6 +18,60 @@
 
 ## Log
 
+### 2026-09-20 - working tree — Phase 6 (part 5): the correction pass
+Consolidating the sidebar had quietly removed three things the user genuinely
+needs, and left two tabs answering the same question. This pass fixes the
+product issues rather than the styling.
+
+**Restored: the budget intervention.** The Home agent state could say "paused for
+budget — raise the cap" while the UI offered no way to raise it, which is worse
+than saying nothing. The intervention now renders only when the run actually
+paused on cost (`blocked` / exhausted / not allowed), reads the real numbers from
+`budget.status`, and offers `Raise limit` plus `Resume mission`. It is an
+exceptional intervention, not a standing control: it is absent from a healthy
+mission.
+
+**Restored: correcting a misunderstood goal.** The single most important input is
+the objective, and the consolidation had left no way to fix one Radar misread.
+`Correct goal` now sits in mission context and runs `reviseGoal` (which clears
+the stored intent) into `interpretMission`, so Radar re-reads the objective and
+rebuilds the plan. No stage is advanced by hand — the user corrects the goal and
+the agent decides everything downstream. Editing the plan brief stays separate.
+
+**Demoted: the manual Firecrawl form operator.** The Actions page was presenting
+a source picker, `Scout form`, and `Propose fill` as the normal workflow, which
+made the user the operator of something Radar owns. The controls now live inside
+a collapsed `ADVANCED · MANUAL FORM CONTROLS` override — kept, because it is a
+real escape hatch, but no longer the experience.
+
+**Deleted: the dead Relationships route.** Outcomes → Relationships already
+carried the relationship UI; the old route was unreachable and duplicated it.
+Removed along with its `View` member, page title, and nav count. There is now one
+implementation of the relationship UI.
+
+**Restored: meetings, inside the relationship.** `recordMeeting` and
+`meetingsForMission` had no UI at all. Meetings are relationship state, so they
+now render inside each relationship rather than on a page: a mission-level
+MEETINGS panel, plus per-counterpart entries marked upcoming or held with who
+recorded them. `Record meeting` is offered only where Radar knows which mission
+to file it under, and recording one advances the stage to `meeting`.
+
+**Inbox now connects a message to a person and a stage.** A thread shows its
+counterpart (read from the outcome's `linkedThreadId`, not the raw sender), the
+relationship stage, its mission, and any follow-up due — so a reply is never
+just a message.
+
+**Split: the Outcomes tabs stopped overlapping.** Results had listed EVERY
+RELATIONSHIP while the Relationships tab listed relationships too. Results now
+groups outcomes by the result itself — Succeeded / Waiting on them / Closed
+without a yes / Unresolved — while Relationships became the workspace-wide
+counterpart directory carrying stage, sequences, follow-ups, and meetings. The
+mission-scoped panels name their scope so "this mission" and "this workspace"
+are never confused.
+
+Verification: 274 tests passing, both typechecks clean including
+`--noUnusedLocals` on the app, `tsc -b && vite build` clean.
+
 ### 2026-09-20 - working tree — Phase 6 (part 4): Discover is an evidence graph
 Discover stopped being three flat lists and became one drillable graph:
 **match → source → entity → decision**.
